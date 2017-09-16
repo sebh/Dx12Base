@@ -6,27 +6,6 @@
 #include "DirectXMath.h"
 
 
-// hack for testing
-/*RenderBuffer* vertexBuffer;
-RenderBuffer* indexBuffer;
-RenderBuffer* constantBuffer;
-
-RenderBuffer* someBuffer;
-ID3D11UnorderedAccessView* someBufferUavView;
-
-VertexShader* vertexShader;
-PixelShader*  pixelShader;
-PixelShader*  pixelShaderClear;
-PixelShader*  pixelShaderFinal;
-
-ID3D11InputLayout* layout;
-
-struct VertexType
-{
-	float position[3];
-	float color[4];
-};*/
-
 InputLayout* layout;
 
 RenderBuffer* vertexBuffer;
@@ -55,22 +34,13 @@ void Game::loadShaders(bool exitIfFail)
 	/*success &= reload(&vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", exitIfFail);
 	success &= reload(&pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", exitIfFail);
 	success &= reload(&pixelShaderClear, L"Resources\\TestShader.hlsl", "ClearPixelShader", exitIfFail);
-	success &= reload(&pixelShaderFinal, L"Resources\\TestShader.hlsl", "FinalPixelShader", exitIfFail);
-
-	InputLayoutDescriptors inputLayout;
-	appendSimpleVertexDataToInputLayout(inputLayout, "POSITION", DXGI_FORMAT_R32G32B32_FLOAT);
-	appendSimpleVertexDataToInputLayout(inputLayout, "COLOR", DXGI_FORMAT_R32G32B32A32_FLOAT);
-	resetComPtr(&layout);
-	vertexShader->createInputLayout(inputLayout, &layout);	// Have a layout object with vertex stride in it*/
+	success &= reload(&pixelShaderFinal, L"Resources\\TestShader.hlsl", "FinalPixelShader", exitIfFail);*/
 }
 
 void Game::releaseShaders()
 {
-	/*resetPtr(&pixelShader);
-	resetPtr(&pixelShaderClear);
-	resetPtr(&pixelShaderFinal);
-	resetPtr(&vertexShader);
-	resetComPtr(&layout);*/
+	delete vertexShader;
+	delete pixelShader;
 }
 
 struct VertexType
@@ -114,12 +84,7 @@ void Game::shutdown()
 	delete vertexBuffer;
 	delete indexBuffer;
 
-
-	/*delete constantBuffer;
-	releaseShaders();*/
-	delete vertexShader;
-	delete pixelShader;
-
+	releaseShaders();
 
 	delete rootSign;
 	delete pso;
@@ -170,10 +135,6 @@ void Game::render()
 	commandList->ClearRenderTargetView(descriptor, clearColor, 0, nullptr);
 
 
-
-
-
-
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
@@ -208,8 +169,8 @@ void Game::render()
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
 	commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
-	commandList->DrawInstanced(3, 1, 0, 0);
-	//commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	//commandList->DrawInstanced(3, 1, 0, 0);
+	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
 
 

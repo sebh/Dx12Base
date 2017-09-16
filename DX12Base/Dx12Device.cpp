@@ -10,6 +10,7 @@
 // https://www.codeproject.com/Articles/1180619/Managing-Descriptor-Heaps-in-Direct-D
 // https://developer.nvidia.com/dx12-dos-and-donts
 // https://bitbucket.org/Anteru/d3d12sample/src/26b0dfad6574fb408262ce2f55b85d18c3f99a21/inc/?at=default
+// https://software.intel.com/en-us/articles/introduction-to-resource-binding-in-microsoft-directx-12
 
 
 Dx12Device* g_dx12Device = nullptr;
@@ -185,15 +186,15 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
 	for (int i = 0; i < frameBufferCount; i++)
 	{
-		// first we get the n'th buffer in the swap chain and store it in the n'th
+		// First we get the n'th buffer in the swap chain and store it in the n'th
 		// position of our ID3D12Resource array
 		hr = mSwapchain->GetBuffer(i, IID_PPV_ARGS(&mBackBuffeRtv[i]));
 		ATLASSERT(hr == S_OK);
 
-		// the we "create" a render target view which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
+		// Then we create a render target view (descriptor) which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
 		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
 
-		// we increment the rtv handle ptr to the next one qccording to a rtv descriptor size
+		// We increment the rtv handle ptr to the next one according to a rtv descriptor size
 		rtvHandle.ptr += mRtvDescriptorSize; // rtvHandle.Offset(1, mRtvDescriptorSize);
 	}
 
@@ -459,9 +460,9 @@ RootSignature::RootSignature(bool iaOrNone)
 
 	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
 	rootSignDesc.NumParameters = 0;
-	rootSignDesc.pParameters = 0;
+	rootSignDesc.pParameters = nullptr;
 	rootSignDesc.NumStaticSamplers = 0;
-	rootSignDesc.pStaticSamplers = 0;
+	rootSignDesc.pStaticSamplers = nullptr;
 	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
 
 	ID3DBlob* rootSignBlob;
