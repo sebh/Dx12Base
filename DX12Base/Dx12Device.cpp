@@ -477,6 +477,7 @@ RootSignature::~RootSignature()
 	resetComPtr(&mRootSignature);
 }
 // Specifying Root Signatures in HLSL https://msdn.microsoft.com/en-us/library/windows/desktop/dn913202(v=vs.85).aspx
+// Examples https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
 
 
 

@@ -31,6 +31,9 @@ void Game::loadShaders(bool exitIfFail)
 {
 	bool success = true;
 
+	vertexShader = new VertexShader(L"Resources\\TestShader.hlsl", "ColorVertexShader");
+	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
+
 	/*success &= reload(&vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", exitIfFail);
 	success &= reload(&pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", exitIfFail);
 	success &= reload(&pixelShaderClear, L"Resources\\TestShader.hlsl", "ClearPixelShader", exitIfFail);
@@ -55,9 +58,7 @@ void Game::initialise()
 {
 	////////// Load and compile shaders
 
-	/*loadShaders(true);*/
-	vertexShader = new VertexShader(L"Resources\\TestShader.hlsl", "ColorVertexShader");
-	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
+	loadShaders(true);
 
 	InputLayout* layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
@@ -162,8 +163,8 @@ void Game::render()
 	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
 
 	// draw triangle
-	commandList->SetPipelineState(pso->getPso());
 	commandList->SetGraphicsRootSignature(rootSign->getRootsignature()); // set the root signature
+	commandList->SetPipelineState(pso->getPso());
 	commandList->RSSetViewports(1, &viewport); // set the viewports
 	commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
