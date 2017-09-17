@@ -193,10 +193,24 @@ private:
 
 
 
-class PipelineStateObject		//////////////////////////////////////////////////////////////////////////////// TO FINISH
+typedef D3D12_DEPTH_STENCIL_DESC	DepthStencilState;
+DepthStencilState					getDepthStencilState_Default();		// Depth and depth write enabled
+DepthStencilState					getDepthStencilState_Disabled();
+
+typedef D3D12_BLEND_DESC			BlendState;
+BlendState							getBlendState_Default();			// Disabled
+
+typedef D3D12_RASTERIZER_DESC		RasterizerState;
+RasterizerState						getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
+
+class PipelineStateObject
 {
 public:
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps);
+
+	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
+		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState);
+
 	~PipelineStateObject();
 
 	ID3D12PipelineState* getPso() const { return mPso; }

@@ -13,6 +13,12 @@
 // resource binding https://software.intel.com/en-us/articles/introduction-to-resource-binding-in-microsoft-directx-12
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
+// TODO: 
+//  - root descriptor handling. Single default for everything?
+//  - constant buffer
+//  - texture loading
+//  - render to HDR + depth => tone map to back buffer
+//  - proper upload handling in shared pool
 
 Dx12Device* g_dx12Device = nullptr;
 
@@ -570,6 +576,71 @@ RootSignature::~RootSignature()
 
 
 
+DepthStencilState getDepthStencilState_Default()
+{
+	DepthStencilState state;
+	state.DepthEnable = TRUE;
+	state.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	state.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	state.StencilEnable = FALSE;
+	state.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	state.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	state.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	state.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	state.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	state.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	state.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	state.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	state.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	state.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	return state;
+}
+
+DepthStencilState getDepthStencilState_Disabled()
+{
+	DepthStencilState state = getDepthStencilState_Default();
+	state.DepthEnable = FALSE;
+	state.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	state.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	state.StencilEnable = FALSE;
+	return state;
+}
+
+BlendState getBlendState_Default()
+{
+	BlendState state;
+	state.AlphaToCoverageEnable = FALSE;
+	state.IndependentBlendEnable = FALSE;
+	state.RenderTarget[0].BlendEnable = FALSE;
+	state.RenderTarget[0].LogicOpEnable = FALSE;
+	state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
+	state.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
+	state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+	state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+	state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+	state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	state.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
+	state.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	return state;
+}
+
+RasterizerState getRasterizerState_Default()
+{
+	RasterizerState state;
+	state.FillMode = D3D12_FILL_MODE_SOLID;
+	state.CullMode = D3D12_CULL_MODE_BACK;
+	state.FrontCounterClockwise = FALSE;
+	state.DepthBias = 0;
+	state.DepthBiasClamp = 0.0f;
+	state.SlopeScaledDepthBias = 0.0f;
+	state.DepthClipEnable = TRUE;
+	state.MultisampleEnable = FALSE;
+	state.AntialiasedLineEnable = FALSE;
+	state.ForcedSampleCount = 0;
+	state.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	return state;
+}
+
 PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -589,34 +660,38 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.SampleDesc.Count = 1;
 
-	psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
-	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK;
-	psoDesc.RasterizerState.FrontCounterClockwise = FALSE;
-	psoDesc.RasterizerState.DepthBias = 0;
-	psoDesc.RasterizerState.DepthBiasClamp = 0.0f;
-	psoDesc.RasterizerState.SlopeScaledDepthBias = 0.0f;
-	psoDesc.RasterizerState.DepthClipEnable = TRUE;
-	psoDesc.RasterizerState.MultisampleEnable = FALSE;
-	psoDesc.RasterizerState.AntialiasedLineEnable = FALSE;
-	psoDesc.RasterizerState.ForcedSampleCount = 0;
-	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	psoDesc.DepthStencilState = getDepthStencilState_Disabled();
+	psoDesc.RasterizerState = getRasterizerState_Default();
+	psoDesc.BlendState = getBlendState_Default();
 
-	psoDesc.BlendState.AlphaToCoverageEnable = FALSE;
-	psoDesc.BlendState.IndependentBlendEnable = FALSE;
-	psoDesc.BlendState.RenderTarget[0].BlendEnable = FALSE;
-	psoDesc.BlendState.RenderTarget[0].LogicOpEnable = FALSE;
-	psoDesc.BlendState.RenderTarget[0].SrcBlend				= D3D12_BLEND_ONE;
-	psoDesc.BlendState.RenderTarget[0].DestBlend			= D3D12_BLEND_ZERO;
-	psoDesc.BlendState.RenderTarget[0].BlendOp				= D3D12_BLEND_OP_ADD;
-	psoDesc.BlendState.RenderTarget[0].SrcBlendAlpha		= D3D12_BLEND_ONE;
-	psoDesc.BlendState.RenderTarget[0].DestBlendAlpha		= D3D12_BLEND_ZERO;
-	psoDesc.BlendState.RenderTarget[0].BlendOpAlpha			= D3D12_BLEND_OP_ADD;
-	psoDesc.BlendState.RenderTarget[0].LogicOp				= D3D12_LOGIC_OP_NOOP;
-	psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask= D3D12_COLOR_WRITE_ENABLE_ALL;
+	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
+	ATLASSERT(hr == S_OK);
+}
 
-	psoDesc.DepthStencilState.DepthEnable = FALSE;
-	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+
+PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
+	DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState)
+{
+	ID3D12Device* dev = g_dx12Device->getDevice();
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+
+	psoDesc.pRootSignature = rootSign.getRootsignature();
+	psoDesc.InputLayout = *layout.getLayoutDesc();
+	psoDesc.VS.BytecodeLength = vs.getShaderByteCodeSize();
+	psoDesc.VS.pShaderBytecode = vs.getShaderByteCode();
+	psoDesc.PS.BytecodeLength = ps.getShaderByteCodeSize();
+	psoDesc.PS.pShaderBytecode = ps.getShaderByteCode();
+
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.SampleMask = 0xffffffff;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.SampleDesc.Count = 1;
+
+	psoDesc.DepthStencilState = depthStencilState;
+	psoDesc.RasterizerState = rasterizerState;
+	psoDesc.BlendState = blendState;
 
 	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLASSERT(hr == S_OK);
