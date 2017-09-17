@@ -255,8 +255,6 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 
 void Dx12Device::internalShutdown()
 {
-	HRESULT hr;
-
 	// Get swapchain out of full screen before exiting
 	BOOL fs = false;
 	if (mSwapchain->GetFullscreenState(&fs, NULL))
@@ -492,26 +490,42 @@ void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
 
 
 
-RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
+static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
+{
+	D3D12_HEAP_PROPERTIES heap;
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT; // GPU memory
+	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap.CreationNodeMask = 1;
+	heap.VisibleNodeMask = 1;
+	return heap;
+}
+static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
+{
+	D3D12_HEAP_PROPERTIES heap;
+	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory accessible by CPU
+	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap.CreationNodeMask = 1;
+	heap.VisibleNodeMask = 1;
+	return heap;
+}
+
+RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags)
 	: RenderResource()
+	, mSizeInByte(sizeInByte)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
-
-	D3D12_HEAP_PROPERTIES defaultHeap;
-	defaultHeap.Type = D3D12_HEAP_TYPE_DEFAULT; // GPU memory
-	defaultHeap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	defaultHeap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	defaultHeap.CreationNodeMask = 1;
-	defaultHeap.VisibleNodeMask = 1;
+	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
 
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-	resourceDesc.Width = sizeByte;
+	resourceDesc.Width = mSizeInByte;
 	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
 	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	resourceDesc.Flags = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+	resourceDesc.Flags = flags;
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
@@ -525,13 +539,83 @@ RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 
 	if (initData)
 	{
-		D3D12_HEAP_PROPERTIES uploadHeap;
-		uploadHeap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory accessible from CPU
-		uploadHeap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-		uploadHeap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-		uploadHeap.CreationNodeMask = 1;
-		uploadHeap.VisibleNodeMask = 1;
+		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
+		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
+		dev->CreateCommittedResource(&uploadHeap,
+			D3D12_HEAP_FLAG_NONE,
+			&resourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&mUploadHeap));
+		setDxDebugName(mUploadHeap, L"RenderBufferUploadHeap");
+
+		void* p;
+		mUploadHeap->Map(0, nullptr, &p);
+		memcpy(p, initData, mSizeInByte);
+		mUploadHeap->Unmap(0, nullptr);
+
+		auto commandList = g_dx12Device->getFrameCommandList();
+		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, mSizeInByte);
+	}
+}
+
+RenderBuffer::~RenderBuffer()
+{
+	resetComPtr(&mUploadHeap);
+}
+
+D3D12_VERTEX_BUFFER_VIEW RenderBuffer::getVertexBufferView(UINT strideInByte)
+{
+	D3D12_VERTEX_BUFFER_VIEW view;
+	view.BufferLocation = getGPUVirtualAddress();
+	view.StrideInBytes = strideInByte;
+	view.SizeInBytes = mSizeInByte;
+	return view;
+}
+D3D12_INDEX_BUFFER_VIEW RenderBuffer::getIndexBufferView(DXGI_FORMAT format)
+{
+	D3D12_INDEX_BUFFER_VIEW view;
+	view.BufferLocation = getGPUVirtualAddress();
+	view.SizeInBytes = mSizeInByte;
+	view.Format = format;
+	return view;
+}
+
+RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned int depth, DXGI_FORMAT format, unsigned int sizeByte, void* initData, D3D12_RESOURCE_FLAGS flags)
+	: RenderResource()
+{
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
+
+	D3D12_RESOURCE_DIMENSION dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	if (depth > 1)
+		dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+
+	D3D12_RESOURCE_DESC resourceDesc;
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+	resourceDesc.Width = width;
+	resourceDesc.Height = height;
+	resourceDesc.DepthOrArraySize = depth;
+	resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resourceDesc.Flags = flags;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+
+	mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+	dev->CreateCommittedResource(&defaultHeap,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDesc,
+		mResourceState,
+		nullptr,
+		IID_PPV_ARGS(&mResource));
+
+	if (initData)
+	{
+		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 
 		dev->CreateCommittedResource(&uploadHeap,
@@ -552,7 +636,7 @@ RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 	}
 }
 
-RenderBuffer::~RenderBuffer()
+RenderTexture::~RenderTexture()
 {
 	resetComPtr(&mUploadHeap);
 }

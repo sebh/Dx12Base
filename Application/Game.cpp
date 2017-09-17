@@ -155,16 +155,10 @@ void Game::render()
 
 
 	vertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-	D3D12_VERTEX_BUFFER_VIEW vertexBufferView;
-	vertexBufferView.BufferLocation = vertexBuffer->getGPUVirtualAddress();
-	vertexBufferView.StrideInBytes = sizeof(VertexType);
-	vertexBufferView.SizeInBytes = sizeof(vertices);
+	D3D12_VERTEX_BUFFER_VIEW vertexBufferView = vertexBuffer->getVertexBufferView(sizeof(VertexType));
 
 	indexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
-	D3D12_INDEX_BUFFER_VIEW indexBufferView;
-	indexBufferView.BufferLocation = indexBuffer->getGPUVirtualAddress();
-	indexBufferView.SizeInBytes = sizeof(indices);
-	indexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	D3D12_INDEX_BUFFER_VIEW indexBufferView = indexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
 
 	// draw triangle
 	commandList->SetGraphicsRootSignature(rootSign->getRootsignature()); // set the root signature

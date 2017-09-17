@@ -221,31 +221,30 @@ private:
 class RenderBuffer : public RenderResource
 {
 public:
-	RenderBuffer(unsigned int sizeByte, void* initData = nullptr, bool allowUAV = false);
+	RenderBuffer(UINT sizeInByte, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	virtual ~RenderBuffer();
 
+	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
+	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
 private:
 	RenderBuffer();
 	RenderBuffer(RenderBuffer&);
-
 	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
+	UINT mSizeInByte;
 };
 
-
-
-
-/*class RenderTexture
+class RenderTexture : public RenderResource
 {
 public:
-	RenderTexture(UINT width);
+	RenderTexture(unsigned int width, unsigned int height, unsigned int depth, DXGI_FORMAT format, // e.g. DXGI_FORMAT_R16G16B16A16_FLOAT
+		unsigned int sizeByte, void* initData = nullptr,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	virtual ~RenderTexture();
-
 private:
 	RenderTexture();
 	RenderTexture(RenderTexture&);
-
 	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
-};*/
+};
 
 
 
