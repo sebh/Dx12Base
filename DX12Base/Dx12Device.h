@@ -197,23 +197,55 @@ public:
 
 
 
-class RenderBuffer
+class RenderResource
+{
+public:
+	RenderResource();
+	virtual ~RenderResource();
+	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
+	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }
+
+	void setDebugName(LPCWSTR debugName) { setDxDebugName(mResource, debugName); }
+
+protected:
+	ID3D12Resource* mResource;
+	D3D12_RESOURCE_STATES mResourceState;
+
+private:
+	RenderResource(RenderResource&);
+};
+
+
+
+
+class RenderBuffer : public RenderResource
 {
 public:
 	RenderBuffer(unsigned int sizeByte, void* initData = nullptr, bool allowUAV = false);
-	~RenderBuffer();
-	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
-	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mBuffer->GetGPUVirtualAddress(); }
+	virtual ~RenderBuffer();
 
-	void setDebugName(LPCWSTR debugName) { setDxDebugName(mBuffer, debugName); }
 private:
 	RenderBuffer();
 	RenderBuffer(RenderBuffer&);
 
-	ID3D12Resource* mBuffer;
-	D3D12_RESOURCE_STATES mResourceState;
-	ID3D12Resource* mUploadHeap;// private upload heap, TODO: handle that on Dx12Device
+	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
 };
+
+
+
+
+/*class RenderTexture
+{
+public:
+	RenderTexture(UINT width);
+	virtual ~RenderTexture();
+
+private:
+	RenderTexture();
+	RenderTexture(RenderTexture&);
+
+	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
+};*/
 
 
 

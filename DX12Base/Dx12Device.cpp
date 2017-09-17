@@ -460,7 +460,40 @@ PixelShader::~PixelShader() { }
 
 
 
+RenderResource::RenderResource()
+	: mResource(nullptr)
+{
+}
+RenderResource::~RenderResource()
+{
+	resetComPtr(&mResource);
+}
+
+void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
+{
+	if (newState == mResourceState)
+		return;
+
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	D3D12_RESOURCE_BARRIER barrier;
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	barrier.Transition.pResource = mResource;
+	barrier.Transition.Subresource = 0;
+	barrier.Transition.StateBefore = mResourceState;
+	barrier.Transition.StateAfter = newState;
+
+	auto commandList = g_dx12Device->getFrameCommandList();
+	commandList->ResourceBarrier(1, &barrier);
+
+	mResourceState = newState;
+}
+
+
+
+
 RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
+	: RenderResource()
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -488,7 +521,7 @@ RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 		&resourceDesc,
 		mResourceState,
 		nullptr,
-		IID_PPV_ARGS(&mBuffer));
+		IID_PPV_ARGS(&mResource));
 
 	if (initData)
 	{
@@ -515,34 +548,13 @@ RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 		mUploadHeap->Unmap(0, nullptr);
 
 		auto commandList = g_dx12Device->getFrameCommandList();
-		commandList->CopyBufferRegion(mBuffer, 0, mUploadHeap, 0, sizeByte);
+		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, sizeByte);
 	}
 }
 
 RenderBuffer::~RenderBuffer()
 {
-	resetComPtr(&mBuffer);
 	resetComPtr(&mUploadHeap);
-}
-
-void RenderBuffer::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
-{
-	if (newState == mResourceState)
-		return;
-
-	ID3D12Device* dev = g_dx12Device->getDevice();
-	D3D12_RESOURCE_BARRIER barrier;
-	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-	barrier.Transition.pResource = mBuffer;
-	barrier.Transition.Subresource = 0;
-	barrier.Transition.StateBefore = mResourceState;
-	barrier.Transition.StateAfter = newState;
-
-	auto commandList = g_dx12Device->getFrameCommandList();
-	commandList->ResourceBarrier(1, &barrier);
-
-	mResourceState = newState;
 }
 
 
