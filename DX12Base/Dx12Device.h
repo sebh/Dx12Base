@@ -157,23 +157,6 @@ public:
 
 
 
-class RootSignature
-{
-public:
-	RootSignature(bool noneOrIA);	// default root signature: empty or using input assembler
-	~RootSignature();
-
-	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
-private:
-	RootSignature();
-	RootSignature(RootSignature&);
-
-	ID3D12RootSignature* mRootSignature;
-};
-
-
-
-
 class RenderBuffer
 {
 public:
@@ -193,6 +176,23 @@ private:
 
 
 
+class RootSignature
+{
+public:
+	RootSignature(bool noneOrIA);	// default root signature: empty or using input assembler
+	~RootSignature();
+
+	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
+private:
+	RootSignature();
+	RootSignature(RootSignature&);
+
+	ID3D12RootSignature* mRootSignature;
+};
+
+
+
+
 class PipelineStateObject		//////////////////////////////////////////////////////////////////////////////// TO FINISH
 {
 public:
@@ -207,7 +207,8 @@ private:
 	ID3D12PipelineState* mPso;
 };
 
-// vertex buffer, see https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
+
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////

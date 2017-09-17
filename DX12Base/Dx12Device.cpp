@@ -9,8 +9,9 @@
 // Good tutorial: https://www.braynzarsoft.net/viewtutorial/q16390-04-directx-12-braynzar-soft-tutorials
 // https://www.codeproject.com/Articles/1180619/Managing-Descriptor-Heaps-in-Direct-D
 // https://developer.nvidia.com/dx12-dos-and-donts
-// https://bitbucket.org/Anteru/d3d12sample/src/26b0dfad6574fb408262ce2f55b85d18c3f99a21/inc/?at=default
-// https://software.intel.com/en-us/articles/introduction-to-resource-binding-in-microsoft-directx-12
+// simple sample https://bitbucket.org/Anteru/d3d12sample/src/26b0dfad6574fb408262ce2f55b85d18c3f99a21/inc/?at=default
+// resource binding https://software.intel.com/en-us/articles/introduction-to-resource-binding-in-microsoft-directx-12
+// resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 
 Dx12Device* g_dx12Device = nullptr;
@@ -453,35 +454,6 @@ PixelShader::~PixelShader() { }
 
 
 
-RootSignature::RootSignature(bool iaOrNone)
-{
-	HRESULT hr;
-	ID3D12Device* dev = g_dx12Device->getDevice();
-
-	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.NumParameters = 0;
-	rootSignDesc.pParameters = nullptr;
-	rootSignDesc.NumStaticSamplers = 0;
-	rootSignDesc.pStaticSamplers = nullptr;
-	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
-
-	ID3DBlob* rootSignBlob;
-	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
-	ATLASSERT(hr == S_OK);
-	hr = dev->CreateRootSignature(0, rootSignBlob->GetBufferPointer(), rootSignBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
-	ATLASSERT(hr == S_OK);
-}
-
-RootSignature::~RootSignature()
-{
-	resetComPtr(&mRootSignature);
-}
-// Specifying Root Signatures in HLSL https://msdn.microsoft.com/en-us/library/windows/desktop/dn913202(v=vs.85).aspx
-// Examples https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
-
-
-
-
 RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -569,6 +541,35 @@ void RenderBuffer::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
 
 
 
+RootSignature::RootSignature(bool iaOrNone)
+{
+	HRESULT hr;
+	ID3D12Device* dev = g_dx12Device->getDevice();
+
+	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
+	rootSignDesc.NumParameters = 0;
+	rootSignDesc.pParameters = nullptr;
+	rootSignDesc.NumStaticSamplers = 0;
+	rootSignDesc.pStaticSamplers = nullptr;
+	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+	ID3DBlob* rootSignBlob;
+	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
+	ATLASSERT(hr == S_OK);
+	hr = dev->CreateRootSignature(0, rootSignBlob->GetBufferPointer(), rootSignBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
+	ATLASSERT(hr == S_OK);
+}
+
+RootSignature::~RootSignature()
+{
+	resetComPtr(&mRootSignature);
+}
+// Specifying Root Signatures in HLSL https://msdn.microsoft.com/en-us/library/windows/desktop/dn913202(v=vs.85).aspx
+// Examples https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
+
+
+
+
 PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -612,6 +613,10 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 	psoDesc.BlendState.RenderTarget[0].BlendOpAlpha			= D3D12_BLEND_OP_ADD;
 	psoDesc.BlendState.RenderTarget[0].LogicOp				= D3D12_LOGIC_OP_NOOP;
 	psoDesc.BlendState.RenderTarget[0].RenderTargetWriteMask= D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 
 	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLASSERT(hr == S_OK);
