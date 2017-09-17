@@ -71,10 +71,14 @@ void Game::initialise()
 	indices[1] = 1;
 	indices[2] = 2;
 	vertexBuffer = new RenderBuffer(sizeof(vertices), vertices);
+	vertexBuffer->setDebugName(L"TriangleVertexBuffer");
 	indexBuffer = new RenderBuffer(sizeof(indices), indices);
+	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
 	rootSign = new RootSignature(true);
+	rootSign->setDebugName(L"triangleDrawRootSign");
 	pso = new PipelineStateObject(*rootSign, *layout, *vertexShader, *pixelShader);
+	pso->setDebugName(L"triangleDrawPso");
 }
 
 void Game::shutdown()

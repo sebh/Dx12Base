@@ -507,6 +507,7 @@ RenderBuffer::RenderBuffer(unsigned int sizeByte, void* initData, bool allowUAV)
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(&mUploadHeap));
+		setDxDebugName(mUploadHeap, L"RenderBufferUploadHeap");
 
 		void* p;
 		mUploadHeap->Map(0, nullptr, &p);

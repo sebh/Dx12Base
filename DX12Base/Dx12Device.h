@@ -96,6 +96,46 @@ extern Dx12Device* g_dx12Device;
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+template <class type>
+void resetComPtr(type** ptr)
+{
+	if (*ptr)
+	{
+		(*ptr)->Release();
+		(*ptr) = nullptr;
+	}
+}
+
+template <class type>
+void resetPtr(type** ptr)
+{
+	if (*ptr)
+	{
+		delete *ptr;
+		(*ptr) = nullptr;
+	}
+}
+
+template <class type>
+void setDxDebugName(type* obj, LPCWSTR name)
+{
+#ifdef _DEBUG
+	HRESULT hr = obj->SetName(name);
+	ATLASSERT(hr == S_OK);
+#endif
+}
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +204,8 @@ public:
 	~RenderBuffer();
 	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mBuffer->GetGPUVirtualAddress(); }
+
+	void setDebugName(LPCWSTR debugName) { setDxDebugName(mBuffer, debugName); }
 private:
 	RenderBuffer();
 	RenderBuffer(RenderBuffer&);
@@ -181,8 +223,9 @@ class RootSignature
 public:
 	RootSignature(bool noneOrIA);	// default root signature: empty or using input assembler
 	~RootSignature();
-
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
+
+	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:
 	RootSignature();
 	RootSignature(RootSignature&);
@@ -207,57 +250,18 @@ class PipelineStateObject
 {
 public:
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps);
-
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
 		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState);
-
 	~PipelineStateObject();
-
 	ID3D12PipelineState* getPso() const { return mPso; }
+
+	void setDebugName(LPCWSTR debugName) { setDxDebugName(mPso, debugName); }
 private:
 	PipelineStateObject();
 	PipelineStateObject(PipelineStateObject&);
 
 	ID3D12PipelineState* mPso;
 };
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-
-template <class type>
-void resetComPtr(type** ptr)
-{
-	if (*ptr)
-	{
-		(*ptr)->Release();
-		(*ptr) = nullptr;
-	}
-}
-
-template <class type>
-void resetPtr(type** ptr)
-{
-	if (*ptr)
-	{
-		delete *ptr;
-		(*ptr) = nullptr;
-	}
-}
-
-template <class type>
-void setDxDebugName(type* obj, LPCWSTR name)
-{
-#ifdef _DEBUG
-	HRESULT hr = obj->SetName(name);
-	ATLASSERT(hr == S_OK);
-#endif
-}
 
 
 
