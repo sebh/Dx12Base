@@ -6,6 +6,10 @@
 
 #include "D3Dcompiler.h"
 
+#include "d3dx12.h"
+
+#include "../DirectXTex/WICTextureLoader/WICTextureLoader12.h"
+
 // Good tutorial: https://www.braynzarsoft.net/viewtutorial/q16390-04-directx-12-braynzar-soft-tutorials
 // https://www.codeproject.com/Articles/1180619/Managing-Descriptor-Heaps-in-Direct-D
 // https://developer.nvidia.com/dx12-dos-and-donts
@@ -612,6 +616,7 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		mResourceState,
 		nullptr,
 		IID_PPV_ARGS(&mResource));
+	setDxDebugName(mResource, L"RenderBuffer");
 
 	if (initData)
 	{
@@ -634,6 +639,160 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		auto commandList = g_dx12Device->getFrameCommandList();
 		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, sizeByte);
 	}
+}
+
+
+/*inline UINT64 UpdateSubresources(
+	_In_ ID3D12GraphicsCommandList* pCmdList,
+	_In_ ID3D12Resource* pDestinationResource,
+	_In_ ID3D12Resource* pIntermediate,
+	_In_range_(0, D3D12_REQ_SUBRESOURCES) UINT FirstSubresource,
+	_In_range_(0, D3D12_REQ_SUBRESOURCES - FirstSubresource) UINT NumSubresources,
+	UINT64 RequiredSize,
+	_In_reads_(NumSubresources) const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayouts,
+	_In_reads_(NumSubresources) const UINT* pNumRows,
+	_In_reads_(NumSubresources) const UINT64* pRowSizesInBytes,
+	_In_reads_(NumSubresources) const D3D12_SUBRESOURCE_DATA* pSrcData)
+{
+	// Minor validation
+	D3D12_RESOURCE_DESC IntermediateDesc = pIntermediate->GetDesc();
+	D3D12_RESOURCE_DESC DestinationDesc = pDestinationResource->GetDesc();
+	if (IntermediateDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER ||
+		IntermediateDesc.Width < RequiredSize + pLayouts[0].Offset ||
+		RequiredSize >(SIZE_T) - 1 ||
+		(DestinationDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER &&
+		(FirstSubresource != 0 || NumSubresources != 1)))
+	{
+		return 0;
+	}
+
+	BYTE* pData;
+	HRESULT hr = pIntermediate->Map(0, NULL, reinterpret_cast<void**>(&pData));
+	if (FAILED(hr))
+	{
+		return 0;
+	}
+
+	for (UINT i = 0; i < NumSubresources; ++i)
+	{
+		if (pRowSizesInBytes[i] >(SIZE_T)-1) return 0;
+		D3D12_MEMCPY_DEST DestData = { pData + pLayouts[i].Offset, pLayouts[i].Footprint.RowPitch, pLayouts[i].Footprint.RowPitch * pNumRows[i] };
+		MemcpySubresource(&DestData, &pSrcData[i], (SIZE_T)pRowSizesInBytes[i], pNumRows[i], pLayouts[i].Footprint.Depth);
+	}
+	pIntermediate->Unmap(0, NULL);
+
+	if (DestinationDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+	{
+		CD3DX12_BOX SrcBox(UINT(pLayouts[0].Offset), UINT(pLayouts[0].Offset + pLayouts[0].Footprint.Width));
+		pCmdList->CopyBufferRegion(
+			pDestinationResource, 0, pIntermediate, pLayouts[0].Offset, pLayouts[0].Footprint.Width);
+	}
+	else
+	{
+		for (UINT i = 0; i < NumSubresources; ++i)
+		{
+			CD3DX12_TEXTURE_COPY_LOCATION Dst(pDestinationResource, i + FirstSubresource);
+			CD3DX12_TEXTURE_COPY_LOCATION Src(pIntermediate, pLayouts[i]);
+			pCmdList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
+		}
+	}
+	return RequiredSize;
+}*/
+
+
+RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags)
+{
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	auto commandList = g_dx12Device->getFrameCommandList();
+
+	std::unique_ptr<uint8_t[]> decodedData;
+	D3D12_SUBRESOURCE_DATA subresource;
+
+	DirectX::TextureData texData(subresource, decodedData);
+
+	HRESULT hr = DirectX::LoadWICTextureFromFile(szFileName, texData);
+	ATLASSERT(hr == S_OK);
+
+	D3D12_RESOURCE_DESC textureDesc;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	textureDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+	textureDesc.Width = texData.width;
+	textureDesc.Height = texData.height;
+	textureDesc.DepthOrArraySize = 1;
+	textureDesc.MipLevels = texData.mipCount;
+	textureDesc.Format = texData.format;
+	textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN; // for texture
+	textureDesc.Flags = flags;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+	D3D12_HEAP_PROPERTIES defaultHeapProperties = getGpuOnlyMemoryHeapProperties();
+	mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+	dev->CreateCommittedResource(&defaultHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&textureDesc,
+		mResourceState,
+		nullptr,
+		IID_PPV_ARGS(&mResource));
+	setDxDebugName(mResource, szFileName);
+
+	UINT64 textureUploadBufferSize = 0;
+	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+
+	D3D12_RESOURCE_DESC uploadBufferDesc;							// TODO upload buffer desc
+	uploadBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	uploadBufferDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+	uploadBufferDesc.Width = textureUploadBufferSize;
+	uploadBufferDesc.Height = uploadBufferDesc.DepthOrArraySize = uploadBufferDesc.MipLevels = 1;
+	uploadBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+	uploadBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	uploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	uploadBufferDesc.SampleDesc.Count = 1;
+	uploadBufferDesc.SampleDesc.Quality = 0;
+	D3D12_HEAP_PROPERTIES uploadHeapProperties = getUploadMemoryHeapProperties();
+	dev->CreateCommittedResource(&uploadHeapProperties,
+		D3D12_HEAP_FLAG_NONE,
+		&uploadBufferDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&mUploadHeap));
+	setDxDebugName(mUploadHeap, L"RenderTextureUploadHeap");
+
+#if 0
+	// Using explicit code. TODO: the memecpy to mapped memory might be wrong as it does not take into account the rowPitch
+	void* p;
+	mUploadHeap->Map(0, nullptr, &p);
+	memcpy(p, texData.decodedData.get(), texData.dataSizeInByte);
+	mUploadHeap->Unmap(0, nullptr);
+
+	D3D12_BOX srcBox;
+	srcBox.left   = 0;
+	srcBox.right  = texData.width;
+	srcBox.top    = 0;
+	srcBox.bottom = texData.height;
+	srcBox.front  = 0;
+	srcBox.back   = 1;
+
+	D3D12_TEXTURE_COPY_LOCATION cpSrcBuffer;
+	cpSrcBuffer.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+	cpSrcBuffer.pResource = mUploadHeap;
+	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, &cpSrcBuffer.PlacedFootprint, nullptr, nullptr, nullptr); // Using the texture format here! not buffer (otherwise does not work)
+	D3D12_TEXTURE_COPY_LOCATION cpDstTexture;
+	cpDstTexture.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+	cpDstTexture.pResource = mResource;
+	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, &cpDstTexture.PlacedFootprint, nullptr, nullptr, nullptr);
+	commandList->CopyTextureRegion(&cpDstTexture, 0, 0, 0, &cpSrcBuffer, &srcBox);
+	
+#else
+	// using helper
+	UpdateSubresources<1>(
+		commandList,
+		mResource,
+		mUploadHeap,
+		0,
+		0,
+		1,
+		&texData.subresource);
+#endif
 }
 
 RenderTexture::~RenderTexture()

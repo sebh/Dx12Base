@@ -239,6 +239,7 @@ public:
 	RenderTexture(unsigned int width, unsigned int height, unsigned int depth, DXGI_FORMAT format, // e.g. DXGI_FORMAT_R16G16B16A16_FLOAT
 		unsigned int sizeByte, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+	RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	virtual ~RenderTexture();
 private:
 	RenderTexture();

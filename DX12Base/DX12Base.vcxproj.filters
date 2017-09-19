@@ -17,6 +17,9 @@
     <ClCompile Include="Dx12Device.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\DirectXTex\WICTextureLoader\WICTextureLoader12.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WindowHelper.h">
@@ -26,6 +29,12 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="WindowInput.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="d3dx12.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\DirectXTex\WICTextureLoader\WICTextureLoader12.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

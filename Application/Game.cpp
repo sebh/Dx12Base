@@ -17,6 +17,8 @@ PixelShader*  pixelShader;
 RootSignature* rootSign;
 PipelineStateObject* pso;
 
+RenderTexture* texture;
+
 Game::Game()
 {
 }
@@ -79,6 +81,8 @@ void Game::initialise()
 	rootSign->setDebugName(L"triangleDrawRootSign");
 	pso = new PipelineStateObject(*rootSign, *layout, *vertexShader, *pixelShader);
 	pso->setDebugName(L"triangleDrawPso");
+
+	texture = new RenderTexture(L"Resources\\texture.png");
 }
 
 void Game::shutdown()
@@ -93,6 +97,8 @@ void Game::shutdown()
 
 	delete rootSign;
 	delete pso;
+
+	delete texture;
 }
 
 void Game::update(const WindowInputData& inputData)
