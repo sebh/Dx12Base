@@ -18,7 +18,7 @@
 #endif
 
 
-static const int frameBufferCount = 3; // number of buffers we want, 2 for double buffering, 3 for tripple buffering
+static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 
 class Dx12Device
 {

@@ -248,7 +248,7 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 	}
 	// Signal and sync once again the command queue since the last present on the swap chain may have added more work in the queue (system)
 	// This prevents the command queue to be in a "used state" when releasing (noticed via debug layer). 
-	// We do it once again for each frame buffer for simplicity.
+	// We do it once again for each buffered frqme for simplicity.
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		hr = mCommandQueue->Signal(mFrameFence[i], mFrameFenceValue[i]);
@@ -758,7 +758,7 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	setDxDebugName(mUploadHeap, L"RenderTextureUploadHeap");
 
 #if 0
-	// Using explicit code. TODO: the memecpy to mapped memory might be wrong as it does not take into account the rowPitch
+	// Using explicit code. TODO: the memcpy to mapped memory might be wrong as it does not take into account the rowPitch
 	void* p;
 	mUploadHeap->Map(0, nullptr, &p);
 	memcpy(p, texData.decodedData.get(), texData.dataSizeInByte);
@@ -805,12 +805,78 @@ RenderTexture::~RenderTexture()
 
 RootSignature::RootSignature(bool iaOrNone)
 {
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn859357(v=vs.85).aspx
+
+
 	HRESULT hr;
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
+	// A root signature can be up to 64 DWORD
+	// if ia is used, only 63 are available
+	
+	// Our default root descriptor
+	std::vector<D3D12_ROOT_PARAMETER> parameters;
+
+	int registerCountB = 0;
+	int registerCountT = 0;
+	int registerCountU = 0;
+
+	const int defaultRegisterCountB = 1;
+	const int defaultRegisterCountT = 0;
+	const int defaultRegisterCountU = 0;
+
+	int rootSignatureDWordUsed = 0; // a DWORD is 4 bytes
+
+	// ROOT DESCRIPTORS
+
+	// Single constant buffer in b0
+	for (int i = 0; i<defaultRegisterCountB; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountB++;
+		parameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+	for (int i = 0; i<defaultRegisterCountT; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountB++;
+		parameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+	for (int i = 0; i<defaultRegisterCountU; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountB++;
+		parameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+
+	// exemple of layout that could be used for simplicity
+	//	-  0- 3: b0 and b1 (2 CBs)
+	//	-  4-19: u0 to u7  (8 UAVs)
+	//	- 20-63: t0 to t22 (22 SRVs)
+	// Carefull though since some hardware only have 16DWORD root and large table would add another indirection
+
+	// No ROOT DESCRIPTOR TABLE (1 DWORD) 
+	// No ROOT CONSTANT (1DWORD)...
+
+	// Check correctness
+	ATLASSERT(rootSignatureDWordUsed<=64);
+
 	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.NumParameters = 0;
-	rootSignDesc.pParameters = nullptr;
+	rootSignDesc.NumParameters = parameters.size();
+	rootSignDesc.pParameters = parameters.data();
 	rootSignDesc.NumStaticSamplers = 0;
 	rootSignDesc.pStaticSamplers = nullptr;
 	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
