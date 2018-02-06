@@ -526,6 +526,20 @@ namespace
 		texData.subresource.RowPitch = rowPitch;
 		texData.subresource.SlicePitch = texData.dataSizeInByte;
 
+		// The texture us mirrored on Y so mirror it now to hqve Y up.
+		BYTE* textureDataSource = new BYTE[texData.dataSizeInByte];
+		{
+			BYTE* finalData = texData.decodedData.get();
+			memcpy(textureDataSource, finalData, texData.dataSizeInByte);
+			// Now copy rows but in reverse order
+			for (INT r = height - 1; r >= 0; --r)
+			{
+				INT dstR = height - 1 - r;
+				memcpy(finalData + dstR * rowPitch, textureDataSource + r * rowPitch, rowPitch);
+			}
+		}
+		delete [] textureDataSource;
+
 //        *texture = tex;
         return hr;
     }

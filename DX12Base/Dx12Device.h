@@ -18,7 +18,7 @@
 #endif
 
 
-static const int frameBufferCount = 3; // number of buffers we want, 2 for double buffering, 3 for tripple buffering
+static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 
 class Dx12Device
 {
@@ -203,12 +203,16 @@ public:
 	RenderResource();
 	virtual ~RenderResource();
 	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
-	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }
+
+	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
+	D3D12_GPU_DESCRIPTOR_HANDLE  getGPUDescriptorHandleForHeapStart() { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
+	ID3D12DescriptorHeap*  getHeap() { return mDescriptorHeap; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mResource, debugName); }
 
 protected:
 	ID3D12Resource* mResource;
+	ID3D12DescriptorHeap* mDescriptorHeap;			// TODO: also create for buffers... Only done for texture today
 	D3D12_RESOURCE_STATES mResourceState;
 
 private:

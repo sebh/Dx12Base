@@ -248,7 +248,7 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 	}
 	// Signal and sync once again the command queue since the last present on the swap chain may have added more work in the queue (system)
 	// This prevents the command queue to be in a "used state" when releasing (noticed via debug layer). 
-	// We do it once again for each frame buffer for simplicity.
+	// We do it once again for each buffered frqme for simplicity.
 	for (int i = 0; i < frameBufferCount; ++i)
 	{
 		hr = mCommandQueue->Signal(mFrameFence[i], mFrameFenceValue[i]);
@@ -541,6 +541,26 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		nullptr,
 		IID_PPV_ARGS(&mResource));
 
+
+	// Create the descriptor heap that will store a srv
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
+	ATLASSERT(hr == S_OK);
+
+	// Now create a shader resource view (pointing to our descriptor)
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.Format = resourceDesc.Format;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+	srvDesc.Buffer.FirstElement = 0;
+	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE; // or D3D12_BUFFER_SRV_FLAG_RAW
+	srvDesc.Buffer.NumElements = mSizeInByte;
+	srvDesc.Buffer.StructureByteStride = 1;
+	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
 	if (initData)
 	{
 		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
@@ -595,7 +615,7 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 	D3D12_RESOURCE_DIMENSION dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	if (depth > 1)
 		dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-
+	
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
@@ -603,7 +623,7 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 	resourceDesc.Height = height;
 	resourceDesc.DepthOrArraySize = depth;
 	resourceDesc.MipLevels = 1;
-	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDesc.Format = format;
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	resourceDesc.Flags = flags;
 	resourceDesc.SampleDesc.Count = 1;
@@ -618,10 +638,27 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, L"RenderBuffer");
 
+	// create the descriptor heap that will store a srv
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
+	ATLASSERT(hr == S_OK);
+
+	// Now create a shader resource view (pointing to our descriptor)
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.Format = format;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
 	if (initData)
 	{
 		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// ??
 
 		dev->CreateCommittedResource(&uploadHeap,
 			D3D12_HEAP_FLAG_NONE,
@@ -638,6 +675,8 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 
 		auto commandList = g_dx12Device->getFrameCommandList();
 		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, sizeByte);
+
+		resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
 }
 
@@ -735,6 +774,22 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, szFileName);
 
+	// Create the descriptor heap that will store a srv
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.NumDescriptors = 1;
+	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
+	ATLASSERT(hr == S_OK);
+
+	// Now create a shader resource view (pointing to our descriptor)
+	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	srvDesc.Format = texData.format;
+	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
 	UINT64 textureUploadBufferSize = 0;
 	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
 
@@ -758,7 +813,7 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	setDxDebugName(mUploadHeap, L"RenderTextureUploadHeap");
 
 #if 0
-	// Using explicit code. TODO: the memecpy to mapped memory might be wrong as it does not take into account the rowPitch
+	// Using explicit code. TODO: the memcpy to mapped memory might be wrong as it does not take into account the rowPitch
 	void* p;
 	mUploadHeap->Map(0, nullptr, &p);
 	memcpy(p, texData.decodedData.get(), texData.dataSizeInByte);
@@ -792,6 +847,8 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 		0,
 		1,
 		&texData.subresource);
+
+	resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 #endif
 }
 
@@ -805,15 +862,128 @@ RenderTexture::~RenderTexture()
 
 RootSignature::RootSignature(bool iaOrNone)
 {
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
+	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn859357(v=vs.85).aspx
+
+
 	HRESULT hr;
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
+	// A root signature can be up to 64 DWORD
+	// if ia is used, only 63 are available
+
+	// exemple of layout that could be used for simplicity
+	//	-  0- 3: b0 and b1 (2 CBs)
+	//	-  4-19: u0 to u7  (8 UAVs)
+	//	- 20-63: t0 to t22 (22 SRVs)
+	// Carefull though since some hardware only have 16DWORD root and large table would add another indirection
+	// Also textures must be set as tables...
+	
+	// Our default root descriptor
+	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;
+
+	int registerCountB = 0;
+	int registerCountT = 0;
+	int registerCountU = 0;
+
+	const int defaultRegisterCountB = 1;
+	const int defaultRegisterCountT = 0;
+	const int defaultRegisterCountU = 0;
+	//const int defaultResourceTableCount = 1;
+
+	int rootSignatureDWordUsed = 0; // a DWORD is 4 bytes
+
+	// ROOT DESCRIPTORS
+
+	// Single constant buffer in b0
+	for (int i = 0; i<defaultRegisterCountB; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountB++;
+		rootParameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+	for (int i = 0; i<defaultRegisterCountT; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountT++;
+		rootParameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+	for (int i = 0; i<defaultRegisterCountU; ++i)
+	{
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		param.Descriptor.RegisterSpace = 0;
+		param.Descriptor.ShaderRegister = registerCountU++;
+		rootParameters.push_back(param);
+		rootSignatureDWordUsed += 2;
+	}
+
+	// No ROOT DESCRIPTOR TABLE (1 DWORD) 
+	//for (int i = 0; i<defaultResourceTableCount; ++i)
+	{
+		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // one table description
+		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descriptorTableRanges[0].NumDescriptors = 1;
+		descriptorTableRanges[0].BaseShaderRegister = 0;
+		descriptorTableRanges[0].RegisterSpace = 0;		// TODO should take registerCountT into account
+		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // appends the range
+
+		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
+		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
+		descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; 
+
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		param.DescriptorTable = descriptorTable;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // for now...
+		rootParameters.push_back(param);
+		rootSignatureDWordUsed += 1;
+	}
+
+
+	// No ROOT CONSTANT (1DWORD)...
+
+	// Check correctness
+	ATLASSERT(rootSignatureDWordUsed<=64);
+
+	// Static samplers for simplicity
+	{
+		D3D12_STATIC_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+		sampler.MipLODBias = 0;
+		sampler.MaxAnisotropy = 0;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler.MinLOD = 0.0f;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ShaderRegister = 0;
+		sampler.RegisterSpace = 0;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		rootSamplers.push_back(sampler);
+	}
+
 	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.NumParameters = 0;
-	rootSignDesc.pParameters = nullptr;
-	rootSignDesc.NumStaticSamplers = 0;
-	rootSignDesc.pStaticSamplers = nullptr;
+	rootSignDesc.NumParameters = UINT(rootParameters.size());
+	rootSignDesc.pParameters = rootParameters.data();
+	rootSignDesc.NumStaticSamplers = UINT(rootSamplers.size());
+	rootSignDesc.pStaticSamplers = rootSamplers.data();
 	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
+		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
+		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
+		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
 
 	ID3DBlob* rootSignBlob;
 	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);

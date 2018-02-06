@@ -33,16 +33,15 @@ VertexOutput ColorVertexShader(VertexInput input)
 	return output;
 }
 
-//RWBuffer<float4> buffer : register(u1);
-//RasterizerOrderedBuffer<float4> buffer : register(u1);
+//StructuredBuffer<float4> buffer : register(t0);
+Texture2D texture0 : register(t0);
+SamplerState sampler0 : register(s0);
 
 float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 {
 	//int index = input.position.x + input.position.y * 1280;
 
-	//float4 data = buffer[index];
-	//buffer[index] = data + float4(0.1, 0.5, 1.0, 2.0);
-	//buffer[index] = data + float4(0.1, 0.5, 1.0, asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(asin(0.1 + 0.001*data.x))))))))))))))))));
-
-	return float4(input.uv, 0.0, 1.0);
+	//return float4(input.uv, 0.0, 1.0) * buffer[0];
+	return float4(input.uv, 0.0, 1.0) * texture0.Sample(sampler0, input.uv);
+	//return float4(input.uv, 0.0, 1.0);
 }

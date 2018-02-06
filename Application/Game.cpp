@@ -11,6 +11,10 @@ InputLayout* layout;
 RenderBuffer* vertexBuffer;
 RenderBuffer* indexBuffer;
 
+
+RenderBuffer* constantBufferTest0;
+RenderBuffer* constantBufferTest1;
+
 VertexShader* vertexShader;
 PixelShader*  pixelShader;
 
@@ -77,6 +81,12 @@ void Game::initialise()
 	indexBuffer = new RenderBuffer(sizeof(indices), indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
+	float cb[4];
+	cb[0] = 0.0; cb[1] = 1.0; cb[2] = 0.0; cb[3] = 0.0;
+	constantBufferTest0 = new RenderBuffer(sizeof(cb), cb);
+	cb[0] = 1.0; cb[1] = 0.0;
+	constantBufferTest1 = new RenderBuffer(sizeof(cb), cb);
+
 	rootSign = new RootSignature(true);
 	rootSign->setDebugName(L"triangleDrawRootSign");
 	pso = new PipelineStateObject(*rootSign, *layout, *vertexShader, *pixelShader);
@@ -92,6 +102,9 @@ void Game::shutdown()
 	delete layout;
 	delete vertexBuffer;
 	delete indexBuffer;
+
+	delete constantBufferTest0;
+	delete constantBufferTest1;
 
 	releaseShaders();
 
@@ -174,10 +187,24 @@ void Game::render()
 	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
 	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
 	commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
+
 	//commandList->DrawInstanced(3, 1, 0, 0);
+	//commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+
+	/*commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest0->getGPUVirtualAddress());
 	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
+	commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest1->getGPUVirtualAddress());
+	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
 
+
+	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
+	descriptorHeaps.push_back(texture->getHeap());
+	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
+	commandList->SetGraphicsRootDescriptorTable(1, texture->getGPUDescriptorHandleForHeapStart());
+	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	// SetGraphicsRootShaderResourceView takes root index which is not good (user should only see shader register index).
+	// Solution: create a descriptor table for each type of registers? And maybe simply embbed constant buffer as root descriptor.
 
 
 
