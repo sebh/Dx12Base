@@ -7,6 +7,7 @@
 #include "D3Dcompiler.h"
 
 #include "d3dx12.h"
+#include <dxgi1_2.h>
 
 #include "../DirectXTex/WICTextureLoader/WICTextureLoader12.h"
 
@@ -30,6 +31,7 @@ Dx12Device* g_dx12Device = nullptr;
 
 Dx12Device::Dx12Device()
 {
+	mDebugController = nullptr;
 }
 
 Dx12Device::~Dx12Device()
@@ -79,8 +81,24 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	//
 	// Search for a DX12 GPU device and create it 
 	//
-	IDXGIFactory4* dxgiFactory;
-	hr = CreateDXGIFactory1(IID_PPV_ARGS(&dxgiFactory));
+
+	UINT dxgiFactoryFlags = 0;
+
+#if defined(_DEBUG)
+	// Enable the debug layer (requires the Graphics Tools "optional feature").
+	// NOTE: Enabling the debug layer after device creation will invalidate the active device.
+	{
+		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&mDebugController))))
+		{
+			mDebugController->EnableDebugLayer();
+
+			// Enable additional debug layers.
+			dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+		}
+	}
+#endif
+
+	hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&mDxgiFactory));
 	ATLASSERT(hr == S_OK);
 
 	// Search for a hardware dx12 compatible device
@@ -88,7 +106,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	IDXGIAdapter1* adapter = nullptr;
 	int adapterIndex = 0;
 	bool adapterFound = false;
-	while (dxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
+	while (mDxgiFactory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND)
 	{
 		DXGI_ADAPTER_DESC1 desc;
 		adapter->GetDesc1(&desc);
@@ -116,7 +134,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	{
 		LUID luid;
 		luid = mDev->GetAdapterLuid();
-		dxgiFactory->EnumAdapterByLuid(luid, IID_PPV_ARGS(&mAdapter));
+		mDxgiFactory->EnumAdapterByLuid(luid, IID_PPV_ARGS(&mAdapter));
 		mAdapter->GetDesc2(&mAdapterDesc);
 		mAdapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &mVideoMemInfo);
 
@@ -164,7 +182,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 	IDXGISwapChain* tempSwapChain;
 
-	dxgiFactory->CreateSwapChain(
+	mDxgiFactory->CreateSwapChain(
 		mCommandQueue,	// the queue will be flushed once the swap chain is created
 		&swapChainDesc,	// give it the swap chain description we created above
 		&tempSwapChain	// store the created swap chain in a temp IDXGISwapChain interface
@@ -275,6 +293,9 @@ void Dx12Device::internalShutdown()
 		resetComPtr(&mCommandAllocator[i]);
 
 	resetComPtr(&mCommandList[0]);
+
+	resetComPtr(&mDxgiFactory);
+	resetComPtr(&mDebugController);
 
 	resetComPtr(&mDev);
 	resetComPtr(&mSwapchain);

@@ -27,7 +27,7 @@ public:
 	static void initialise(const HWND& hWnd);
 	static void shutdown();
 
-	ID3D12Device*							getDevice() { return mDev; }
+	ID3D12Device5*							getDevice() { return mDev; }
 	IDXGISwapChain3*						getSwapChain() { return mSwapchain; }
 
 	ID3D12Resource*							getBackBuffer() { return mBackBuffeRtv[mFrameIndex]; }
@@ -64,7 +64,9 @@ private:
 	CComPtr<ID3D12Debug1>						mDebugController1;
 #endif
 
-	ID3D12Device*								mDev;										// the pointer to our Direct3D device interface
+	ID3D12Device5*								mDev;										// the pointer to our Direct3D device interface
+	ID3D12Debug*								mDebugController;
+	IDXGIFactory4*								mDxgiFactory;
 	IDXGISwapChain3*							mSwapchain;									// the pointer to the swap chain interface
 	int											mFrameIndex;								// Current swap chain frame index (back buffer)
 	ID3D12CommandQueue*							mCommandQueue;								// command list container
@@ -72,7 +74,7 @@ private:
 	ID3D12DescriptorHeap*						mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
 	ID3D12Resource*								mBackBuffeRtv[frameBufferCount];			// back buffer render target view
 	ID3D12CommandAllocator*						mCommandAllocator[frameBufferCount];		// Command allocator in GPU memory. Need a many as frameCount as cannot rest while in use by GPU
-	ID3D12GraphicsCommandList*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
+	ID3D12GraphicsCommandList4*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
 
 	ID3D12Fence*								mFrameFence[frameBufferCount];				// locked while commandlist is being executed by the gpu.
 	HANDLE										mFrameFenceEvent;							// a handle to an event when our fence is unlocked by the gpu
