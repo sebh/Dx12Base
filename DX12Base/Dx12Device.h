@@ -196,6 +196,13 @@ public:
 	virtual ~PixelShader();
 };
 
+class ComputeShader : public ShaderBase
+{
+public:
+	ComputeShader(const TCHAR* filename, const char* entryFunction);
+	virtual ~ComputeShader();
+};
+
 
 
 
@@ -209,12 +216,15 @@ public:
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
 	D3D12_GPU_DESCRIPTOR_HANDLE  getGPUDescriptorHandleForHeapStart() { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
 	ID3D12DescriptorHeap*  getHeap() { return mDescriptorHeap; }
+	D3D12_GPU_DESCRIPTOR_HANDLE  getUAVGPUDescriptorHandleForHeapStart() { return mDescriptorHeapUAV->GetGPUDescriptorHandleForHeapStart(); }
+	ID3D12DescriptorHeap*  getUAVHeap() { return mDescriptorHeapUAV; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mResource, debugName); }
 
 protected:
 	ID3D12Resource* mResource;
-	ID3D12DescriptorHeap* mDescriptorHeap;			// TODO: also create for buffers... Only done for texture today
+	ID3D12DescriptorHeap* mDescriptorHeap;
+	ID3D12DescriptorHeap* mDescriptorHeapUAV;
 	D3D12_RESOURCE_STATES mResourceState;
 
 private:
@@ -288,8 +298,12 @@ class PipelineStateObject
 {
 public:
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps);
+
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
 		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState);
+
+	PipelineStateObject(RootSignature& rootSign, ComputeShader& cs);
+
 	~PipelineStateObject();
 	ID3D12PipelineState* getPso() const { return mPso; }
 

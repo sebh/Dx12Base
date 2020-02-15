@@ -45,3 +45,16 @@ float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 	return float4(input.uv, 0.0, 1.0) * texture0.Sample(sampler0, input.uv);
 	//return float4(input.uv, 0.0, 1.0);
 }
+
+
+
+RWBuffer<int4> myBuffer : register(u0);
+
+[numthreads(1, 1, 1)]
+void MainComputeShader(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
+{
+	//return;
+	myBuffer[0] = int4(1,2,3,4);
+}
+
+

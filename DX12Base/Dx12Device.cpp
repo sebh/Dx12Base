@@ -347,7 +347,6 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	// Present back buffer
 	hr = mSwapchain->Present(vsyncEnabled ? 1 : 0, 0);
-	ATLASSERT(hr == S_OK);
 
 	if (hr != S_OK)
 	{
@@ -480,6 +479,15 @@ PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction)
 }
 PixelShader::~PixelShader() { }
 
+ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction)
+	: ShaderBase(filename, entryFunction, "cs_5_0")
+{
+	if (!compilationSuccessful()) return; // failed compilation
+
+	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
+}
+ComputeShader::~ComputeShader() { }
+
 
 
 
@@ -562,7 +570,6 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		nullptr,
 		IID_PPV_ARGS(&mResource));
 
-
 	// Create the descriptor heap that will store a srv
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = 1;
@@ -581,6 +588,25 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 	srvDesc.Buffer.NumElements = mSizeInByte;
 	srvDesc.Buffer.StructureByteStride = 1;
 	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+
+	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+	{
+		heapDesc.NumDescriptors = 1;
+		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeapUAV));
+		ATLASSERT(hr == S_OK);
+
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+		uavDesc.Buffer.FirstElement = 0;
+		uavDesc.Buffer.NumElements = 1;
+		uavDesc.Buffer.StructureByteStride = sizeof(int) * 4;
+		uavDesc.Buffer.CounterOffsetInBytes = 0;
+		uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mDescriptorHeapUAV->GetCPUDescriptorHandleForHeapStart());
+	}
 
 	if (initData)
 	{
@@ -658,7 +684,7 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		mResourceState,
 		nullptr,
 		IID_PPV_ARGS(&mResource));
-	setDxDebugName(mResource, L"RenderBuffer");
+	setDxDebugName(mResource, L"RenderTexture");
 
 	// create the descriptor heap that will store a srv
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -955,11 +981,18 @@ RootSignature::RootSignature(bool iaOrNone)
 	//for (int i = 0; i<defaultResourceTableCount; ++i)
 	{
 		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // one table description
-		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		if (iaOrNone)																	// SUPER BAD! TODO fix that by properly creating descriptor tables...
+			descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		else
+			descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 		descriptorTableRanges[0].NumDescriptors = 1;
 		descriptorTableRanges[0].BaseShaderRegister = 0;
 		descriptorTableRanges[0].RegisterSpace = 0;		// TODO should take registerCountT into account
 		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // appends the range
+		//descriptorTableRanges[1].NumDescriptors = 1;
+		//descriptorTableRanges[1].BaseShaderRegister = 0;
+		//descriptorTableRanges[1].RegisterSpace = 0;		// TODO ?
+		//descriptorTableRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // appends the range
 
 		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
@@ -968,7 +1001,7 @@ RootSignature::RootSignature(bool iaOrNone)
 		D3D12_ROOT_PARAMETER param;
 		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		param.DescriptorTable = descriptorTable;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL; // for now...
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // for now...
 		rootParameters.push_back(param);
 		rootSignatureDWordUsed += 1;
 	}
@@ -1143,6 +1176,21 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 	psoDesc.BlendState = blendState;
 
 	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
+	ATLASSERT(hr == S_OK);
+}
+
+
+PipelineStateObject::PipelineStateObject(RootSignature& rootSign, ComputeShader& cs)
+{
+	ID3D12Device* dev = g_dx12Device->getDevice();
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+
+	psoDesc.pRootSignature = rootSign.getRootsignature();
+	psoDesc.CS.BytecodeLength = cs.getShaderByteCodeSize();
+	psoDesc.CS.pShaderBytecode = cs.getShaderByteCode();
+
+	HRESULT hr = dev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLASSERT(hr == S_OK);
 }
 

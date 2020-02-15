@@ -11,15 +11,20 @@ InputLayout* layout;
 RenderBuffer* vertexBuffer;
 RenderBuffer* indexBuffer;
 
+RenderBuffer* UavBuffer;
 
 RenderBuffer* constantBufferTest0;
 RenderBuffer* constantBufferTest1;
 
 VertexShader* vertexShader;
 PixelShader*  pixelShader;
+ComputeShader*  computeShader;
 
 RootSignature* rootSign;
 PipelineStateObject* pso;
+
+RootSignature* rootSignCS;
+PipelineStateObject* psoCS;
 
 RenderTexture* texture;
 
@@ -39,6 +44,7 @@ void Game::loadShaders(bool exitIfFail)
 
 	vertexShader = new VertexShader(L"Resources\\TestShader.hlsl", "ColorVertexShader");
 	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
+	computeShader = new ComputeShader(L"Resources\\TestShader.hlsl", "MainComputeShader");
 
 	/*success &= reload(&vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", exitIfFail);
 	success &= reload(&pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", exitIfFail);
@@ -49,7 +55,7 @@ void Game::loadShaders(bool exitIfFail)
 void Game::releaseShaders()
 {
 	delete vertexShader;
-	delete pixelShader;
+	delete computeShader;
 }
 
 struct VertexType
@@ -87,10 +93,17 @@ void Game::initialise()
 	cb[0] = 1.0; cb[1] = 0.0;
 	constantBufferTest1 = new RenderBuffer(sizeof(cb), cb);
 
+	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
 	rootSign = new RootSignature(true);
 	rootSign->setDebugName(L"triangleDrawRootSign");
 	pso = new PipelineStateObject(*rootSign, *layout, *vertexShader, *pixelShader);
 	pso->setDebugName(L"triangleDrawPso");
+
+	rootSignCS = new RootSignature(false);
+	rootSignCS->setDebugName(L"ComputeRootSign");
+	psoCS = new PipelineStateObject(*rootSignCS, *computeShader);
+	psoCS->setDebugName(L"ComputePso");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
 }
@@ -106,10 +119,14 @@ void Game::shutdown()
 	delete constantBufferTest0;
 	delete constantBufferTest1;
 
+	delete UavBuffer;
+
 	releaseShaders();
 
 	delete rootSign;
+	delete rootSignCS;
 	delete pso;
+	delete psoCS;
 
 	delete texture;
 }
@@ -198,6 +215,9 @@ void Game::render()
 	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
 
 
+
+
+
 	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
 	descriptorHeaps.push_back(texture->getHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
@@ -206,6 +226,18 @@ void Game::render()
 	// SetGraphicsRootShaderResourceView takes root index which is not good (user should only see shader register index).
 	// Solution: create a descriptor table for each type of registers? And maybe simply embbed constant buffer as root descriptor.
 
+
+
+	UavBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+
+	commandList->SetComputeRootSignature(rootSignCS->getRootsignature()); // set the root signature
+	commandList->SetPipelineState(psoCS->getPso());
+	descriptorHeaps.clear();
+	descriptorHeaps.push_back(UavBuffer->getUAVHeap());
+	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
+	commandList->SetComputeRootDescriptorTable(1, UavBuffer->getUAVGPUDescriptorHandleForHeapStart());
+	commandList->Dispatch(1, 1, 1);
 
 
 	D3D12_RESOURCE_BARRIER bbRtToPresent = {};
