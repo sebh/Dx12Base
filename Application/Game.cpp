@@ -55,6 +55,7 @@ void Game::loadShaders(bool exitIfFail)
 void Game::releaseShaders()
 {
 	delete vertexShader;
+	delete pixelShader;
 	delete computeShader;
 }
 

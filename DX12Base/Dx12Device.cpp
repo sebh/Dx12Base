@@ -493,11 +493,15 @@ ComputeShader::~ComputeShader() { }
 
 RenderResource::RenderResource()
 	: mResource(nullptr)
+	, mDescriptorHeap(nullptr)
+	, mDescriptorHeapUAV(nullptr)
 {
 }
 RenderResource::~RenderResource()
 {
 	resetComPtr(&mResource);
+	resetComPtr(&mDescriptorHeap);
+	resetComPtr(&mDescriptorHeapUAV);
 }
 
 void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
@@ -634,7 +638,6 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 RenderBuffer::~RenderBuffer()
 {
 	resetComPtr(&mUploadHeap);
-	resetComPtr(&mDescriptorHeap);
 }
 
 D3D12_VERTEX_BUFFER_VIEW RenderBuffer::getVertexBufferView(UINT strideInByte)
@@ -903,7 +906,6 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 RenderTexture::~RenderTexture()
 {
 	resetComPtr(&mUploadHeap);
-	resetComPtr(&mDescriptorHeap);
 }
 
 
