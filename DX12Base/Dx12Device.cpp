@@ -8,6 +8,10 @@
 
 #include "d3dx12.h"
 #include <dxgi1_2.h>
+#ifdef _DEBUG
+#include <initguid.h>
+#include <DXGIDebug.h>
+#endif
 
 #include "../DirectXTex/WICTextureLoader/WICTextureLoader12.h"
 
@@ -94,6 +98,14 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 			// Enable additional debug layers.
 			dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+		}
+
+		IDXGIInfoQueue* dxgiInfoQueue;
+		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue))))
+		{
+			//dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING, true);
+			dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
+			dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
 		}
 	}
 #endif
@@ -304,11 +316,11 @@ void Dx12Device::internalShutdown()
 
 #ifdef _DEBUG
 	// Off since cannot include DXGIDebug.h for some reason.
-	/*CComPtr<IDXGIDebug1> dxgiDebug;
+	CComPtr<IDXGIDebug1> dxgiDebug;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
 	{
-		dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_SUMMARY | DXGI_DEBUG_RLO_IGNORE_INTERNAL));
-	}*/
+		dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL));
+	}
 #endif
 }
 
