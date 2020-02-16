@@ -269,7 +269,7 @@ private:
 class RootSignature
 {
 public:
-	RootSignature(bool noneOrIA);	// default root signature: empty or using input assembler
+	RootSignature(bool GraphicsWithInputAssembly);
 	~RootSignature();
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 

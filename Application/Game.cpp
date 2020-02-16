@@ -237,7 +237,7 @@ void Game::render()
 	descriptorHeaps.clear();
 	descriptorHeaps.push_back(UavBuffer->getUAVHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
-	commandList->SetComputeRootDescriptorTable(1, UavBuffer->getUAVGPUDescriptorHandleForHeapStart());
+	commandList->SetComputeRootDescriptorTable(2, UavBuffer->getUAVGPUDescriptorHandleForHeapStart());
 	commandList->Dispatch(1, 1, 1);
 
 

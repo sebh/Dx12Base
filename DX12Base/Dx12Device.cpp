@@ -934,7 +934,7 @@ RenderTexture::~RenderTexture()
 
 
 
-RootSignature::RootSignature(bool iaOrNone)
+RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 {
 	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signatures
 
@@ -948,31 +948,25 @@ RootSignature::RootSignature(bool iaOrNone)
 	// Root constants   : 1 DWORD
 	// Root descriptors : 2 DWORD
 
-	// exemple of layout that could be used for simplicity
-	//	-  0- 3: b0 and b1 (2 CBs)
-	//	-  4-19: u0 to u7  (8 UAVs)
-	//	- 20-63: t0 to t22 (22 SRVs)
-	// Carefull though since some hardware only have 16DWORD root and large table would add another indirection
-	// Also textures must be set as tables...
-	
-	// Our default root descriptor
+	// ROOT DESCRIPTORS
+	// Current layout layout for graphics and compute is
+	//  0 - 1 : 1 constant buffer		b0 only
+	//  2 - 3 : SRV descriptor table	t0 only
+	//  3 - 4 : UAV descriptor table	u0 only
+	//	Static samplers are used
+
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;
+	int rootSignatureDWordUsed = 0; // a DWORD is 4 bytes
+
+	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
+	const int defaultRegisterCountB = 1;
+	const int defaultRegisterCountT = 0;
+	const int defaultRegisterCountU = 0;
 
 	int registerCountB = 0;
 	int registerCountT = 0;
 	int registerCountU = 0;
 
-	const int defaultRegisterCountB = 1;
-	const int defaultRegisterCountT = 0;
-	const int defaultRegisterCountU = 0;
-	//const int defaultResourceTableCount = 1;
-
-	int rootSignatureDWordUsed = 0; // a DWORD is 4 bytes
-
-	// ROOT DESCRIPTORS
-
-	// Single constant buffer in b0
 	for (int i = 0; i<defaultRegisterCountB; ++i)
 	{
 		D3D12_ROOT_PARAMETER param;
@@ -1004,22 +998,14 @@ RootSignature::RootSignature(bool iaOrNone)
 		rootSignatureDWordUsed += 2;
 	}
 
-	// No ROOT DESCRIPTOR TABLE (1 DWORD) 
-	//for (int i = 0; i<defaultResourceTableCount; ++i)
+	// SRV descriptor table
 	{
-		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // one table description
-		if (iaOrNone)																	// SUPER BAD! TODO fix that by properly creating descriptor tables...
-			descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		else
-			descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1];
+		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 		descriptorTableRanges[0].NumDescriptors = 1;
 		descriptorTableRanges[0].BaseShaderRegister = 0;
-		descriptorTableRanges[0].RegisterSpace = 0;		// TODO should take registerCountT into account
-		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // appends the range
-		//descriptorTableRanges[1].NumDescriptors = 1;
-		//descriptorTableRanges[1].BaseShaderRegister = 0;
-		//descriptorTableRanges[1].RegisterSpace = 0;		// TODO ?
-		//descriptorTableRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // appends the range
+		descriptorTableRanges[0].RegisterSpace = 0;
+		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
@@ -1028,18 +1014,37 @@ RootSignature::RootSignature(bool iaOrNone)
 		D3D12_ROOT_PARAMETER param;
 		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 		param.DescriptorTable = descriptorTable;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL; // for now...
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParameters.push_back(param);
 		rootSignatureDWordUsed += 1;
 	}
 
+	// UAV descriptor table
+	{
+		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // one table description again. Try merging it with above
+		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		descriptorTableRanges[0].NumDescriptors = 1;
+		descriptorTableRanges[0].BaseShaderRegister = 0;
+		descriptorTableRanges[0].RegisterSpace = 0;
+		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-	// No ROOT CONSTANT (1DWORD)...
+		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
+		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
+		descriptorTable.pDescriptorRanges = &descriptorTableRanges[0];
 
-	// Check correctness
-	ATLASSERT(rootSignatureDWordUsed <= (iaOrNone ? 63 : 64));
+		D3D12_ROOT_PARAMETER param;
+		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		param.DescriptorTable = descriptorTable;
+		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters.push_back(param);
+		rootSignatureDWordUsed += 1;
+	}
+
+	// Check bound correctness
+	ATLASSERT(rootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63 : 64));
 
 	// Static samplers for simplicity
+	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;
 	{
 		D3D12_STATIC_SAMPLER_DESC sampler = {};
 		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -1063,10 +1068,7 @@ RootSignature::RootSignature(bool iaOrNone)
 	rootSignDesc.pParameters = rootParameters.data();
 	rootSignDesc.NumStaticSamplers = UINT(rootSamplers.size());
 	rootSignDesc.pStaticSamplers = rootSamplers.data();
-	rootSignDesc.Flags = iaOrNone ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
-		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
-		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
-		//| D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
+	rootSignDesc.Flags = GraphicsWithInputAssembly ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
 
 	ID3DBlob* rootSignBlob;
 	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
