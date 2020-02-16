@@ -114,7 +114,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	ATLASSERT(hr == S_OK);
 
 	// Search for a hardware dx12 compatible device
-	const D3D_FEATURE_LEVEL requestedFeatureLevel = D3D_FEATURE_LEVEL_12_0;
+	const D3D_FEATURE_LEVEL requestedFeatureLevel = D3D_FEATURE_LEVEL_12_1;
 	IDXGIAdapter1* adapter = nullptr;
 	int adapterIndex = 0;
 	bool adapterFound = false;
@@ -936,15 +936,17 @@ RenderTexture::~RenderTexture()
 
 RootSignature::RootSignature(bool iaOrNone)
 {
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
-	// https://msdn.microsoft.com/en-us/library/windows/desktop/dn859357(v=vs.85).aspx
-
+	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signatures
 
 	HRESULT hr;
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
+	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
 	// A root signature can be up to 64 DWORD
 	// if ia is used, only 63 are available
+	// Descriptor tables: 1 DWORD
+	// Root constants   : 1 DWORD
+	// Root descriptors : 2 DWORD
 
 	// exemple of layout that could be used for simplicity
 	//	-  0- 3: b0 and b1 (2 CBs)
@@ -1035,7 +1037,7 @@ RootSignature::RootSignature(bool iaOrNone)
 	// No ROOT CONSTANT (1DWORD)...
 
 	// Check correctness
-	ATLASSERT(rootSignatureDWordUsed<=64);
+	ATLASSERT(rootSignatureDWordUsed <= (iaOrNone ? 63 : 64));
 
 	// Static samplers for simplicity
 	{
@@ -1077,9 +1079,6 @@ RootSignature::~RootSignature()
 {
 	resetComPtr(&mRootSignature);
 }
-// Specifying Root Signatures in HLSL https://msdn.microsoft.com/en-us/library/windows/desktop/dn913202(v=vs.85).aspx
-// Examples https://msdn.microsoft.com/en-us/library/windows/desktop/dn899123(v=vs.85).aspx
-
 
 
 
