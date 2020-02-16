@@ -160,6 +160,17 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		OutputDebugStringA("Available for reservation  = "); sprintf_s(tmp, "%llu", mVideoMemInfo.AvailableForReservation / (1024 * 1024)); OutputDebugStringA(tmp); OutputDebugStringA(" MB\n");
 	}
 
+	// Get some information about ray tracing support
+	{
+		D3D12_FEATURE_DATA_D3D12_OPTIONS5 options5 = {};
+		mDev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
+		ATLASSERT(hr == S_OK);
+		if (options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0)
+			OutputDebugStringA("Ray tracing 1.0 supported.");
+		else
+			OutputDebugStringA("Ray tracing 1.0 not supported.");
+	}
+
 	//
 	// Create the direct command queue for our single GPU device
 	//
