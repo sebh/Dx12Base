@@ -1016,7 +1016,7 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 		param.DescriptorTable = descriptorTable;
 		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParameters.push_back(param);
-		rootSignatureDWordUsed += 1;
+		rootSignatureDWordUsed += _countof(descriptorTableRanges);
 	}
 
 	// UAV descriptor table
@@ -1037,7 +1037,7 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 		param.DescriptorTable = descriptorTable;
 		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParameters.push_back(param);
-		rootSignatureDWordUsed += 1;
+		rootSignatureDWordUsed += _countof(descriptorTableRanges);
 	}
 
 	// Check bound correctness
