@@ -17,6 +17,7 @@
 //#include "DXGIDebug.h" issue with DXGI_DEBUG_ALL :(
 #endif
 
+class RootSignature;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 
@@ -45,6 +46,8 @@ public:
 	void endFrameAndSwap(bool vsyncEnabled);
 	void closeBufferedFramesBeforeShutdown();
 
+	RootSignature* GetDefaultGraphicRootSignature() { return mGfxRootSignature; }
+	RootSignature* GetDefaultComputeRootSignature() { return mCptRootSignature; }
 
 private:
 	Dx12Device();
@@ -91,7 +94,10 @@ private:
 	int											mSamDescriptorSize;							// Sampler descriptor size for the selected GPU device
 	int											mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
 
-
+	// Graphics default root signature
+	RootSignature* mGfxRootSignature;
+	// Compute default root signature
+	RootSignature* mCptRootSignature;
 };
 
 extern Dx12Device* g_dx12Device;

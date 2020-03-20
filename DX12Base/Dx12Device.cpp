@@ -29,6 +29,8 @@
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
 
+
+
 Dx12Device* g_dx12Device = nullptr;
 
 
@@ -276,6 +278,11 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mFrameFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	ATLASSERT(hr == S_OK);
 
+	// Create the default root signatures
+	mGfxRootSignature = new RootSignature(true);
+	mGfxRootSignature->setDebugName(L"DefaultGfxRootSignature");
+	mCptRootSignature = new RootSignature(false);
+	mCptRootSignature->setDebugName(L"DefaultCptRootSignature");
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()
@@ -296,6 +303,9 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 		ATLASSERT(hr == S_OK);
 		waitForPreviousFrame(i);
 	}
+
+	delete mGfxRootSignature;
+	delete mCptRootSignature;
 }
 
 void Dx12Device::internalShutdown()

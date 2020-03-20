@@ -20,10 +20,8 @@ VertexShader* vertexShader;
 PixelShader*  pixelShader;
 ComputeShader*  computeShader;
 
-RootSignature* rootSign;
 PipelineStateObject* pso;
 
-RootSignature* rootSignCS;
 PipelineStateObject* psoCS;
 
 RenderTexture* texture;
@@ -96,14 +94,10 @@ void Game::initialise()
 
 	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
-	rootSign = new RootSignature(true);
-	rootSign->setDebugName(L"triangleDrawRootSign");
-	pso = new PipelineStateObject(*rootSign, *layout, *vertexShader, *pixelShader);
-	pso->setDebugName(L"triangleDrawPso");
+	pso = new PipelineStateObject(*g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader);
+	pso->setDebugName(L"TriangleDrawPso");
 
-	rootSignCS = new RootSignature(false);
-	rootSignCS->setDebugName(L"ComputeRootSign");
-	psoCS = new PipelineStateObject(*rootSignCS, *computeShader);
+	psoCS = new PipelineStateObject(*g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
 	psoCS->setDebugName(L"ComputePso");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
@@ -124,8 +118,6 @@ void Game::shutdown()
 
 	releaseShaders();
 
-	delete rootSign;
-	delete rootSignCS;
 	delete pso;
 	delete psoCS;
 
@@ -198,7 +190,7 @@ void Game::render()
 	D3D12_INDEX_BUFFER_VIEW indexBufferView = indexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
 
 	// draw triangle
-	commandList->SetGraphicsRootSignature(rootSign->getRootsignature()); // set the root signature
+	commandList->SetGraphicsRootSignature(g_dx12Device->GetDefaultGraphicRootSignature()->getRootsignature()); // set the root signature
 	commandList->SetPipelineState(pso->getPso());
 	commandList->RSSetViewports(1, &viewport); // set the viewports
 	commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
@@ -228,16 +220,16 @@ void Game::render()
 	// Solution: create a descriptor table for each type of registers? And maybe simply embbed constant buffer as root descriptor.
 
 
-
 	UavBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 
-	commandList->SetComputeRootSignature(rootSignCS->getRootsignature()); // set the root signature
+	commandList->SetComputeRootSignature(g_dx12Device->GetDefaultComputeRootSignature()->getRootsignature()); // set the root signature
 	commandList->SetPipelineState(psoCS->getPso());
 	descriptorHeaps.clear();
 	descriptorHeaps.push_back(UavBuffer->getUAVHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
 	commandList->SetComputeRootDescriptorTable(2, UavBuffer->getUAVGPUDescriptorHandleForHeapStart());
+	//commandList->SetComputeRootConstantBufferView
 	commandList->Dispatch(1, 1, 1);
 
 
