@@ -208,13 +208,15 @@ void Game::render()
 	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
 
 
+	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
+	
 
 
 
 	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
-	descriptorHeaps.push_back(texture->getHeap());
+	descriptorHeaps.push_back(ResDescHeap.getHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
-	commandList->SetGraphicsRootDescriptorTable(1, texture->getGPUDescriptorHandleForHeapStart());
+	commandList->SetGraphicsRootDescriptorTable(1, texture->getSRVGPUHandle());
 	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	// SetGraphicsRootShaderResourceView takes root index which is not good (user should only see shader register index).
 	// Solution: create a descriptor table for each type of registers? And maybe simply embbed constant buffer as root descriptor.
@@ -226,9 +228,9 @@ void Game::render()
 	commandList->SetComputeRootSignature(g_dx12Device->GetDefaultComputeRootSignature()->getRootsignature()); // set the root signature
 	commandList->SetPipelineState(psoCS->getPso());
 	descriptorHeaps.clear();
-	descriptorHeaps.push_back(UavBuffer->getUAVHeap());
+	descriptorHeaps.push_back(ResDescHeap.getHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
-	commandList->SetComputeRootDescriptorTable(2, UavBuffer->getUAVGPUDescriptorHandleForHeapStart());
+	commandList->SetComputeRootDescriptorTable(2, UavBuffer->getUAVGPUHandle());
 	//commandList->SetComputeRootConstantBufferView
 	commandList->Dispatch(1, 1, 1);
 
@@ -239,8 +241,6 @@ void Game::render()
 	bbRtToPresent.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
 	bbRtToPresent.Transition.Subresource = 0;
 	commandList->ResourceBarrier(1, &bbRtToPresent);
-
-
 }
 
 

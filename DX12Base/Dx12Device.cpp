@@ -224,9 +224,9 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	//	- command allocator
 	//
 
-	mCsuDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mCbSrvUavDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mRtvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	mSamDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	mSamplerDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	mDsvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
 	D3D12_DESCRIPTOR_HEAP_DESC backBuffersRtvHeapDesc = {};
@@ -249,7 +249,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
 
 		// We increment the rtv handle ptr to the next one according to a rtv descriptor size
-		rtvHandle.ptr += mRtvDescriptorSize; // rtvHandle.Offset(1, mRtvDescriptorSize);
+		rtvHandle.ptr += mRtvDescriptorSize;
 	}
 
 	// Create command allocator per frame
@@ -283,6 +283,8 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mGfxRootSignature->setDebugName(L"DefaultGfxRootSignature");
 	mCptRootSignature = new RootSignature(false);
 	mCptRootSignature->setDebugName(L"DefaultCptRootSignature");
+
+	mAllocatedResourceDecriptorHeap = new AllocatedResourceDecriptorHeap(1024);
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()
@@ -306,6 +308,8 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 
 	delete mGfxRootSignature;
 	delete mCptRootSignature;
+
+	delete mAllocatedResourceDecriptorHeap;
 }
 
 void Dx12Device::internalShutdown()
@@ -524,17 +528,91 @@ ComputeShader::~ComputeShader() { }
 
 
 
+
+static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
+{
+	D3D12_HEAP_PROPERTIES heap;
+	heap.Type = D3D12_HEAP_TYPE_DEFAULT; // GPU memory
+	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap.CreationNodeMask = 1;
+	heap.VisibleNodeMask = 1;
+	return heap;
+}
+static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
+{
+	D3D12_HEAP_PROPERTIES heap;
+	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory accessible by CPU
+	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap.CreationNodeMask = 1;
+	heap.VisibleNodeMask = 1;
+	return heap;
+}
+
+
+
+
+DescriptorHeap::DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, UINT DescriptorCount)
+	: mDescriptorHeap(nullptr)
+	, mDescriptorCount(DescriptorCount)
+{
+	ATLASSERT(
+		(HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_RTV && ShaderVisible == false) ||
+		(HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_DSV && ShaderVisible == false) ||
+		(HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV) ||
+		(HeapType == D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER)
+	);
+	ATLASSERT(DescriptorCount > 0);
+
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+	heapDesc.NumDescriptors = DescriptorCount;
+	heapDesc.Flags = ShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
+	ATLASSERT(hr == S_OK);
+}
+
+DescriptorHeap::~DescriptorHeap()
+{
+	resetComPtr(&mDescriptorHeap);
+}
+
+
+
+AllocatedResourceDecriptorHeap::AllocatedResourceDecriptorHeap(UINT DescriptorCount)
+	: mDescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)			// TODO true but should be false later when allocating gpucall resource descriptor with copy 
+{
+}
+
+AllocatedResourceDecriptorHeap::~AllocatedResourceDecriptorHeap()
+{
+}
+
+void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle)
+{
+	ATLASSERT(mAllocatedDescriptorCount < mDescriptorHeap.GetDescriptorCount());
+	*CPUHandle = mDescriptorHeap.getCPUHandle();
+	*GPUHandle = mDescriptorHeap.getGPUHandle();
+	CPUHandle->ptr += mAllocatedDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+	GPUHandle->ptr += mAllocatedDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+	mAllocatedDescriptorCount++;
+}
+
+
+
+
+
+
+
 RenderResource::RenderResource()
 	: mResource(nullptr)
-	, mDescriptorHeap(nullptr)
-	, mDescriptorHeapUAV(nullptr)
 {
 }
 RenderResource::~RenderResource()
 {
 	resetComPtr(&mResource);
-	resetComPtr(&mDescriptorHeap);
-	resetComPtr(&mDescriptorHeapUAV);
 }
 
 void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
@@ -558,28 +636,6 @@ void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
 }
 
 
-
-
-static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
-{
-	D3D12_HEAP_PROPERTIES heap;
-	heap.Type = D3D12_HEAP_TYPE_DEFAULT; // GPU memory
-	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	heap.CreationNodeMask = 1;
-	heap.VisibleNodeMask = 1;
-	return heap;
-}
-static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
-{
-	D3D12_HEAP_PROPERTIES heap;
-	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory accessible by CPU
-	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	heap.CreationNodeMask = 1;
-	heap.VisibleNodeMask = 1;
-	return heap;
-}
 
 RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags)
 	: RenderResource()
@@ -607,15 +663,11 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		nullptr,
 		IID_PPV_ARGS(&mResource));
 
-	// Create the descriptor heap that will store a srv
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
-	ATLASSERT(hr == S_OK);
 
-	// Now create a shader resource view (pointing to our descriptor)
+	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
+	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
+
+	// Now create a shader resource view over our descriptor allocated memory
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = resourceDesc.Format;
@@ -624,15 +676,11 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE; // or D3D12_BUFFER_SRV_FLAG_RAW
 	srvDesc.Buffer.NumElements = mSizeInByte;
 	srvDesc.Buffer.StructureByteStride = 1;
-	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
-		heapDesc.NumDescriptors = 1;
-		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-		heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeapUAV));
-		ATLASSERT(hr == S_OK);
+		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -642,7 +690,7 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		uavDesc.Buffer.StructureByteStride = sizeof(int) * 4;
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
 		uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mDescriptorHeapUAV->GetCPUDescriptorHandleForHeapStart());
+		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
 
 	if (initData)
@@ -722,21 +770,16 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, L"RenderTexture");
 
-	// create the descriptor heap that will store a srv
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
-	ATLASSERT(hr == S_OK);
+	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
+	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
-	// Now create a shader resource view (pointing to our descriptor)
+	// Now create a shader resource view over our descriptor allocated memory
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	if (initData)
 	{
@@ -761,6 +804,12 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, sizeByte);
 
 		resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	}
+
+	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+	{
+		// TODO UAV VIEW
+		ATLASSERT(false);
 	}
 }
 
@@ -858,21 +907,15 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, szFileName);
 
-	// Create the descriptor heap that will store a srv
-	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-	heapDesc.NumDescriptors = 1;
-	heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
-	ATLASSERT(hr == S_OK);
+	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
+	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
-	// Now create a shader resource view (pointing to our descriptor)
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = texData.format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
-	dev->CreateShaderResourceView(mResource, &srvDesc, mDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	UINT64 textureUploadBufferSize = 0;
 	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
@@ -934,6 +977,12 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 
 	resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 #endif
+
+	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
+	{
+		// TODO UAV VIEW
+		ATLASSERT(false);
+	}
 }
 
 RenderTexture::~RenderTexture()

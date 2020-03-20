@@ -18,6 +18,7 @@
 #endif
 
 class RootSignature;
+class AllocatedResourceDecriptorHeap;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 
@@ -48,6 +49,13 @@ public:
 
 	RootSignature* GetDefaultGraphicRootSignature() { return mGfxRootSignature; }
 	RootSignature* GetDefaultComputeRootSignature() { return mCptRootSignature; }
+
+	UINT getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
+	UINT getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
+	UINT getRtvDescriptorSize() const { return mRtvDescriptorSize; }
+	UINT getDsvDescriptorSize() const { return mDsvDescriptorSize; }
+
+	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourceDecriptorHeap; }
 
 private:
 	Dx12Device();
@@ -89,15 +97,17 @@ private:
 	IDXGIAdapter3*								mAdapter;									// Current device adapter
 	DXGI_ADAPTER_DESC2							mAdapterDesc;								// Adapter information
 	DXGI_QUERY_VIDEO_MEMORY_INFO				mVideoMemInfo;								// Last sampled video memory usage (allocations, etc)
-	int											mCsuDescriptorSize;							// CBV SRV UAV descriptor size for the selected GPU device
-	int											mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
-	int											mSamDescriptorSize;							// Sampler descriptor size for the selected GPU device
-	int											mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
+	UINT										mCbSrvUavDescriptorSize;					// CBV SRV UAV descriptor size for the selected GPU device
+	UINT										mSamplerDescriptorSize;						// Sampler descriptor size for the selected GPU device
+	UINT										mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
+	UINT										mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
 
 	// Graphics default root signature
 	RootSignature* mGfxRootSignature;
 	// Compute default root signature
 	RootSignature* mCptRootSignature;
+
+	AllocatedResourceDecriptorHeap* mAllocatedResourceDecriptorHeap;
 };
 
 extern Dx12Device* g_dx12Device;
@@ -210,6 +220,48 @@ public:
 };
 
 
+class DescriptorHeap
+{
+public:
+	DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, UINT DescriptorCount);
+	virtual ~DescriptorHeap();
+
+	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap; }
+	D3D12_CPU_DESCRIPTOR_HANDLE  getCPUHandle() const { return mDescriptorHeap->GetCPUDescriptorHandleForHeapStart(); }
+	D3D12_GPU_DESCRIPTOR_HANDLE  getGPUHandle() const { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
+
+	UINT GetDescriptorCount() const { return mDescriptorCount; }
+
+private:
+	DescriptorHeap();
+	DescriptorHeap(DescriptorHeap&);
+
+	UINT mDescriptorCount;
+	ID3D12DescriptorHeap* mDescriptorHeap;
+};
+
+
+// Contains decriptors for allocated resources.
+// Not smart, descriptors are allocated linearly and assert when out of memory.
+// Only for CBVs, SRVs and UAVs.
+class AllocatedResourceDecriptorHeap
+{
+public:
+	AllocatedResourceDecriptorHeap(UINT DescriptorCount);
+	virtual ~AllocatedResourceDecriptorHeap();
+
+	UINT GetAllocatedDescriptorCount() const { return mAllocatedDescriptorCount; }
+	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap.getHeap(); }
+
+	void AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle);
+
+private:
+	AllocatedResourceDecriptorHeap();
+	AllocatedResourceDecriptorHeap(AllocatedResourceDecriptorHeap&);
+
+	UINT mAllocatedDescriptorCount;
+	DescriptorHeap mDescriptorHeap;
+};
 
 
 class RenderResource
@@ -220,17 +272,22 @@ public:
 	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
 
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
-	D3D12_GPU_DESCRIPTOR_HANDLE  getGPUDescriptorHandleForHeapStart() { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
-	ID3D12DescriptorHeap*  getHeap() { return mDescriptorHeap; }
-	D3D12_GPU_DESCRIPTOR_HANDLE  getUAVGPUDescriptorHandleForHeapStart() { return mDescriptorHeapUAV->GetGPUDescriptorHandleForHeapStart(); }
-	ID3D12DescriptorHeap*  getUAVHeap() { return mDescriptorHeapUAV; }
+
+	D3D12_CPU_DESCRIPTOR_HANDLE  getSRVCPUHandle() { return mSRVCPUHandle; }
+	D3D12_CPU_DESCRIPTOR_HANDLE  getUAVCPUHandle() { return mUAVCPUHandle; }
+	D3D12_GPU_DESCRIPTOR_HANDLE  getSRVGPUHandle() { return mSRVGPUHandle; }
+	D3D12_GPU_DESCRIPTOR_HANDLE  getUAVGPUHandle() { return mUAVGPUHandle; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mResource, debugName); }
 
 protected:
 	ID3D12Resource* mResource;
-	ID3D12DescriptorHeap* mDescriptorHeap;
-	ID3D12DescriptorHeap* mDescriptorHeapUAV;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mSRVCPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mUAVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mSRVGPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mUAVGPUHandle;
+
 	D3D12_RESOURCE_STATES mResourceState;
 
 private:
