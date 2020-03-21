@@ -329,6 +329,7 @@ public:
 	RenderResource();
 	virtual ~RenderResource();
 	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
+	void resourceUAVBarrier(D3D12_RESOURCE_STATES newState);
 
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
 

@@ -26,7 +26,6 @@
 //  - constant buffer
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
-//  - UAV transition https://docs.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_resource_barrier_type
 
 
 
@@ -700,6 +699,23 @@ void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
 	barrier.Transition.Subresource = 0;
 	barrier.Transition.StateBefore = mResourceState;
 	barrier.Transition.StateAfter = newState;
+
+	auto commandList = g_dx12Device->getFrameCommandList();
+	commandList->ResourceBarrier(1, &barrier);
+
+	mResourceState = newState;
+}
+
+void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
+{
+	if (newState == mResourceState)
+		return;
+
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	D3D12_RESOURCE_BARRIER barrier;
+	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+	barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+	barrier.UAV.pResource = mResource;
 
 	auto commandList = g_dx12Device->getFrameCommandList();
 	commandList->ResourceBarrier(1, &barrier);
