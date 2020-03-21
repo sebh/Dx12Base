@@ -54,7 +54,7 @@ RWBuffer<int4> myBuffer : register(u0);
 void MainComputeShader(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
 	//return;
-	myBuffer[0] = int4(1,2,3,4);
+	myBuffer[0] = texture0.Load(uint3(0,0,0)) * 100;// int4(1, 2, 3, 4);
 }
 
 
