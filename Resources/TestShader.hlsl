@@ -1,5 +1,11 @@
 
 
+cbuffer MyBuffer : register(b0)
+{
+	float4 FloatVector;
+}
+
+
 struct VertexInput
 {
 	float4 position		: POSITION;
@@ -53,8 +59,9 @@ RWBuffer<int4> myBuffer : register(u0);
 [numthreads(1, 1, 1)]
 void MainComputeShader(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
-	//return;
-	myBuffer[0] = texture0.Load(uint3(0,0,0)) * 100;// int4(1, 2, 3, 4);
+	//myBuffer[0] = texture0.Load(uint3(0, 0, 0)) * 100;// int4(1, 2, 3, 4);
+	//myBuffer[0] = int4(1, 2, 3, 4);
+	myBuffer[0] = FloatVector;
 }
 
 

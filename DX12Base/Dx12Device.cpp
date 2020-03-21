@@ -743,7 +743,7 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
-	mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+	mResourceState = initData ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_COMMON; // if it need to be initialised, we are going to copy into the buffer.
 	dev->CreateCommittedResource(&defaultHeap,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
@@ -801,6 +801,8 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 
 		auto commandList = g_dx12Device->getFrameCommandList();
 		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, mSizeInByte);
+
+		resourceTransitionBarrier(D3D12_RESOURCE_STATE_COMMON);
 	}
 }
 

@@ -14,7 +14,6 @@ RenderBuffer* indexBuffer;
 RenderBuffer* UavBuffer;
 
 RenderBuffer* constantBufferTest0;
-RenderBuffer* constantBufferTest1;
 
 VertexShader* vertexShader;
 PixelShader*  pixelShader;
@@ -89,8 +88,6 @@ void Game::initialise()
 	float cb[4];
 	cb[0] = 0.0; cb[1] = 1.0; cb[2] = 0.0; cb[3] = 0.0;
 	constantBufferTest0 = new RenderBuffer(sizeof(cb), cb);
-	cb[0] = 1.0; cb[1] = 0.0;
-	constantBufferTest1 = new RenderBuffer(sizeof(cb), cb);
 
 	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
@@ -112,7 +109,6 @@ void Game::shutdown()
 	delete indexBuffer;
 
 	delete constantBufferTest0;
-	delete constantBufferTest1;
 
 	delete UavBuffer;
 
@@ -219,10 +215,6 @@ void Game::render()
 
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
-		/*commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest0->getGPUVirtualAddress());
-		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
-		commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest1->getGPUVirtualAddress());
-		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
 	}
 
 	// Transition buffer to compute or UAV
@@ -236,6 +228,7 @@ void Game::render()
 		CallDescriptors.SetUAV(0, *UavBuffer);
 
 		commandList->SetPipelineState(psoCS->getPso());
+		commandList->SetComputeRootConstantBufferView(0, constantBufferTest0->getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->Dispatch(1, 1, 1);
 	}
