@@ -94,10 +94,10 @@ void Game::initialise()
 
 	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
-	pso = new PipelineStateObject(*g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader);
+	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader);
 	pso->setDebugName(L"TriangleDrawPso");
 
-	psoCS = new PipelineStateObject(*g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
+	psoCS = new PipelineStateObject(g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
 	psoCS->setDebugName(L"ComputePso");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
@@ -154,21 +154,32 @@ void Game::render()
 	ID3D12GraphicsCommandList* commandList = g_dx12Device->getFrameCommandList();
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
 
-	D3D12_RESOURCE_BARRIER bbPresentToRt = {};
-	bbPresentToRt.Transition.pResource = backBuffer;
-	bbPresentToRt.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-	bbPresentToRt.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	bbPresentToRt.Transition.Subresource = 0;
-	commandList->ResourceBarrier(1, &bbPresentToRt);
+	// Set defaults graphic and compute root signatures
+	commandList->SetGraphicsRootSignature(g_dx12Device->GetDefaultGraphicRootSignature().getRootsignature());
+	commandList->SetComputeRootSignature(g_dx12Device->GetDefaultComputeRootSignature().getRootsignature());
 
+	// Set the common descriptor heap
+	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
+	descriptorHeaps.push_back(g_dx12Device->getFrameDrawDispatchCallGpuDescriptorHeap()->getHeap());
+	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
 
-	D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
-	commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
+	// Set the back buffer and clear it
+	{
+		D3D12_RESOURCE_BARRIER bbPresentToRt = {};
+		bbPresentToRt.Transition.pResource = backBuffer;
+		bbPresentToRt.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		bbPresentToRt.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		bbPresentToRt.Transition.Subresource = 0;
+		commandList->ResourceBarrier(1, &bbPresentToRt);
 
-	const float clearColor[] = { 0.1f, 0.2f, 0.4f, 1.0f };
-	commandList->ClearRenderTargetView(descriptor, clearColor, 0, nullptr);
+		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
+		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
 
+		const float clearColor[] = { 0.1f, 0.2f, 0.4f, 1.0f };
+		commandList->ClearRenderTargetView(descriptor, clearColor, 0, nullptr);
+	}
 
+	// Set the viewport
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
@@ -181,60 +192,54 @@ void Game::render()
 	scissorRect.top = 0;
 	scissorRect.right = (LONG)backBuffer->GetDesc().Width;
 	scissorRect.bottom = (LONG)backBuffer->GetDesc().Height;
+	commandList->RSSetViewports(1, &viewport); // set the viewports
 
 
+	// Transition buffers for rasterisation
 	vertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView = vertexBuffer->getVertexBufferView(sizeof(VertexType));
-
 	indexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
 	D3D12_INDEX_BUFFER_VIEW indexBufferView = indexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
 
-	// draw triangle
-	commandList->SetGraphicsRootSignature(g_dx12Device->GetDefaultGraphicRootSignature()->getRootsignature()); // set the root signature
-	commandList->SetPipelineState(pso->getPso());
-	commandList->RSSetViewports(1, &viewport); // set the viewports
-	commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
-	commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
-	commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
-	commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
+	// Start this frame drawing process (setting up GPU call resource tables)
+	DrawDispatchCallCpuDescriptorHeap& DrawDispatchCallCpuDescriptorHeap = g_dx12Device->getDrawDispatchCallCpuDescriptorHeap();
+	DrawDispatchCallCpuDescriptorHeap.Reset();
 
-	//commandList->DrawInstanced(3, 1, 0, 0);
-	//commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	// Render a triangle
+	{
+		commandList->SetPipelineState(pso->getPso());
+		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
+		commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
 
-	/*commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest0->getGPUVirtualAddress());
-	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+		DrawDispatchCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		CallDescriptors.SetSRV(0, *texture);
 
-	commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest1->getGPUVirtualAddress());
-	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
+		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+		/*commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest0->getGPUVirtualAddress());
+		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+		commandList->SetGraphicsRootShaderResourceView(1, constantBufferTest1->getGPUVirtualAddress());
+		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);*/
+	}
 
-
-	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
-	
-
-
-
-	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
-	descriptorHeaps.push_back(ResDescHeap.getHeap());
-	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
-	commandList->SetGraphicsRootDescriptorTable(1, texture->getSRVGPUHandle());
-	commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
-	// SetGraphicsRootShaderResourceView takes root index which is not good (user should only see shader register index).
-	// Solution: create a descriptor table for each type of registers? And maybe simply embbed constant buffer as root descriptor.
-
-
+	// Transition buffer as UAV
 	UavBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+	// Dispatch compute
+	{
+		DrawDispatchCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		CallDescriptors.SetUAV(0, *UavBuffer);
 
-	commandList->SetComputeRootSignature(g_dx12Device->GetDefaultComputeRootSignature()->getRootsignature()); // set the root signature
-	commandList->SetPipelineState(psoCS->getPso());
-	descriptorHeaps.clear();
-	descriptorHeaps.push_back(ResDescHeap.getHeap());
-	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
-	commandList->SetComputeRootDescriptorTable(2, UavBuffer->getUAVGPUHandle());
-	//commandList->SetComputeRootConstantBufferView
-	commandList->Dispatch(1, 1, 1);
+		commandList->SetPipelineState(psoCS->getPso());
+		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->Dispatch(1, 1, 1);
+	}
 
 
+
+	// Make back-buffer presentable.
 	D3D12_RESOURCE_BARRIER bbRtToPresent = {};
 	bbRtToPresent.Transition.pResource = backBuffer;
 	bbRtToPresent.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;

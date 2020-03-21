@@ -23,11 +23,10 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - root descriptor handling. Single default for everything?
 //  - constant buffer
-//  - texture loading
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
+//  - UAV transition https://docs.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_resource_barrier_type
 
 
 
@@ -284,7 +283,17 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mCptRootSignature = new RootSignature(false);
 	mCptRootSignature->setDebugName(L"DefaultCptRootSignature");
 
-	mAllocatedResourceDecriptorHeap = new AllocatedResourceDecriptorHeap(1024);
+	const UINT TotalResourceDescriptorCount = 1024;
+	const UINT FrameDrawDispatchCallResourceDescriptorCount = 1024;
+
+	mAllocatedResourceDecriptorHeap = new AllocatedResourceDecriptorHeap(TotalResourceDescriptorCount);
+
+	mDrawDispatchCallCpuDescriptorHeap = new DrawDispatchCallCpuDescriptorHeap(FrameDrawDispatchCallResourceDescriptorCount);
+
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		mFrameDrawDispatchCallGpuDescriptorHeap[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDrawDispatchCallResourceDescriptorCount);
+	}
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()
@@ -309,6 +318,12 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 	delete mGfxRootSignature;
 	delete mCptRootSignature;
 
+
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		delete mFrameDrawDispatchCallGpuDescriptorHeap[i];
+	}
+	delete mDrawDispatchCallCpuDescriptorHeap;
 	delete mAllocatedResourceDecriptorHeap;
 }
 
@@ -373,6 +388,13 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	// Close the command now that we are done with this frame
 	mCommandList[0]->Close();
+
+	//Copy all descriptors required from CPU to GPU heap before we execture the command list
+	mDev->CopyDescriptorsSimple(
+		mDrawDispatchCallCpuDescriptorHeap->getFrameDescriptorCount(),
+		getFrameDrawDispatchCallGpuDescriptorHeap()->getCPUHandle(),
+		mDrawDispatchCallCpuDescriptorHeap->getDescriptorHeap().getCPUHandle(),
+		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	// Execute array of command lists
 	ID3D12CommandList* ppCommandLists[1] = { mCommandList[0] };
@@ -582,7 +604,7 @@ DescriptorHeap::~DescriptorHeap()
 
 
 AllocatedResourceDecriptorHeap::AllocatedResourceDecriptorHeap(UINT DescriptorCount)
-	: mDescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)			// TODO true but should be false later when allocating gpucall resource descriptor with copy 
+	: mDescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)
 {
 }
 
@@ -603,8 +625,58 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 
 
+DrawDispatchCallCpuDescriptorHeap::DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount)
+	: mDescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)
+{
+}
+
+DrawDispatchCallCpuDescriptorHeap::~DrawDispatchCallCpuDescriptorHeap()
+{
+}
+
+void DrawDispatchCallCpuDescriptorHeap::Reset()
+{
+	mFrameDescriptorCount = 0;
+}
+
+DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::AllocateCall(RootSignature& RootSig)
+{
+	Call NewCall = Call();
+	NewCall.mRootSig = &RootSig;
+
+	NewCall.mCPUHandle = mDescriptorHeap.getCPUHandle();
+	NewCall.mCPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+
+	NewCall.mGPUHandle = g_dx12Device->getFrameDrawDispatchCallGpuDescriptorHeap()->getGPUHandle();
+	NewCall.mGPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+
+	mFrameDescriptorCount += RootSig.getTab0SRVCount() + RootSig.getTab0UAVCount();
+
+	return NewCall;
+}
 
 
+DrawDispatchCallCpuDescriptorHeap::Call::Call()
+{
+}
+void DrawDispatchCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
+{
+	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0SRVCount());
+
+	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
+	Destination.ptr += mUsedSRVs * g_dx12Device->getCbSrvUavDescriptorSize();
+	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mUsedSRVs++;
+}
+void DrawDispatchCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
+{
+	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0UAVCount());
+
+	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
+	Destination.ptr += (mRootSig->getTab0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
+	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mUsedSRVs++;
+}
 
 RenderResource::RenderResource()
 	: mResource(nullptr)
@@ -1007,64 +1079,47 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	// Root constants   : 1 DWORD
 	// Root descriptors : 2 DWORD
 
+
 	// ROOT DESCRIPTORS
 	// Current layout layout for graphics and compute is
 	//  0 - 1 : 1 constant buffer		b0 only
-	//  2 - 3 : SRV descriptor table	t0 only
-	//  3 - 4 : UAV descriptor table	u0 only
-	//	Static samplers are used
+	//  2 - 3 : 1 descriptor table	
+	//									t0 - t15
+	//									u0 - u7
+	//	Static samplers are static
 
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
-	int rootSignatureDWordUsed = 0; // a DWORD is 4 bytes
+	mRootSignatureDWordUsed = 0; // a DWORD is 4 bytes
+
+	mRootCBVCount = 1;
+	mTab0SRVCount = 1;
+	mTab0UAVCount = 1;
 
 	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
-	const int defaultRegisterCountB = 1;
-	const int defaultRegisterCountT = 0;
-	const int defaultRegisterCountU = 0;
-
-	int registerCountB = 0;
-	int registerCountT = 0;
-	int registerCountU = 0;
-
-	for (int i = 0; i<defaultRegisterCountB; ++i)
+	// We only allocate a slot a single constant buffer
 	{
 		D3D12_ROOT_PARAMETER param;
 		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		param.Descriptor.RegisterSpace = 0;
-		param.Descriptor.ShaderRegister = registerCountB++;
+		param.Descriptor.ShaderRegister = 0;	// b0
 		rootParameters.push_back(param);
-		rootSignatureDWordUsed += 2;
-	}
-	for (int i = 0; i<defaultRegisterCountT; ++i)
-	{
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		param.Descriptor.RegisterSpace = 0;
-		param.Descriptor.ShaderRegister = registerCountT++;
-		rootParameters.push_back(param);
-		rootSignatureDWordUsed += 2;
-	}
-	for (int i = 0; i<defaultRegisterCountU; ++i)
-	{
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		param.Descriptor.RegisterSpace = 0;
-		param.Descriptor.ShaderRegister = registerCountU++;
-		rootParameters.push_back(param);
-		rootSignatureDWordUsed += 2;
+		mRootSignatureDWordUsed += 2;
 	}
 
-	// SRV descriptor table
+	// SRV/UAV simple descriptor table, dx11 style
 	{
-		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1];
+		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[2];
 		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		descriptorTableRanges[0].NumDescriptors = 1;
 		descriptorTableRanges[0].BaseShaderRegister = 0;
+		descriptorTableRanges[0].NumDescriptors = mTab0SRVCount;
 		descriptorTableRanges[0].RegisterSpace = 0;
 		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		descriptorTableRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		descriptorTableRanges[1].BaseShaderRegister = 0;
+		descriptorTableRanges[1].NumDescriptors = mTab0UAVCount;
+		descriptorTableRanges[1].RegisterSpace = 0;
+		descriptorTableRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
 		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
@@ -1075,32 +1130,11 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 		param.DescriptorTable = descriptorTable;
 		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootParameters.push_back(param);
-		rootSignatureDWordUsed += _countof(descriptorTableRanges);
-	}
-
-	// UAV descriptor table
-	{
-		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[1]; // one table description again. Try merging it with above
-		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-		descriptorTableRanges[0].NumDescriptors = 1;
-		descriptorTableRanges[0].BaseShaderRegister = 0;
-		descriptorTableRanges[0].RegisterSpace = 0;
-		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-
-		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
-		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
-		descriptorTable.pDescriptorRanges = &descriptorTableRanges[0];
-
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		param.DescriptorTable = descriptorTable;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParameters.push_back(param);
-		rootSignatureDWordUsed += _countof(descriptorTableRanges);
+		mRootSignatureDWordUsed += 1;// _countof(descriptorTableRanges);
 	}
 
 	// Check bound correctness
-	ATLASSERT(rootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63 : 64));
+	ATLASSERT(mRootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63 : 64));
 
 	// Static samplers for simplicity
 	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;

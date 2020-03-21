@@ -18,7 +18,10 @@
 #endif
 
 class RootSignature;
+class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
+class DrawDispatchCallCpuDescriptorHeap;
+class RenderResource;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 
@@ -47,8 +50,8 @@ public:
 	void endFrameAndSwap(bool vsyncEnabled);
 	void closeBufferedFramesBeforeShutdown();
 
-	RootSignature* GetDefaultGraphicRootSignature() { return mGfxRootSignature; }
-	RootSignature* GetDefaultComputeRootSignature() { return mCptRootSignature; }
+	RootSignature& GetDefaultGraphicRootSignature() { return *mGfxRootSignature; }
+	RootSignature& GetDefaultComputeRootSignature() { return *mCptRootSignature; }
 
 	UINT getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
 	UINT getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
@@ -56,6 +59,9 @@ public:
 	UINT getDsvDescriptorSize() const { return mDsvDescriptorSize; }
 
 	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourceDecriptorHeap; }
+	DrawDispatchCallCpuDescriptorHeap& getDrawDispatchCallCpuDescriptorHeap() { return *mDrawDispatchCallCpuDescriptorHeap; }
+
+	DescriptorHeap* getFrameDrawDispatchCallGpuDescriptorHeap() { return mFrameDrawDispatchCallGpuDescriptorHeap[mFrameIndex]; }
 
 private:
 	Dx12Device();
@@ -107,7 +113,11 @@ private:
 	// Compute default root signature
 	RootSignature* mCptRootSignature;
 
-	AllocatedResourceDecriptorHeap* mAllocatedResourceDecriptorHeap;
+	AllocatedResourceDecriptorHeap* mAllocatedResourceDecriptorHeap;						// All loaded resources
+
+	DrawDispatchCallCpuDescriptorHeap* mDrawDispatchCallCpuDescriptorHeap;					// Staging CPU descriptors uploaded once for the frame
+
+	DescriptorHeap* mFrameDrawDispatchCallGpuDescriptorHeap[frameBufferCount];				// Descriptor heaps for frame
 };
 
 extern Dx12Device* g_dx12Device;
@@ -264,6 +274,55 @@ private:
 };
 
 
+class DrawDispatchCallCpuDescriptorHeap
+{
+public:
+	DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount);
+	virtual ~DrawDispatchCallCpuDescriptorHeap();
+
+	void Reset();
+
+	const DescriptorHeap& getDescriptorHeap() const { return mDescriptorHeap; };
+	UINT getFrameDescriptorCount() const { return mFrameDescriptorCount; }
+
+	struct Call
+	{
+		Call();
+
+		void SetSRV(UINT Register, RenderResource& Resource);
+		void SetUAV(UINT Register, RenderResource& Resource);
+
+		D3D12_GPU_DESCRIPTOR_HANDLE getTab0DescriptorGpuHandle() { return mGPUHandle; }
+
+	private:
+		friend class DrawDispatchCallCpuDescriptorHeap;
+
+		RootSignature* mRootSig;
+		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the staging heap
+		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
+
+		UINT mUsedSRVs = 0;
+		UINT mUsedUAVs = 0;
+
+		UINT mSRVOffset = 0;
+		UINT mUAVOffset = 0;
+	};
+
+	Call AllocateCall(RootSignature& RootSig);
+
+private:
+	DrawDispatchCallCpuDescriptorHeap();
+	DrawDispatchCallCpuDescriptorHeap(DrawDispatchCallCpuDescriptorHeap&);
+
+	DescriptorHeap mDescriptorHeap;
+
+	UINT mFrameDescriptorCount;
+};
+
+
+
+
+
 class RenderResource
 {
 public:
@@ -336,12 +395,21 @@ public:
 	~RootSignature();
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 
+	UINT getRootCBVCount() { return mRootCBVCount; }
+	UINT getTab0SRVCount() { return mTab0SRVCount; }
+	UINT getTab0UAVCount() { return mTab0UAVCount; }
+
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:
 	RootSignature();
 	RootSignature(RootSignature&);
 
+	UINT mRootCBVCount;
+	UINT mTab0SRVCount;
+	UINT mTab0UAVCount;
+
 	ID3D12RootSignature* mRootSignature;
+	UINT mRootSignatureDWordUsed;
 };
 
 
