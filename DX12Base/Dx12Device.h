@@ -79,13 +79,7 @@ private:
 
 	void waitForPreviousFrame(int frameIndex = -1);
 
-#ifdef _DEBUG
-	CComPtr<ID3D12Debug>						mDebugController0;
-	CComPtr<ID3D12Debug1>						mDebugController1;
-#endif
-
 	ID3D12Device5*								mDev;										// the pointer to our Direct3D device interface
-	ID3D12Debug*								mDebugController;
 	IDXGIFactory4*								mDxgiFactory;
 	IDXGISwapChain3*							mSwapchain;									// the pointer to the swap chain interface
 	int											mFrameIndex;								// Current swap chain frame index (back buffer)

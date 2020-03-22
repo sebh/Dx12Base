@@ -35,7 +35,6 @@ Dx12Device* g_dx12Device = nullptr;
 
 Dx12Device::Dx12Device()
 {
-	mDebugController = nullptr;
 }
 
 Dx12Device::~Dx12Device()
@@ -60,20 +59,24 @@ void Dx12Device::shutdown()
 
 void Dx12Device::EnableShaderBasedValidation()
 {
-#ifdef _DEBUG
+#ifdef AAA //_DEBUG
 	//enable debug layer
 	// in code  https://msdn.microsoft.com/en-us/library/windows/desktop/dn899120(v=vs.85).aspx#debug_layer
 	// and shaders  #define D3DCOMPILE_DEBUG 1
 	// see https://msdn.microsoft.com/en-us/library/windows/desktop/mt490477(v=vs.85).aspx
 	HRESULT hr;
-	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&mDebugController0));
+
+	ID3D12Debug* DebugController0;
+	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&DebugController0));
 	ATLASSERT(hr == S_OK);
-	hr = mDebugController0->QueryInterface(IID_PPV_ARGS(&mDebugController1));
-	ATLASSERT(hr == S_OK);
-	mDebugController0->EnableDebugLayer();
-	mDebugController1->SetEnableGPUBasedValidation(true);
-	mDebugController1->SetEnableSynchronizedCommandQueueValidation(true);
-	mDebugController1->EnableDebugLayer();
+	DebugController0->EnableDebugLayer();
+	DebugController0->Release();
+
+//	hr = DebugController0->QueryInterface(IID_PPV_ARGS(&mDebugController1));
+//	ATLASSERT(hr == S_OK);
+//	mDebugController1->SetEnableGPUBasedValidation(true);
+//	mDebugController1->SetEnableSynchronizedCommandQueueValidation(true);
+//	mDebugController1->EnableDebugLayer();
 	// For more later, you can obtain ID3D12DebugDevice\ID3D12DebugCommandList\ID3D12DebugCommandQueue by using QueryInterface on ID3D12Device\ID3D12CommandList\ID3D12CommandQueue. You can also use QueryInterface to get ID3D12Debug from your ID3D12Device
 #endif
 }
@@ -92,13 +95,19 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	// Enable the debug layer (requires the Graphics Tools "optional feature").
 	// NOTE: Enabling the debug layer after device creation will invalidate the active device.
 	{
-		if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&mDebugController))))
-		{
-			mDebugController->EnableDebugLayer();
+		HRESULT hr;
+		CComPtr<ID3D12Debug> DebugController0;
+		CComPtr<ID3D12Debug1> DebugController1;
 
-			// Enable additional debug layers.
-			dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
-		}
+		hr = D3D12GetDebugInterface(IID_PPV_ARGS(&DebugController0));
+		ATLASSERT(hr == S_OK); // we want to know if debugging is not possible and fail in this case.
+		DebugController0->EnableDebugLayer();
+
+		hr = DebugController0->QueryInterface(IID_PPV_ARGS(&DebugController1));
+		ATLASSERT(hr == S_OK);
+		DebugController1->EnableDebugLayer();
+		DebugController1->SetEnableGPUBasedValidation(true);
+		DebugController1->SetEnableSynchronizedCommandQueueValidation(true);
 
 		IDXGIInfoQueue* dxgiInfoQueue;
 		if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue))))
@@ -107,6 +116,9 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 			dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, true);
 			dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_ALL, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, true);
 		}
+
+		// Enable additional debug layers.
+		dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 	}
 #endif
 
@@ -128,7 +140,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 			continue;
 		}
 
-		hr = D3D12CreateDevice(adapter, requestedFeatureLevel, _uuidof(ID3D12Device), nullptr);
+		hr = D3D12CreateDevice(adapter, requestedFeatureLevel, _uuidof(ID3D12Device), reinterpret_cast<void**>(&mDev));
 		if (SUCCEEDED(hr))
 		{
 			adapterFound = true;
@@ -137,9 +149,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 		adapterIndex++;
 	}
-	EnableShaderBasedValidation();
 	ATLASSERT(adapterFound);
-	hr = D3D12CreateDevice( adapter, requestedFeatureLevel, _uuidof(ID3D12Device), reinterpret_cast<void** >(&mDev));
 	ATLASSERT(hr == S_OK);
 
 	// Get some information about the adapter
@@ -233,6 +243,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	backBuffersRtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // not D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE because never sibile to shader. Only pipeline output
 	hr = mDev->CreateDescriptorHeap(&backBuffersRtvHeapDesc, IID_PPV_ARGS(&mBackBuffeRtvDescriptorHeap));
 	ATLASSERT(hr == S_OK);
+	setDxDebugName(mBackBuffeRtvDescriptorHeap, L"BackBuffeRtvDescriptorHeap");
 
 	// Create a RTV for each back buffer
 	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
@@ -245,6 +256,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 		// Then we create a render target view (descriptor) which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
 		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
+		setDxDebugName(mBackBuffeRtv[i], L"BackBuffeRtv");
 
 		// We increment the rtv handle ptr to the next one according to a rtv descriptor size
 		rtvHandle.ptr += mRtvDescriptorSize;
@@ -255,6 +267,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	{
 		hr = mDev->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mCommandAllocator[i]));
 		ATLASSERT(hr == S_OK);
+		setDxDebugName(mCommandAllocator[i], L"CommandAllocator");
 	}
 
 	// Create the command list matching each allocator/frame
@@ -262,6 +275,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	{
 		hr = mDev->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mCommandAllocator[i], NULL, IID_PPV_ARGS(&mCommandList[i]));
 		ATLASSERT(hr == S_OK);
+		setDxDebugName(mCommandList[i], L"CommandList");
 		// command lists are created in the recording state. our main loop will set it up for recording again so close it now
 		mCommandList[i]->Close();
 	}
@@ -271,6 +285,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	{
 		hr = mDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFrameFence[i]));
 		ATLASSERT(hr == S_OK);
+		setDxDebugName(mFrameFence[i], L"FrameFence");
 		mFrameFenceValue[i] = 0; // set the initial fence value to 0
 	}
 	mFrameFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -347,19 +362,20 @@ void Dx12Device::internalShutdown()
 	resetComPtr(&mCommandList[0]);
 
 	resetComPtr(&mDxgiFactory);
-	resetComPtr(&mDebugController);
 
 	resetComPtr(&mDev);
 	resetComPtr(&mSwapchain);
 
 	resetComPtr(&mCommandQueue);
 
+	CloseHandle(mFrameFenceEvent);
+
 #ifdef _DEBUG
 	// Off since cannot include DXGIDebug.h for some reason.
-	CComPtr<IDXGIDebug1> dxgiDebug;
-	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))))
+	CComPtr<IDXGIDebug1> dxgiDebug1;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug1))))
 	{
-		dxgiDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL));
+		dxgiDebug1->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL));
 	}
 #endif
 }

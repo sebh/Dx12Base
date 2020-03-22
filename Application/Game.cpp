@@ -88,8 +88,10 @@ void Game::initialise()
 	float cb[4];
 	cb[0] = 0.0; cb[1] = 1.0; cb[2] = 0.0; cb[3] = 0.0;
 	constantBufferTest0 = new RenderBuffer(sizeof(cb), cb);
+	constantBufferTest0->setDebugName(L"constantBufferTest0");
 
 	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	UavBuffer->setDebugName(L"UavBuffer");
 
 	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader);
 	pso->setDebugName(L"TriangleDrawPso");
