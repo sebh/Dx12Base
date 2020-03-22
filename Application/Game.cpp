@@ -200,7 +200,9 @@ void Game::render()
 
 	// Start this frame drawing process (setting up GPU call resource tables)
 	DrawDispatchCallCpuDescriptorHeap& DrawDispatchCallCpuDescriptorHeap = g_dx12Device->getDrawDispatchCallCpuDescriptorHeap();
-	DrawDispatchCallCpuDescriptorHeap.Reset();
+	DrawDispatchCallCpuDescriptorHeap.Reset();		//			//			//			//			//			//			//			// TODO TODO move to Dx12Device::beginFrame
+
+	FrameConstantBuffers& ConstantBuffers = g_dx12Device->getFrameConstantBuffers();
 
 	// Render a triangle
 	{
@@ -228,11 +230,17 @@ void Game::render()
 		CallDescriptors.SetUAV(0, *UavBuffer);
 
 		commandList->SetPipelineState(psoCS->getPso());
-		commandList->SetComputeRootConstantBufferView(0, constantBufferTest0->getGPUVirtualAddress());
+
+		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(float) * 4);
+		float* CBFloat4 = (float*)CB.getCPUMemory();
+		CBFloat4[0] = 4;
+		CBFloat4[1] = 5;
+		CBFloat4[2] = 6;
+		CBFloat4[3] = 7;
+		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->Dispatch(1, 1, 1);
 	}
-
 
 
 	// Make back-buffer presentable.

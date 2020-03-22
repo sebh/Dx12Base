@@ -23,9 +23,9 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - constant buffer
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
+//  - TODO track performance https://msdn.microsoft.com/en-us/library/windows/desktop/dn903928(v=vs.85).aspx
 
 
 
@@ -292,6 +292,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		mFrameDrawDispatchCallGpuDescriptorHeap[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDrawDispatchCallResourceDescriptorCount);
+		mFrameConstantBuffers[i] = new FrameConstantBuffers(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT * 2);
 	}
 }
 
@@ -321,6 +322,7 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		delete mFrameDrawDispatchCallGpuDescriptorHeap[i];
+		delete mFrameConstantBuffers[i];
 	}
 	delete mDrawDispatchCallCpuDescriptorHeap;
 	delete mAllocatedResourceDecriptorHeap;
@@ -379,6 +381,9 @@ void Dx12Device::beginFrame()
 	ID3D12PipelineState* pInitialState = NULL;
 	hr = mCommandList[0]->Reset(mCommandAllocator[mFrameIndex], pInitialState);
 	ATLASSERT(hr == S_OK);
+
+	// Start the constant buffer craetion process, map memory to write constant
+	mFrameConstantBuffers[mFrameIndex]->BeginFrame();
 }
 
 void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
@@ -387,6 +392,9 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	// Close the command now that we are done with this frame
 	mCommandList[0]->Close();
+
+	// Unmap constant upload buffer.
+	mFrameConstantBuffers[mFrameIndex]->EndFrame();
 
 	//Copy all descriptors required from CPU to GPU heap before we execture the command list
 	mDev->CopyDescriptorsSimple(
@@ -623,7 +631,6 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 
 
-
 DrawDispatchCallCpuDescriptorHeap::DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount)
 	: mDescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)
 {
@@ -640,7 +647,7 @@ void DrawDispatchCallCpuDescriptorHeap::Reset()
 
 DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::AllocateCall(RootSignature& RootSig)
 {
-	Call NewCall = Call();
+	Call NewCall;
 	NewCall.mRootSig = &RootSig;
 
 	NewCall.mCPUHandle = mDescriptorHeap.getCPUHandle();
@@ -676,6 +683,70 @@ void DrawDispatchCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResour
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
 }
+
+
+
+FrameConstantBuffers::FrameConstantBuffers(UINT SizeByte)
+	: mFrameByteCount(RoundUp(SizeByte, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))
+{
+	D3D12_RESOURCE_DESC resourceDesc;
+	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+	resourceDesc.Width = mFrameByteCount;
+	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
+	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	resourceDesc.SampleDesc.Count = 1;
+	resourceDesc.SampleDesc.Quality = 0;
+
+	D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
+	resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	ID3D12Device* dev = g_dx12Device->getDevice();
+	HRESULT hr = dev->CreateCommittedResource(&uploadHeap,
+		D3D12_HEAP_FLAG_NONE,
+		&resourceDesc,
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&mConstantBufferUploadHeap));
+	ATLASSERT(hr == S_OK);
+	setDxDebugName(mConstantBufferUploadHeap, L"FrameConstantBuffers");
+
+	mGpuVirtualAddressStart = mConstantBufferUploadHeap->GetGPUVirtualAddress();
+}
+
+FrameConstantBuffers::~FrameConstantBuffers()
+{
+	resetComPtr(&mConstantBufferUploadHeap);
+}
+
+void FrameConstantBuffers::BeginFrame()
+{
+	mFrameUsedBytes = 0;
+	mConstantBufferUploadHeap->Map(0, nullptr, (void**)(&mCpuMemoryStart));
+}
+
+void FrameConstantBuffers::EndFrame()
+{
+	mConstantBufferUploadHeap->Unmap(0, nullptr);
+}
+
+FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameConstantBuffer(UINT SizeByte)
+{
+	FrameConstantBuffer NewConstantBuffer;
+
+	UINT SizeByteAligned = RoundUp(SizeByte, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	ATLASSERT(mFrameUsedBytes + SizeByteAligned <= mFrameByteCount);
+
+	NewConstantBuffer.mCpuMemory = mCpuMemoryStart + mFrameUsedBytes;
+	NewConstantBuffer.mGpuVirtualAddress = mGpuVirtualAddressStart + mFrameUsedBytes;
+
+	mFrameUsedBytes += SizeByteAligned;
+	return NewConstantBuffer;
+}
+
+
 
 RenderResource::RenderResource()
 	: mResource(nullptr)
@@ -1152,7 +1223,7 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	}
 
 	// Check bound correctness
-	ATLASSERT(mRootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63 : 64));
+	ATLASSERT(mRootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63u : 64u));
 
 	// Static samplers for simplicity
 	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;
@@ -1334,6 +1405,20 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, ComputeShader&
 PipelineStateObject::~PipelineStateObject()
 {
 	resetComPtr(&mPso);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+UINT RoundUp(UINT Value, UINT  Alignement)
+{
+	UINT Var = Value + Alignement - 1;
+	return Alignement * (Var / Alignement);
 }
 
 

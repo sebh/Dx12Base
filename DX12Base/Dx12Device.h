@@ -21,6 +21,7 @@ class RootSignature;
 class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
 class DrawDispatchCallCpuDescriptorHeap;
+class FrameConstantBuffers;
 class RenderResource;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
@@ -62,6 +63,8 @@ public:
 	DrawDispatchCallCpuDescriptorHeap& getDrawDispatchCallCpuDescriptorHeap() { return *mDrawDispatchCallCpuDescriptorHeap; }
 
 	DescriptorHeap* getFrameDrawDispatchCallGpuDescriptorHeap() { return mFrameDrawDispatchCallGpuDescriptorHeap[mFrameIndex]; }
+
+	FrameConstantBuffers& getFrameConstantBuffers() { return *mFrameConstantBuffers[mFrameIndex]; }
 
 private:
 	Dx12Device();
@@ -118,6 +121,8 @@ private:
 	DrawDispatchCallCpuDescriptorHeap* mDrawDispatchCallCpuDescriptorHeap;					// Staging CPU descriptors uploaded once for the frame
 
 	DescriptorHeap* mFrameDrawDispatchCallGpuDescriptorHeap[frameBufferCount];				// Descriptor heaps for frame
+
+	FrameConstantBuffers* mFrameConstantBuffers[frameBufferCount];							// Descriptor heaps for frame
 };
 
 extern Dx12Device* g_dx12Device;
@@ -320,7 +325,41 @@ private:
 };
 
 
+class FrameConstantBuffers
+{
+public:
+	FrameConstantBuffers(UINT SizeByte);
+	virtual ~FrameConstantBuffers();
 
+	void BeginFrame();
+	void EndFrame();
+
+	struct FrameConstantBuffer
+	{
+		FrameConstantBuffer() {}
+
+		D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() const { return mGpuVirtualAddress; }
+		void* getCPUMemory() const { return mCpuMemory; }
+
+	private:
+		friend class FrameConstantBuffers;
+		D3D12_GPU_VIRTUAL_ADDRESS mGpuVirtualAddress;
+		void* mCpuMemory;
+	};
+
+	FrameConstantBuffer AllocateFrameConstantBuffer(UINT SizeByte);
+
+private:
+	FrameConstantBuffers();
+	FrameConstantBuffers(FrameConstantBuffers&);
+
+	ID3D12Resource* mConstantBufferUploadHeap;
+
+	UINT mFrameByteCount;
+	UINT mFrameUsedBytes;
+	D3D12_GPU_VIRTUAL_ADDRESS mGpuVirtualAddressStart;
+	BYTE* mCpuMemoryStart;
+};
 
 
 class RenderResource
@@ -455,7 +494,6 @@ private:
 
 
 
-// TODO track performance https://msdn.microsoft.com/en-us/library/windows/desktop/dn903928(v=vs.85).aspx
-
+UINT RoundUp(UINT Value, UINT  Alignement);
 
 
