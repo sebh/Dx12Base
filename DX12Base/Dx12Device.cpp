@@ -116,6 +116,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
 		{
 			adapterIndex++;
+			adapter->Release();
 			continue;
 		}
 
@@ -131,6 +132,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	}
 	ATLASSERT(adapterFound);
 	ATLASSERT(hr == S_OK);
+	adapter->Release();
 
 	// Get some information about the adapter
 	{
@@ -343,10 +345,11 @@ void Dx12Device::internalShutdown()
 
 	resetComPtr(&mDxgiFactory);
 
-	resetComPtr(&mDev);
-	resetComPtr(&mSwapchain);
-
 	resetComPtr(&mCommandQueue);
+
+	resetComPtr(&mSwapchain);
+	resetComPtr(&mDev);
+	resetComPtr(&mAdapter);
 
 	CloseHandle(mFrameFenceEvent);
 
@@ -355,7 +358,7 @@ void Dx12Device::internalShutdown()
 	CComPtr<IDXGIDebug1> dxgiDebug1;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug1))))
 	{
-		dxgiDebug1->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_FLAGS(DXGI_DEBUG_RLO_IGNORE_INTERNAL | DXGI_DEBUG_RLO_DETAIL));
+		dxgiDebug1->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
 	}
 #endif
 }
