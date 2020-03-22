@@ -165,6 +165,7 @@
     <ClCompile Include="..\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\imgui\imgui_widgets.cpp" />
     <ClCompile Include="Game.cpp" />
+    <ClCompile Include="WinImgui.cpp" />
     <ClCompile Include="WinMain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -177,6 +178,7 @@
     <ClInclude Include="..\imgui\imstb_textedit.h" />
     <ClInclude Include="..\imgui\imstb_truetype.h" />
     <ClInclude Include="Game.h" />
+    <ClInclude Include="WinImgui.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\Resources\TestShader.hlsl">
