@@ -266,7 +266,7 @@ public:
 	virtual ~AllocatedResourceDecriptorHeap();
 
 	UINT GetAllocatedDescriptorCount() const { return mAllocatedDescriptorCount; }
-	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap.getHeap(); }
+	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap->getHeap(); }
 
 	void AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle);
 
@@ -275,7 +275,7 @@ private:
 	AllocatedResourceDecriptorHeap(AllocatedResourceDecriptorHeap&);
 
 	UINT mAllocatedDescriptorCount;
-	DescriptorHeap mDescriptorHeap;
+	DescriptorHeap* mDescriptorHeap;
 };
 
 
@@ -317,7 +317,7 @@ private:
 	DrawDispatchCallCpuDescriptorHeap();
 	DrawDispatchCallCpuDescriptorHeap(DrawDispatchCallCpuDescriptorHeap&);
 
-	DescriptorHeap mCpuDescriptorHeap;
+	DescriptorHeap* mCpuDescriptorHeap;
 
 	UINT mFrameDescriptorCount;
 };

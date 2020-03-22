@@ -609,19 +609,20 @@ DescriptorHeap::~DescriptorHeap()
 
 
 AllocatedResourceDecriptorHeap::AllocatedResourceDecriptorHeap(UINT DescriptorCount)
-	: mDescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)
 {
+	mDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
 }
 
 AllocatedResourceDecriptorHeap::~AllocatedResourceDecriptorHeap()
 {
+	resetPtr(&mDescriptorHeap);
 }
 
 void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle)
 {
-	ATLASSERT(mAllocatedDescriptorCount < mDescriptorHeap.GetDescriptorCount());
-	*CPUHandle = mDescriptorHeap.getCPUHandle();
-	*GPUHandle = mDescriptorHeap.getGPUHandle();
+	ATLASSERT(mAllocatedDescriptorCount < mDescriptorHeap->GetDescriptorCount());
+	*CPUHandle = mDescriptorHeap->getCPUHandle();
+	*GPUHandle = mDescriptorHeap->getGPUHandle();
 	CPUHandle->ptr += mAllocatedDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 	GPUHandle->ptr += mAllocatedDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 	mAllocatedDescriptorCount++;
@@ -630,12 +631,13 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 
 DrawDispatchCallCpuDescriptorHeap::DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount)
-	: mCpuDescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount)
 {
+	mCpuDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
 }
 
 DrawDispatchCallCpuDescriptorHeap::~DrawDispatchCallCpuDescriptorHeap()
 {
+	resetPtr(&mCpuDescriptorHeap);
 }
 
 void DrawDispatchCallCpuDescriptorHeap::BeginRecording()
@@ -649,7 +651,7 @@ void DrawDispatchCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescr
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(
 		mFrameDescriptorCount,
 		CopyToDescriptoHeap.getCPUHandle(),
-		mCpuDescriptorHeap.getCPUHandle(),
+		mCpuDescriptorHeap->getCPUHandle(),
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
@@ -658,7 +660,7 @@ DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::Alloc
 	Call NewCall;
 	NewCall.mRootSig = &RootSig;
 
-	NewCall.mCPUHandle = mCpuDescriptorHeap.getCPUHandle();
+	NewCall.mCPUHandle = mCpuDescriptorHeap->getCPUHandle();
 	NewCall.mCPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 
 	NewCall.mGPUHandle = g_dx12Device->getFrameDrawDispatchCallGpuDescriptorHeap()->getGPUHandle();
