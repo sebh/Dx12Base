@@ -53,6 +53,7 @@ void WinImguiNewFrame()
 void WinImguiRender()
 {
 #if D_ENABLE_IMGUI
+	GPU_SCOPED_EVENT(IMGUI);
 
 	// Render UI
 

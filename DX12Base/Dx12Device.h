@@ -17,6 +17,13 @@
 //#include "DXGIDebug.h" issue with DXGI_DEBUG_ALL :(
 #endif
 
+#define D_ENABLE_PIX 1
+#if D_ENABLE_PIX
+// See https://devblogs.microsoft.com/pix/winpixeventruntime/
+#define USE_PIX 1
+#include "pix3.h"
+#endif 
+
 class RootSignature;
 class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
@@ -477,6 +484,41 @@ private:
 
 	ID3D12PipelineState* mPso;
 };
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct ScopedGpuEvent
+{
+	ScopedGpuEvent(LPCWSTR name)
+		: mName(name)
+	{
+#if D_ENABLE_PIX
+		PIXBeginEvent(g_dx12Device->getFrameCommandList(), PIX_COLOR(200, 200, 200), mName);
+#endif
+	}
+	~ScopedGpuEvent()
+	{
+		release();
+	}
+	void release()
+	{
+#if D_ENABLE_PIX
+		if (!released)
+		{
+			released = true;
+			PIXEndEvent(g_dx12Device->getFrameCommandList());
+		}
+#endif
+	}
+private:
+	ScopedGpuEvent() = delete;
+	ScopedGpuEvent(ScopedGpuEvent&) = delete;
+	LPCWSTR mName;
+	bool released = false;
+};
+#define GPU_SCOPED_EVENT(timerName) ScopedGpuEvent gpuEvent##timerName##(L""#timerName)
 
 
 

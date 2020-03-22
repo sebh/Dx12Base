@@ -26,6 +26,7 @@
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
 //  - TODO track performance https://msdn.microsoft.com/en-us/library/windows/desktop/dn903928(v=vs.85).aspx
+//  - setstablepowerstate https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-setstablepowerstate
 
 
 
