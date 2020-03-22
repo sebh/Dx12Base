@@ -57,40 +57,8 @@ void Dx12Device::shutdown()
 }
 
 
-void Dx12Device::EnableShaderBasedValidation()
+void Dx12Device::EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags)
 {
-#ifdef AAA //_DEBUG
-	//enable debug layer
-	// in code  https://msdn.microsoft.com/en-us/library/windows/desktop/dn899120(v=vs.85).aspx#debug_layer
-	// and shaders  #define D3DCOMPILE_DEBUG 1
-	// see https://msdn.microsoft.com/en-us/library/windows/desktop/mt490477(v=vs.85).aspx
-	HRESULT hr;
-
-	ID3D12Debug* DebugController0;
-	hr = D3D12GetDebugInterface(IID_PPV_ARGS(&DebugController0));
-	ATLASSERT(hr == S_OK);
-	DebugController0->EnableDebugLayer();
-	DebugController0->Release();
-
-//	hr = DebugController0->QueryInterface(IID_PPV_ARGS(&mDebugController1));
-//	ATLASSERT(hr == S_OK);
-//	mDebugController1->SetEnableGPUBasedValidation(true);
-//	mDebugController1->SetEnableSynchronizedCommandQueueValidation(true);
-//	mDebugController1->EnableDebugLayer();
-	// For more later, you can obtain ID3D12DebugDevice\ID3D12DebugCommandList\ID3D12DebugCommandQueue by using QueryInterface on ID3D12Device\ID3D12CommandList\ID3D12CommandQueue. You can also use QueryInterface to get ID3D12Debug from your ID3D12Device
-#endif
-}
-
-void Dx12Device::internalInitialise(const HWND& hWnd)
-{
-	HRESULT hr;
-
-	//
-	// Search for a DX12 GPU device and create it 
-	//
-
-	UINT dxgiFactoryFlags = 0;
-
 #if defined(_DEBUG)
 	// Enable the debug layer (requires the Graphics Tools "optional feature").
 	// NOTE: Enabling the debug layer after device creation will invalidate the active device.
@@ -121,7 +89,18 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
 	}
 #endif
+}
 
+void Dx12Device::internalInitialise(const HWND& hWnd)
+{
+	HRESULT hr;
+
+	//
+	// Search for a DX12 GPU device and create it 
+	//
+
+	UINT dxgiFactoryFlags = 0;
+	EnableShaderBasedValidationIfNeeded(dxgiFactoryFlags);
 	hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&mDxgiFactory));
 	ATLASSERT(hr == S_OK);
 
@@ -143,6 +122,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		hr = D3D12CreateDevice(adapter, requestedFeatureLevel, _uuidof(ID3D12Device), reinterpret_cast<void**>(&mDev));
 		if (SUCCEEDED(hr))
 		{
+			setDxDebugName(mDev, L"ID3D12Device");
 			adapterFound = true;
 			break;
 		}

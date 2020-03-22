@@ -72,7 +72,7 @@ private:
 	//Dx12Device(const Dx12Device&);
 	~Dx12Device();
 
-	void EnableShaderBasedValidation();
+	void EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags);
 
 	void internalInitialise(const HWND& hWnd);
 	void internalShutdown();
