@@ -108,11 +108,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 	}
 
-	WinImguiShutdown();
 
 //	DxGpuPerformance::shutdown();
 
 	g_dx12Device->closeBufferedFramesBeforeShutdown();	// close all frames
+	WinImguiShutdown();
 	game.shutdown();									// game release its resources
 	Dx12Device::shutdown();								// now we can safely delete the dx12 device we hold
 

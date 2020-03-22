@@ -314,18 +314,6 @@ void Dx12Device::closeBufferedFramesBeforeShutdown()
 		ATLASSERT(hr == S_OK);
 		waitForPreviousFrame(i);
 	}
-
-	delete mGfxRootSignature;
-	delete mCptRootSignature;
-
-
-	for (int i = 0; i < frameBufferCount; i++)
-	{
-		delete mFrameDrawDispatchCallGpuDescriptorHeap[i];
-		delete mFrameConstantBuffers[i];
-	}
-	delete mDrawDispatchCallCpuDescriptorHeap;
-	delete mAllocatedResourceDecriptorHeap;
 }
 
 void Dx12Device::internalShutdown()
@@ -334,6 +322,17 @@ void Dx12Device::internalShutdown()
 	BOOL fs = false;
 	if (mSwapchain->GetFullscreenState(&fs, NULL))
 		mSwapchain->SetFullscreenState(false, NULL);
+
+	resetPtr(&mGfxRootSignature);
+	resetPtr(&mCptRootSignature);
+
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		resetPtr(&mFrameDrawDispatchCallGpuDescriptorHeap[i]);
+		resetPtr(&mFrameConstantBuffers[i]);
+	}
+	resetPtr(&mDrawDispatchCallCpuDescriptorHeap);
+	resetPtr(&mAllocatedResourceDecriptorHeap);
 
 	// Close and release all existing COM objects
 	for (int i = 0; i < frameBufferCount; i++)
