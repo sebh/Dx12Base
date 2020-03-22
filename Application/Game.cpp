@@ -198,10 +198,9 @@ void Game::render()
 	D3D12_INDEX_BUFFER_VIEW indexBufferView = indexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
 	texture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	// Start this frame drawing process (setting up GPU call resource tables)
+	// Start this frame drawing process (setting up GPU call resource tables)...
 	DrawDispatchCallCpuDescriptorHeap& DrawDispatchCallCpuDescriptorHeap = g_dx12Device->getDrawDispatchCallCpuDescriptorHeap();
-	DrawDispatchCallCpuDescriptorHeap.Reset();		//			//			//			//			//			//			//			// TODO TODO move to Dx12Device::beginFrame
-
+	// ... and constant buffer
 	FrameConstantBuffers& ConstantBuffers = g_dx12Device->getFrameConstantBuffers();
 
 	// Render a triangle

@@ -285,10 +285,8 @@ public:
 	DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount);
 	virtual ~DrawDispatchCallCpuDescriptorHeap();
 
-	void Reset();
-
-	const DescriptorHeap& getDescriptorHeap() const { return mDescriptorHeap; };
-	UINT getFrameDescriptorCount() const { return mFrameDescriptorCount; }
+	void BeginRecording();
+	void EndRecording(DescriptorHeap& CopyToDescriptoHeap);
 
 	struct Call
 	{
@@ -319,7 +317,7 @@ private:
 	DrawDispatchCallCpuDescriptorHeap();
 	DrawDispatchCallCpuDescriptorHeap(DrawDispatchCallCpuDescriptorHeap&);
 
-	DescriptorHeap mDescriptorHeap;
+	DescriptorHeap mCpuDescriptorHeap;
 
 	UINT mFrameDescriptorCount;
 };
@@ -331,8 +329,8 @@ public:
 	FrameConstantBuffers(UINT SizeByte);
 	virtual ~FrameConstantBuffers();
 
-	void BeginFrame();
-	void EndFrame();
+	void BeginRecording();
+	void EndRecording();
 
 	struct FrameConstantBuffer
 	{
