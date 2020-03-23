@@ -404,8 +404,6 @@ void Dx12Device::beginFrame()
 	// Start the constant buffer creation process, map memory to write constant
 	getFrameConstantBuffers().BeginRecording();
 
-	// Set the time stamp buffer into correct mode.
-	mTimeStampQueryReadBackBuffers[mFrameIndex]->resourceTransitionBarrier(D3D12_RESOURCE_STATE_COPY_DEST);
 	// And initialise the frame data
 	mCurrentGPUTimeStampCount[mFrameIndex] = 0;
 	mCurrentGPUTimerSlotCount[mFrameIndex] = 0;
