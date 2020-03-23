@@ -25,7 +25,6 @@
 // TODO: 
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
-//  - TODO track performance https://msdn.microsoft.com/en-us/library/windows/desktop/dn903928(v=vs.85).aspx
 //  - setstablepowerstate https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-setstablepowerstate
 
 
@@ -292,6 +291,21 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mFrameDrawDispatchCallGpuDescriptorHeap[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDrawDispatchCallResourceDescriptorCount);
 		mFrameConstantBuffers[i] = new FrameConstantBuffers(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT * 2);
 	}
+
+	// Now allocate data used for GPU performance tracking
+
+	D3D12_QUERY_HEAP_DESC HeapDesc;
+	HeapDesc.Count = GPUTimerMaxCount * 2;	// 2 for start and end of tim range
+	HeapDesc.NodeMask = 0;
+	HeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mTimeStampQueryHeaps[i]));
+		mTimeStampQueryReadBackBuffers[i] = new RenderBuffer(sizeof(UINT64) * GPUTimerMaxCount * 2, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
+		mCurrentGPUTimeStampCount[i] = 0;
+		mCurrentGPUTimerSlotCount[i] = 0;
+		mCurrentGPUTimerLevel[i] = 0;
+	}
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()
@@ -328,6 +342,9 @@ void Dx12Device::internalShutdown()
 	{
 		resetPtr(&mFrameDrawDispatchCallGpuDescriptorHeap[i]);
 		resetPtr(&mFrameConstantBuffers[i]);
+
+		resetComPtr(&mTimeStampQueryHeaps[i]);
+		resetPtr(&mTimeStampQueryReadBackBuffers[i]);
 	}
 	resetPtr(&mDrawDispatchCallCpuDescriptorHeap);
 	resetPtr(&mAllocatedResourceDecriptorHeap);
@@ -381,15 +398,25 @@ void Dx12Device::beginFrame()
 	hr = mCommandList[0]->Reset(mCommandAllocator[mFrameIndex], pInitialState);
 	ATLASSERT(hr == S_OK);
 
+	// Start the recodring of draw/dispatch call resource table.
 	getDrawDispatchCallCpuDescriptorHeap().BeginRecording();
 
 	// Start the constant buffer creation process, map memory to write constant
 	getFrameConstantBuffers().BeginRecording();
+
+	// Set the time stamp buffer into correct mode.
+	mTimeStampQueryReadBackBuffers[mFrameIndex]->resourceTransitionBarrier(D3D12_RESOURCE_STATE_COPY_DEST);
+	// And initialise the frame data
+	mCurrentGPUTimeStampCount[mFrameIndex] = 0;
+	mCurrentGPUTimerSlotCount[mFrameIndex] = 0;
+	mCurrentGPUTimerLevel[mFrameIndex] = 0;
 }
 
 void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 {
 	HRESULT hr;
+
+	mCommandList[0]->ResolveQueryData(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, 0, 256 * 2, mTimeStampQueryReadBackBuffers[mFrameIndex]->getD3D12Resource(), 0);
 
 	// Close the command now that we are done with this frame
 	mCommandList[0]->Close();
@@ -416,6 +443,30 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 		hr = mDev->GetDeviceRemovedReason(); //0x887A0001 => DXGI_ERROR_INVALID_CALL
 		ATLASSERT(hr == S_OK);
 	}
+
+	// Update time stamp queries
+	{
+		mLastUpdatedFrameTimerSet = (mFrameIndex + 1) % frameBufferCount;
+		const UINT TimeStampcount = mCurrentGPUTimeStampCount[mLastUpdatedFrameTimerSet];
+		if (TimeStampcount > 0)
+		{
+			void* Data;
+			D3D12_RANGE MapRange = { 0, sizeof(UINT64) * TimeStampcount };
+			HRESULT hr = mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Map(0, &MapRange, &Data);
+			UINT64* TimerData = (UINT64*)Data;
+
+			if (hr == S_OK)
+			{
+				for (int i = 0; i < mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet]; ++i)
+				{
+					mGPUTimers[mLastUpdatedFrameTimerSet][i].TimeStampStart = TimerData[mGPUTimers[mLastUpdatedFrameTimerSet][i].QueryIndexStart];
+					mGPUTimers[mLastUpdatedFrameTimerSet][i].TimeStampEnd = TimerData[mGPUTimers[mLastUpdatedFrameTimerSet][i].QueryIndexEnd];
+				}
+
+				mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Unmap(0, nullptr);
+			}
+		}
+	}
 }
 
 
@@ -438,6 +489,42 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 	// increment fenceValue for next frame
 	mFrameFenceValue[mFrameIndex]++;
 }
+
+
+void Dx12Device::StartGPUTimer(LPCWSTR Name, UINT RGBA)
+{
+	ATLASSERT(mCurrentGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
+
+	GPUTimer& t = mGPUTimers[mFrameIndex][mCurrentGPUTimerSlotCount[mFrameIndex]++];
+	t.EventName = Name;
+	t.TimeStampStart = t.TimeStampEnd = 0;
+	t.QueryIndexStart = mCurrentGPUTimeStampCount[mFrameIndex]++;
+	t.QueryIndexEnd = 0;
+	t.Level = mCurrentGPUTimerLevel[mFrameIndex]++;
+	t.RGBA = RGBA;
+
+	mCommandList[0]->EndQuery(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t.QueryIndexStart);
+}
+
+void Dx12Device::EndGPUTimer(LPCWSTR Name)
+{
+	ATLASSERT(mCurrentGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
+	GPUTimer* t = nullptr;
+	for (int i = 0; i < mCurrentGPUTimerSlotCount[mFrameIndex]; ++i)
+	{
+		if (Name == mGPUTimers[mFrameIndex][i].EventName)
+		{
+			t = &mGPUTimers[mFrameIndex][i];
+			break;
+		}
+	}
+	ATLASSERT(t != nullptr);
+	t->QueryIndexEnd = mCurrentGPUTimeStampCount[mFrameIndex]++;
+	mCurrentGPUTimerLevel[mFrameIndex]--;
+
+	mCommandList[0]->EndQuery(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t->QueryIndexEnd);
+}
+
 
 
 
@@ -568,7 +655,17 @@ static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
 static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
 {
 	D3D12_HEAP_PROPERTIES heap;
-	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory accessible by CPU
+	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory writable by CPU, readable by GPU
+	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	heap.CreationNodeMask = 1;
+	heap.VisibleNodeMask = 1;
+	return heap;
+}
+static D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties()
+{
+	D3D12_HEAP_PROPERTIES heap;
+	heap.Type = D3D12_HEAP_TYPE_READBACK; // Memory readable by CPU, writable by GPU
 	heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 	heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
 	heap.CreationNodeMask = 1;
@@ -805,12 +902,27 @@ void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
 
 
 
-RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags)
+RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, D3D12_HEAP_TYPE HeapType)
 	: RenderResource()
 	, mSizeInByte(sizeInByte)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
-	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
+	D3D12_HEAP_PROPERTIES HeapDesc;
+	switch (HeapType)
+	{
+	case D3D12_HEAP_TYPE_DEFAULT:
+		HeapDesc = getGpuOnlyMemoryHeapProperties();
+		mResourceState = initData ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_COMMON; // if it need to be initialised, we are going to copy into the buffer.
+		break;
+	case D3D12_HEAP_TYPE_UPLOAD:
+		HeapDesc = getUploadMemoryHeapProperties();
+		mResourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
+		break;
+	case D3D12_HEAP_TYPE_READBACK:
+		HeapDesc = getReadbackMemoryHeapProperties();
+		mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	}
 
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -823,8 +935,7 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
-	mResourceState = initData ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_COMMON; // if it need to be initialised, we are going to copy into the buffer.
-	dev->CreateCommittedResource(&defaultHeap,
+	dev->CreateCommittedResource(&HeapDesc,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
 		mResourceState,
@@ -848,6 +959,8 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
+		ATLASSERT(HeapType == D3D12_HEAP_TYPE_DEFAULT);
+
 		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
@@ -863,6 +976,8 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 
 	if (initData)
 	{
+		ATLASSERT(HeapType == D3D12_HEAP_TYPE_DEFAULT);
+
 		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 

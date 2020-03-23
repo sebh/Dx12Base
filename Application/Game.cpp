@@ -148,7 +148,7 @@ void Game::update(const WindowInputData& inputData)
 void Game::render()
 {
 	// here we start recording commands into the commandList (which all the commands will be stored in the commandAllocator)
-	GPU_SCOPED_EVENT(GameRender);
+	SCOPED_GPU_TIMER(GameRender, 100, 100, 100);
 
 	ID3D12GraphicsCommandList* commandList = g_dx12Device->getFrameCommandList();
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
@@ -208,7 +208,7 @@ void Game::render()
 
 	// Render a triangle
 	{
-		GPU_SCOPED_EVENT(Raster);
+		SCOPED_GPU_TIMER(Raster, 255, 100, 100);
 		commandList->SetPipelineState(pso->getPso());
 		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
@@ -228,7 +228,7 @@ void Game::render()
 
 	// Dispatch compute
 	{
-		GPU_SCOPED_EVENT(Compute);
+		SCOPED_GPU_TIMER(Compute, 100, 255, 100);
 		DrawDispatchCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 		CallDescriptors.SetUAV(0, *UavBuffer);

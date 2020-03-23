@@ -30,8 +30,10 @@ class AllocatedResourceDecriptorHeap;
 class DrawDispatchCallCpuDescriptorHeap;
 class FrameConstantBuffers;
 class RenderResource;
+class RenderBuffer;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
+static const int GPUTimerMaxCount = 256;
 
 class Dx12Device
 {
@@ -72,6 +74,19 @@ public:
 	DescriptorHeap* getFrameDrawDispatchCallGpuDescriptorHeap() { return mFrameDrawDispatchCallGpuDescriptorHeap[mFrameIndex]; }
 
 	FrameConstantBuffers& getFrameConstantBuffers() { return *mFrameConstantBuffers[mFrameIndex]; }
+
+	struct GPUTimer
+	{
+		LPCWSTR EventName;
+		UINT64 TimeStampStart;
+		UINT64 TimeStampEnd;
+		UINT QueryIndexStart;
+		UINT QueryIndexEnd;
+		UINT Level;
+		UINT RGBA;
+	};
+	void StartGPUTimer(LPCWSTR Name, UINT RGBA);
+	void EndGPUTimer(LPCWSTR Name);
 
 private:
 	Dx12Device();
@@ -124,6 +139,15 @@ private:
 	DescriptorHeap* mFrameDrawDispatchCallGpuDescriptorHeap[frameBufferCount];				// Descriptor heaps for frame
 
 	FrameConstantBuffers* mFrameConstantBuffers[frameBufferCount];							// Descriptor heaps for frame
+
+	// Data used for GPU performance tracking
+	ID3D12QueryHeap* mTimeStampQueryHeaps[frameBufferCount];
+	RenderBuffer*    mTimeStampQueryReadBackBuffers[frameBufferCount];
+	UINT mCurrentGPUTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
+	UINT mCurrentGPUTimerSlotCount[frameBufferCount];		// Only count, not start/end, use to allocate in the array of GPUTimer
+	UINT mCurrentGPUTimerLevel[frameBufferCount];
+	GPUTimer mGPUTimers[frameBufferCount][GPUTimerMaxCount];
+	UINT mLastUpdatedFrameTimerSet;
 };
 
 extern Dx12Device* g_dx12Device;
@@ -369,6 +393,7 @@ public:
 	void resourceTransitionBarrier(D3D12_RESOURCE_STATES newState);
 	void resourceUAVBarrier(D3D12_RESOURCE_STATES newState);
 
+	ID3D12Resource* getD3D12Resource() { return mResource; }
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
 
 	D3D12_CPU_DESCRIPTOR_HANDLE  getSRVCPUHandle() { return mSRVCPUHandle; }
@@ -398,7 +423,7 @@ private:
 class RenderBuffer : public RenderResource
 {
 public:
-	RenderBuffer(UINT sizeInByte, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+	RenderBuffer(UINT sizeInByte, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE HeapType = D3D12_HEAP_TYPE_DEFAULT);
 	virtual ~RenderBuffer();
 
 	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
@@ -492,10 +517,9 @@ private:
 struct ScopedGpuEvent
 {
 	ScopedGpuEvent(LPCWSTR name)
-		: mName(name)
 	{
 #if D_ENABLE_PIX
-		PIXBeginEvent(g_dx12Device->getFrameCommandList(), PIX_COLOR(200, 200, 200), mName);
+		PIXBeginEvent(g_dx12Device->getFrameCommandList(), PIX_COLOR(200, 200, 200), name);
 #endif
 	}
 	~ScopedGpuEvent()
@@ -515,11 +539,38 @@ struct ScopedGpuEvent
 private:
 	ScopedGpuEvent() = delete;
 	ScopedGpuEvent(ScopedGpuEvent&) = delete;
+	bool released = false;
+};
+#define SCOPED_GPU_EVENT(eventName) ScopedGpuEvent gpuEvent##eventName##(L""#eventName)
+
+
+
+struct ScopedGpuTimer
+{
+	ScopedGpuTimer(LPCWSTR name, BYTE R=100, BYTE G = 100, BYTE B = 100, BYTE A = 255)
+		: mName(name)
+	{
+		g_dx12Device->StartGPUTimer(name, R | (G << 8) | (B << 8) | (A << 8));
+	}
+	~ScopedGpuTimer()
+	{
+		g_dx12Device->EndGPUTimer(mName);
+	}
+	void release()
+	{
+		if (!released)
+		{
+			released = true;
+			PIXEndEvent(g_dx12Device->getFrameCommandList());
+		}
+	}
+private:
+	ScopedGpuTimer() = delete;
+	ScopedGpuTimer(ScopedGpuTimer&) = delete;
 	LPCWSTR mName;
 	bool released = false;
 };
-#define GPU_SCOPED_EVENT(timerName) ScopedGpuEvent gpuEvent##timerName##(L""#timerName)
-
+#define SCOPED_GPU_TIMER(timerName, R, G, B) ScopedGpuEvent gpuEvent##timerName##(L""#timerName); ScopedGpuTimer gpuTimer##timerName##(L""#timerName, R, G, B);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
