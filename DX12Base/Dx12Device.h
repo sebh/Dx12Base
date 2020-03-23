@@ -13,8 +13,12 @@
 #include <d3d12.h>
 #include "DXGI1_4.h"
 #include "D3D12SDKLayers.h"
-#ifdef _DEBUG
+
+#if defined(_DEBUG)
 //#include "DXGIDebug.h" issue with DXGI_DEBUG_ALL :(
+#define DXDEBUG 1
+#else
+#define DXDEBUG 0
 #endif
 
 #define D_ENABLE_PIX 1

@@ -8,7 +8,7 @@
 
 #include "d3dx12.h"
 #include <dxgi1_2.h>
-#ifdef _DEBUG
+#if DXDEBUG
 #include <initguid.h>
 #include <DXGIDebug.h>
 #endif
@@ -59,7 +59,7 @@ void Dx12Device::shutdown()
 
 void Dx12Device::EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags)
 {
-#if defined(_DEBUG)
+#if DXDEBUG
 	// Enable the debug layer (requires the Graphics Tools "optional feature").
 	// NOTE: Enabling the debug layer after device creation will invalidate the active device.
 	{
@@ -158,9 +158,9 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mDev->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &options5, sizeof(options5));
 		ATLASSERT(hr == S_OK);
 		if (options5.RaytracingTier >= D3D12_RAYTRACING_TIER_1_0)
-			OutputDebugStringA("Ray tracing 1.0 supported.");
+			OutputDebugStringA("Ray tracing 1.0 supported.\n");
 		else
-			OutputDebugStringA("Ray tracing 1.0 not supported.");
+			OutputDebugStringA("Ray tracing 1.0 not supported.\n");
 	}
 
 	//
@@ -371,7 +371,7 @@ void Dx12Device::internalShutdown()
 
 	CloseHandle(mFrameFenceEvent);
 
-#ifdef _DEBUG
+#if DXDEBUG
 	// Off since cannot include DXGIDebug.h for some reason.
 	CComPtr<IDXGIDebug1> dxgiDebug1;
 	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug1))))
@@ -568,7 +568,7 @@ ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const c
 	ID3DBlob * errorbuffer = NULL;
 	const UINT defaultFlags = 0;
 
-#ifdef _DEBUG
+#if DXDEBUG
 	D3D_SHADER_MACRO macros[2];
 	macros[0].Name = "D3DCOMPILE_DEBUG";
 	macros[0].Definition = "1";
@@ -1527,7 +1527,7 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, ComputeShader&
 	psoDesc.CS.pShaderBytecode = cs.getShaderByteCode();
 
 	HRESULT hr = dev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
-	ATLASSERT(hr == S_OK);
+	ATLENSURE(hr == S_OK);
 }
 
 PipelineStateObject::~PipelineStateObject()
