@@ -6,8 +6,6 @@
 
 #include "WinImgui.h"
 
-static bool show_demo_window = true;
-
 // the entry point for any Windows program
 int WINAPI WinMain(HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
@@ -15,6 +13,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	int nCmdShow)
 {
 	static bool sVSyncEnable = true;
+	static bool sStablePowerEnable = false;
 	static float sTimerGraphWidth = 18.0f;
 
 	// Get a window size that matches the desired client size
@@ -34,7 +33,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 	// Create the d3d device
 	Dx12Device::initialise(win.getHwnd());
-//	DxGpuPerformance::initialise();
 
 	WinImguiInitialise(win.getHwnd());
 
@@ -71,9 +69,8 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		else
 		{
-//			DxGpuPerformance::startFrame();
+			bool bStablePowerEnable = false;
 			const char* frameGpuTimerName = "Frame";
-//			DxGpuPerformance::startGpuTimer(frameGpuTimerName, 150, 150, 150);
 
 			// Game update
 			game.update(win.getInputData());
@@ -81,118 +78,120 @@ int WINAPI WinMain(HINSTANCE hInstance,
 			// Game render
 			g_dx12Device->beginFrame();
 
-			static bool initDone = false;
-			if (!initDone)
 			{
-				game.initialise();
-				initDone = true;
-			}
+				SCOPED_GPU_TIMER(RenderFrame, 200, 200, 200);
 
-			WinImguiNewFrame();
-
-#if D_ENABLE_IMGUI
-			ImGui::ShowDemoWindow(&show_demo_window);
-#endif
-
-			game.render();
-
-
-
-
-			ImGui::SetNextWindowSize(ImVec2(400.0f, 400.0f), ImGuiCond_FirstUseEver);
-			ImGui::Begin("GPU performance");
-			Dx12Device::GPUTimersReport TimerReport = g_dx12Device->GetGPUTimerReport();
-			if (TimerReport.mLastValidGPUTimerSlotCount > 0)
-			{
-				UINT64 StartTime = TimerReport.mLastValidTimeStamps[TimerReport.mLastValidGPUTimers[0].QueryIndexStart];
-				double TickPerSeconds = double(TimerReport.mLastValidTimeStampTickPerSeconds);
-
-				static float sTimerGraphWidthMs = 33.0f;
-				ImGui::Checkbox("VSync", &sVSyncEnable);
-				ImGui::SliderFloat("TimerGraphWidth (ms)", &sTimerGraphWidthMs, 1.0, 60.0);
-
-				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
-				ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 2.0f));
-				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-				ImGui::BeginChild("Timer graph", ImVec2(0, 150), true, ImGuiWindowFlags_HorizontalScrollbar);
-				const float WindowPixelWidth = ImGui::GetWindowWidth();
-				const float PixelPerMs = WindowPixelWidth / sTimerGraphWidthMs;
-#if 1
-				for (int targetLevel = 0; targetLevel < 8; ++targetLevel)
+				static bool initDone = false;
+				if (!initDone)
 				{
-					bool printDone = false;
-					for (UINT i=0; i<TimerReport.mLastValidGPUTimerSlotCount; ++i)
+					game.initialise();
+					initDone = true;
+				}
+
+				WinImguiNewFrame();
+				game.render();
+
+				ImGui::SetNextWindowSize(ImVec2(400.0f, 400.0f), ImGuiCond_FirstUseEver);
+				ImGui::Begin("GPU performance");
+				Dx12Device::GPUTimersReport TimerReport = g_dx12Device->GetGPUTimerReport();
+				if (TimerReport.mLastValidGPUTimerSlotCount > 0)
+				{
+					UINT64 StartTime = TimerReport.mLastValidTimeStamps[TimerReport.mLastValidGPUTimers[0].QueryIndexStart];
+					double TickPerSeconds = double(TimerReport.mLastValidTimeStampTickPerSeconds);
+
+					static float sTimerGraphWidthMs = 33.0f;
+					ImGui::Checkbox("VSync", &sVSyncEnable); 
+	#ifdef _DEBUG
+					ImGui::Checkbox("StablePower", &bStablePowerEnable);
+	#endif
+					ImGui::SliderFloat("TimerGraphWidth (ms)", &sTimerGraphWidthMs, 1.0, 60.0);
+
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+					ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 2.0f));
+					ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+					ImGui::BeginChild("Timer graph", ImVec2(0, 150), true, ImGuiWindowFlags_HorizontalScrollbar);
+					const float WindowPixelWidth = ImGui::GetWindowWidth();
+					const float PixelPerMs = WindowPixelWidth / sTimerGraphWidthMs;
+	#if 1
+					for (int targetLevel = 0; targetLevel < 8; ++targetLevel)
+					{
+						bool printDone = false;
+						for (UINT i=0; i<TimerReport.mLastValidGPUTimerSlotCount; ++i)
+						{
+							Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
+						
+							if (Timer.Level == targetLevel)
+							{
+								float TimerStart = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
+								float TimerEnd   = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
+								float TimerStartMs = TimerStart * 1000.0f;
+								float TimerEndMs   = TimerEnd * 1000.0f;
+								float DurationMs   = TimerEndMs - TimerStartMs;
+
+								ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA>>8) & 0xFF, int(Timer.RGBA>>16) & 0xFF, int(Timer.RGBA>>24) & 0xFF);
+								ImGui::PushStyleColor(ImGuiCol_Button, color);
+								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
+								ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
+								{
+									// Set cursor to the correct position and size according to when things started this day
+									ImGui::SetCursorPosX(TimerStartMs * PixelPerMs);
+									ImGui::PushItemWidth(TimerEndMs * PixelPerMs);
+
+									char debugStr[128];
+									sprintf_s(debugStr, 128, "%ls %.3f ms\n", Timer.EventName, DurationMs);
+									ImGui::Button(debugStr, ImVec2(DurationMs * PixelPerMs, 0.0f));
+									if (ImGui::IsItemHovered())
+									{
+										ImGui::SetTooltip(debugStr);
+									}
+									ImGui::SameLine();
+									ImGui::PopItemWidth();
+								}
+								ImGui::PopStyleColor(3);
+								printDone = true;
+							}
+						}
+						if (printDone)
+							ImGui::NewLine(); // start a new line if anything has been printed
+					}
+	#endif
+					ImGui::EndChild();
+					ImGui::PopStyleVar(3);
+
+					for (UINT i = 0; i < TimerReport.mLastValidGPUTimerSlotCount; ++i)
 					{
 						Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
-						
-						if (Timer.Level == targetLevel)
-						{
-							float TimerStart = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
-							float TimerEnd   = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
-							float TimerStartMs = TimerStart * 1000.0f;
-							float TimerEndMs   = TimerEnd * 1000.0f;
-							float DurationMs   = TimerEndMs - TimerStartMs;
+						float TimerStart = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
+						float TimerEnd = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
+						float TimerStartMs = TimerStart * 1000.0f;
+						float TimerEndMs = TimerEnd * 1000.0f;
+						float DurationMs = TimerEndMs - TimerStartMs;
 
-							ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA>>8) & 0xFF, int(Timer.RGBA>>16) & 0xFF, int(Timer.RGBA>>24) & 0xFF);
-							ImGui::PushStyleColor(ImGuiCol_Button, color);
-							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
-							ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
-							{
-								// Set cursor to the correct position and size according to when things started this day
-								ImGui::SetCursorPosX(TimerStartMs * PixelPerMs);
-								ImGui::PushItemWidth(TimerEndMs * PixelPerMs);
+						char* levelOffset = "---------------";	// 16 chars
+						unsigned int levelShift = 16 - 2 * Timer.Level - 1;
+						char* levelOffsetPtr = levelOffset + (levelShift < 0 ? 0 : levelShift); // cheap way to add shifting to a printf
 
-								char debugStr[128];
-								sprintf_s(debugStr, 128, "%ls %.3f ms\n", Timer.EventName, DurationMs);
-								ImGui::Button(debugStr, ImVec2(DurationMs * PixelPerMs, 0.0f));
-								if (ImGui::IsItemHovered())
-								{
-									ImGui::SetTooltip(debugStr);
-								}
-								ImGui::SameLine();
-								ImGui::PopItemWidth();
-							}
-							ImGui::PopStyleColor(3);
-							printDone = true;
-						}
+						char debugStr[128];
+						sprintf_s(debugStr, 128, "%s%ls %.3f ms\n", levelOffsetPtr, Timer.EventName, DurationMs);
+						ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA >> 8) & 0xFF, int(Timer.RGBA >> 16) & 0xFF, int(Timer.RGBA >> 24) & 0xFF);
+						ImGui::TextColored(ImVec4(float(int(Timer.RGBA) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 8) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 16) & 0xFF) / 255.0f, 255.0f), debugStr);
 					}
-					if (printDone)
-						ImGui::NewLine(); // start a new line if anything has been printed
 				}
-#endif
-				ImGui::EndChild();
-				ImGui::PopStyleVar(3);
+				ImGui::End();
 
-				for (UINT i = 0; i < TimerReport.mLastValidGPUTimerSlotCount; ++i)
-				{
-					Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
-					float TimerStart = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
-					float TimerEnd = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
-					float TimerStartMs = TimerStart * 1000.0f;
-					float TimerEndMs = TimerEnd * 1000.0f;
-					float DurationMs = TimerEndMs - TimerStartMs;
+				WinImguiRender();
 
-					char* levelOffset = "---------------";	// 16 chars
-					unsigned int levelShift = 16 - 2 * Timer.Level - 1;
-					char* levelOffsetPtr = levelOffset + (levelShift < 0 ? 0 : levelShift); // cheap way to add shifting to a printf
-
-					char debugStr[128];
-					sprintf_s(debugStr, 128, "%s%ls %.3f ms\n", levelOffsetPtr, Timer.EventName, DurationMs);
-					ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA >> 8) & 0xFF, int(Timer.RGBA >> 16) & 0xFF, int(Timer.RGBA >> 24) & 0xFF);
-					ImGui::TextColored(ImVec4(float(int(Timer.RGBA) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 8) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 16) & 0xFF) / 255.0f, 255.0f), debugStr);
-				}
 			}
-			ImGui::End();
-
-
-
-
-			WinImguiRender();
 
 			// Swap the back buffer
 			g_dx12Device->endFrameAndSwap(sVSyncEnable);
-//			DxGpuPerformance::endGpuTimer(frameGpuTimerName);
-//			DxGpuPerformance::endFrame();
+#ifdef _DEBUG
+			if (bStablePowerEnable != sStablePowerEnable)
+			{
+				sStablePowerEnable = bStablePowerEnable;
+				g_dx12Device->getDevice()->SetStablePowerState(sStablePowerEnable);
+			}
+#endif
 
 			// Events have all been processed in this path by the game
 			win.clearInputEvents();
@@ -200,7 +199,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 	}
 
 
-//	DxGpuPerformance::shutdown();
 
 	g_dx12Device->closeBufferedFramesBeforeShutdown();	// close all frames
 	WinImguiShutdown();
