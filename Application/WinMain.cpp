@@ -102,10 +102,10 @@ int WINAPI WinMain(HINSTANCE hInstance,
 			ImGui::SetNextWindowSize(ImVec2(400.0f, 400.0f), ImGuiCond_FirstUseEver);
 			ImGui::Begin("GPU performance");
 			Dx12Device::GPUTimersReport TimerReport = g_dx12Device->GetGPUTimerReport();
-			if (TimerReport.mCurrentGPUTimerSlotCount > 0)
+			if (TimerReport.mLastValidGPUTimerSlotCount > 0)
 			{
-				UINT64 StartTime = TimerReport.mLastUpdatedTimeStamps[TimerReport.mGPUTimers[0].QueryIndexStart];
-				double TickPerSeconds = double(TimerReport.mLastUpdateTimeStampTickPerSeconds);
+				UINT64 StartTime = TimerReport.mLastValidTimeStamps[TimerReport.mLastValidGPUTimers[0].QueryIndexStart];
+				double TickPerSeconds = double(TimerReport.mLastValidTimeStampTickPerSeconds);
 
 				static float sTimerGraphWidthMs = 33.0f;
 				ImGui::Checkbox("VSync", &sVSyncEnable);
@@ -121,14 +121,14 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				for (int targetLevel = 0; targetLevel < 8; ++targetLevel)
 				{
 					bool printDone = false;
-					for (UINT i=0; i<TimerReport.mCurrentGPUTimerSlotCount; ++i)
+					for (UINT i=0; i<TimerReport.mLastValidGPUTimerSlotCount; ++i)
 					{
-						Dx12Device::GPUTimer& Timer = TimerReport.mGPUTimers[i];
+						Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
 						
 						if (Timer.Level == targetLevel)
 						{
-							float TimerStart = float( double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
-							float TimerEnd   = float( double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
+							float TimerStart = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
+							float TimerEnd   = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
 							float TimerStartMs = TimerStart * 1000.0f;
 							float TimerEndMs   = TimerEnd * 1000.0f;
 							float DurationMs   = TimerEndMs - TimerStartMs;
@@ -163,11 +163,11 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				ImGui::EndChild();
 				ImGui::PopStyleVar(3);
 
-				for (UINT i = 0; i < TimerReport.mCurrentGPUTimerSlotCount; ++i)
+				for (UINT i = 0; i < TimerReport.mLastValidGPUTimerSlotCount; ++i)
 				{
-					Dx12Device::GPUTimer& Timer = TimerReport.mGPUTimers[i];
-					float TimerStart = float(double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
-					float TimerEnd = float(double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
+					Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
+					float TimerStart = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
+					float TimerEnd = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
 					float TimerStartMs = TimerStart * 1000.0f;
 					float TimerEndMs = TimerEnd * 1000.0f;
 					float DurationMs = TimerEndMs - TimerStartMs;

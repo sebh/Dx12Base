@@ -87,10 +87,10 @@ public:
 	void EndGPUTimer(LPCWSTR Name);
 	struct GPUTimersReport
 	{
-		UINT mCurrentGPUTimerSlotCount;
-		GPUTimer* mGPUTimers;
-		UINT64* mLastUpdatedTimeStamps;
-		UINT64 mLastUpdateTimeStampTickPerSeconds;
+		UINT mLastValidGPUTimerSlotCount;
+		GPUTimer* mLastValidGPUTimers;
+		UINT64* mLastValidTimeStamps;
+		UINT64 mLastValidTimeStampTickPerSeconds;
 	};
 	GPUTimersReport GetGPUTimerReport();
 
@@ -154,8 +154,12 @@ private:
 	UINT mCurrentGPUTimerLevel[frameBufferCount];
 	GPUTimer mGPUTimers[frameBufferCount][GPUTimerMaxCount];
 	UINT mLastUpdatedFrameTimerSet;
-	UINT64 mLastUpdatedTimeStamps[GPUTimerMaxCount*2];
-	UINT64 mLastUpdateTimeStampTickPerSeconds;
+	// And the last valid timer state captured
+	UINT mLastValidGPUTimerCount;
+	UINT mLastValidTimeStampCount;
+	UINT64 mLastValidTimeStamps[GPUTimerMaxCount*2];
+	GPUTimer mLastValidGPUTimers[GPUTimerMaxCount];
+	UINT64 mLastValidTimeStampTickPerSeconds;
 };
 
 extern Dx12Device* g_dx12Device;

@@ -444,19 +444,21 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	// Update time stamp queries
 	{
-		mCommandQueue->GetTimestampFrequency(&mLastUpdateTimeStampTickPerSeconds);
+		mCommandQueue->GetTimestampFrequency(&mLastValidTimeStampTickPerSeconds);
 		mLastUpdatedFrameTimerSet = (mFrameIndex + 1) % frameBufferCount;
-		const UINT TimeStampcount = mCurrentGPUTimeStampCount[mLastUpdatedFrameTimerSet];
-		if (TimeStampcount > 0)
+		mLastValidTimeStampCount = mCurrentGPUTimeStampCount[mLastUpdatedFrameTimerSet];
+		mLastValidGPUTimerCount = mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet];
+		if (mLastValidTimeStampCount > 0)
 		{
 			void* Data;
-			D3D12_RANGE MapRange = { 0, sizeof(UINT64) * TimeStampcount };
+			D3D12_RANGE MapRange = { 0, sizeof(UINT64) * mLastValidTimeStampCount };
 			HRESULT hr = mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Map(0, &MapRange, &Data);
 			UINT64* TimerData = (UINT64*)Data;
 
 			if (hr == S_OK)
 			{
-				memcpy(mLastUpdatedTimeStamps, TimerData, MapRange.End);
+				memcpy(mLastValidTimeStamps, TimerData, sizeof(UINT64) * mLastValidTimeStampCount);
+				memcpy(mLastValidGPUTimers, mGPUTimers[mLastUpdatedFrameTimerSet], sizeof(GPUTimer) * mLastValidTimeStampCount);
 				mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Unmap(0, nullptr);
 			}
 		}
@@ -503,7 +505,7 @@ void Dx12Device::EndGPUTimer(LPCWSTR Name)
 {
 	ATLASSERT(mCurrentGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
 	GPUTimer* t = nullptr;
-	for (int i = 0; i < mCurrentGPUTimerSlotCount[mFrameIndex]; ++i)
+	for (UINT i = 0; i < mCurrentGPUTimerSlotCount[mFrameIndex]; ++i)
 	{
 		if (Name == mGPUTimers[mFrameIndex][i].EventName)
 		{
@@ -521,10 +523,10 @@ void Dx12Device::EndGPUTimer(LPCWSTR Name)
 Dx12Device::GPUTimersReport Dx12Device::GetGPUTimerReport()
 {
 	GPUTimersReport Report;
-	Report.mCurrentGPUTimerSlotCount = mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet];
-	Report.mGPUTimers = mGPUTimers[mLastUpdatedFrameTimerSet];
-	Report.mLastUpdatedTimeStamps = mLastUpdatedTimeStamps;
-	Report.mLastUpdateTimeStampTickPerSeconds = mLastUpdateTimeStampTickPerSeconds;
+	Report.mLastValidGPUTimerSlotCount = mLastValidGPUTimerCount;
+	Report.mLastValidGPUTimers = mLastValidGPUTimers;
+	Report.mLastValidTimeStamps = mLastValidTimeStamps;
+	Report.mLastValidTimeStampTickPerSeconds = mLastValidTimeStampTickPerSeconds;
 	return Report;
 }
 
