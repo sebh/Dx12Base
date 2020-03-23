@@ -78,8 +78,6 @@ public:
 	struct GPUTimer
 	{
 		LPCWSTR EventName;
-		UINT64 TimeStampStart;
-		UINT64 TimeStampEnd;
 		UINT QueryIndexStart;
 		UINT QueryIndexEnd;
 		UINT Level;
@@ -87,6 +85,14 @@ public:
 	};
 	void StartGPUTimer(LPCWSTR Name, UINT RGBA);
 	void EndGPUTimer(LPCWSTR Name);
+	struct GPUTimersReport
+	{
+		UINT mCurrentGPUTimerSlotCount;
+		GPUTimer* mGPUTimers;
+		UINT64* mLastUpdatedTimeStamps;
+		UINT64 mLastUpdateTimeStampTickPerSeconds;
+	};
+	GPUTimersReport GetGPUTimerReport();
 
 private:
 	Dx12Device();
@@ -148,6 +154,8 @@ private:
 	UINT mCurrentGPUTimerLevel[frameBufferCount];
 	GPUTimer mGPUTimers[frameBufferCount][GPUTimerMaxCount];
 	UINT mLastUpdatedFrameTimerSet;
+	UINT64 mLastUpdatedTimeStamps[GPUTimerMaxCount*2];
+	UINT64 mLastUpdateTimeStampTickPerSeconds;
 };
 
 extern Dx12Device* g_dx12Device;
@@ -550,7 +558,7 @@ struct ScopedGpuTimer
 	ScopedGpuTimer(LPCWSTR name, BYTE R=100, BYTE G = 100, BYTE B = 100, BYTE A = 255)
 		: mName(name)
 	{
-		g_dx12Device->StartGPUTimer(name, R | (G << 8) | (B << 8) | (A << 8));
+		g_dx12Device->StartGPUTimer(name, R | (G << 8) | (B << 16) | (A << 24));
 	}
 	~ScopedGpuTimer()
 	{

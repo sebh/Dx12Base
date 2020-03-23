@@ -193,7 +193,6 @@ void Game::render()
 	scissorRect.bottom = (LONG)backBuffer->GetDesc().Height;
 	commandList->RSSetViewports(1, &viewport); // set the viewports
 
-
 	// Transition buffers for rasterisation
 	vertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
 	D3D12_VERTEX_BUFFER_VIEW vertexBufferView = vertexBuffer->getVertexBufferView(sizeof(VertexType));

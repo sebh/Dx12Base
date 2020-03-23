@@ -96,6 +96,97 @@ int WINAPI WinMain(HINSTANCE hInstance,
 
 			game.render();
 
+
+
+
+			ImGui::SetNextWindowSize(ImVec2(400.0f, 400.0f), ImGuiCond_FirstUseEver);
+			ImGui::Begin("GPU performance");
+			Dx12Device::GPUTimersReport TimerReport = g_dx12Device->GetGPUTimerReport();
+			if (TimerReport.mCurrentGPUTimerSlotCount > 0)
+			{
+				UINT64 StartTime = TimerReport.mLastUpdatedTimeStamps[TimerReport.mGPUTimers[0].QueryIndexStart];
+				double TickPerSeconds = double(TimerReport.mLastUpdateTimeStampTickPerSeconds);
+
+				static float sTimerGraphWidthMs = 33.0f;
+				ImGui::Checkbox("VSync", &sVSyncEnable);
+				ImGui::SliderFloat("TimerGraphWidth (ms)", &sTimerGraphWidthMs, 1.0, 60.0);
+
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+				ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2.0f, 2.0f));
+				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+				ImGui::BeginChild("Timer graph", ImVec2(0, 150), true, ImGuiWindowFlags_HorizontalScrollbar);
+				const float WindowPixelWidth = ImGui::GetWindowWidth();
+				const float PixelPerMs = WindowPixelWidth / sTimerGraphWidthMs;
+#if 1
+				for (int targetLevel = 0; targetLevel < 8; ++targetLevel)
+				{
+					bool printDone = false;
+					for (UINT i=0; i<TimerReport.mCurrentGPUTimerSlotCount; ++i)
+					{
+						Dx12Device::GPUTimer& Timer = TimerReport.mGPUTimers[i];
+						
+						if (Timer.Level == targetLevel)
+						{
+							float TimerStart = float( double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
+							float TimerEnd   = float( double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
+							float TimerStartMs = TimerStart * 1000.0f;
+							float TimerEndMs   = TimerEnd * 1000.0f;
+							float DurationMs   = TimerEndMs - TimerStartMs;
+
+							ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA>>8) & 0xFF, int(Timer.RGBA>>16) & 0xFF, int(Timer.RGBA>>24) & 0xFF);
+							ImGui::PushStyleColor(ImGuiCol_Button, color);
+							ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
+							ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
+							{
+								// Set cursor to the correct position and size according to when things started this day
+								ImGui::SetCursorPosX(TimerStartMs * PixelPerMs);
+								ImGui::PushItemWidth(TimerEndMs * PixelPerMs);
+
+								char debugStr[128];
+								sprintf_s(debugStr, 128, "%ls %.3f ms\n", Timer.EventName, DurationMs);
+								ImGui::Button(debugStr, ImVec2(DurationMs * PixelPerMs, 0.0f));
+								if (ImGui::IsItemHovered())
+								{
+									ImGui::SetTooltip(debugStr);
+								}
+								ImGui::SameLine();
+								ImGui::PopItemWidth();
+							}
+							ImGui::PopStyleColor(3);
+							printDone = true;
+						}
+					}
+					if (printDone)
+						ImGui::NewLine(); // start a new line if anything has been printed
+				}
+#endif
+				ImGui::EndChild();
+				ImGui::PopStyleVar(3);
+
+				for (UINT i = 0; i < TimerReport.mCurrentGPUTimerSlotCount; ++i)
+				{
+					Dx12Device::GPUTimer& Timer = TimerReport.mGPUTimers[i];
+					float TimerStart = float(double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
+					float TimerEnd = float(double(TimerReport.mLastUpdatedTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
+					float TimerStartMs = TimerStart * 1000.0f;
+					float TimerEndMs = TimerEnd * 1000.0f;
+					float DurationMs = TimerEndMs - TimerStartMs;
+
+					char* levelOffset = "---------------";	// 16 chars
+					unsigned int levelShift = 16 - 2 * Timer.Level - 1;
+					char* levelOffsetPtr = levelOffset + (levelShift < 0 ? 0 : levelShift); // cheap way to add shifting to a printf
+
+					char debugStr[128];
+					sprintf_s(debugStr, 128, "%s%ls %.3f ms\n", levelOffsetPtr, Timer.EventName, DurationMs);
+					ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA >> 8) & 0xFF, int(Timer.RGBA >> 16) & 0xFF, int(Timer.RGBA >> 24) & 0xFF);
+					ImGui::TextColored(ImVec4(float(int(Timer.RGBA) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 8) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 16) & 0xFF) / 255.0f, 255.0f), debugStr);
+				}
+			}
+			ImGui::End();
+
+
+
+
 			WinImguiRender();
 
 			// Swap the back buffer

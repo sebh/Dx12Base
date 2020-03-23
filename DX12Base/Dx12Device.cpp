@@ -444,6 +444,7 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	// Update time stamp queries
 	{
+		mCommandQueue->GetTimestampFrequency(&mLastUpdateTimeStampTickPerSeconds);
 		mLastUpdatedFrameTimerSet = (mFrameIndex + 1) % frameBufferCount;
 		const UINT TimeStampcount = mCurrentGPUTimeStampCount[mLastUpdatedFrameTimerSet];
 		if (TimeStampcount > 0)
@@ -455,12 +456,7 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 			if (hr == S_OK)
 			{
-				for (int i = 0; i < mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet]; ++i)
-				{
-					mGPUTimers[mLastUpdatedFrameTimerSet][i].TimeStampStart = TimerData[mGPUTimers[mLastUpdatedFrameTimerSet][i].QueryIndexStart];
-					mGPUTimers[mLastUpdatedFrameTimerSet][i].TimeStampEnd = TimerData[mGPUTimers[mLastUpdatedFrameTimerSet][i].QueryIndexEnd];
-				}
-
+				memcpy(mLastUpdatedTimeStamps, TimerData, MapRange.End);
 				mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Unmap(0, nullptr);
 			}
 		}
@@ -495,7 +491,6 @@ void Dx12Device::StartGPUTimer(LPCWSTR Name, UINT RGBA)
 
 	GPUTimer& t = mGPUTimers[mFrameIndex][mCurrentGPUTimerSlotCount[mFrameIndex]++];
 	t.EventName = Name;
-	t.TimeStampStart = t.TimeStampEnd = 0;
 	t.QueryIndexStart = mCurrentGPUTimeStampCount[mFrameIndex]++;
 	t.QueryIndexEnd = 0;
 	t.Level = mCurrentGPUTimerLevel[mFrameIndex]++;
@@ -523,6 +518,15 @@ void Dx12Device::EndGPUTimer(LPCWSTR Name)
 	mCommandList[0]->EndQuery(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t->QueryIndexEnd);
 }
 
+Dx12Device::GPUTimersReport Dx12Device::GetGPUTimerReport()
+{
+	GPUTimersReport Report;
+	Report.mCurrentGPUTimerSlotCount = mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet];
+	Report.mGPUTimers = mGPUTimers[mLastUpdatedFrameTimerSet];
+	Report.mLastUpdatedTimeStamps = mLastUpdatedTimeStamps;
+	Report.mLastUpdateTimeStampTickPerSeconds = mLastUpdateTimeStampTickPerSeconds;
+	return Report;
+}
 
 
 
