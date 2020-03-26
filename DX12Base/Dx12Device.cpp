@@ -28,6 +28,8 @@
 //  - setstablepowerstate https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-setstablepowerstate
 
 
+//#pragma optimize("", off)
+
 
 Dx12Device* g_dx12Device = nullptr;
 
@@ -1281,7 +1283,6 @@ RenderTexture::~RenderTexture()
 
 
 
-
 RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 {
 	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signatures
@@ -1314,41 +1315,37 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 
 	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
 	// We only allocate a slot a single constant buffer
-	{
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		param.Descriptor.RegisterSpace = 0;
-		param.Descriptor.ShaderRegister = 0;	// b0
-		rootParameters.push_back(param);
-		mRootSignatureDWordUsed += 2;
-	}
+	D3D12_ROOT_PARAMETER paramCBV0;
+	paramCBV0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	paramCBV0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	paramCBV0.Descriptor.RegisterSpace = 0;
+	paramCBV0.Descriptor.ShaderRegister = 0;	// b0
+	rootParameters.push_back(paramCBV0);
+	mRootSignatureDWordUsed += 2;				// Root descriptor
 
 	// SRV/UAV simple descriptor table, dx11 style
-	{
-		D3D12_DESCRIPTOR_RANGE  descriptorTableRanges[2];
-		descriptorTableRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-		descriptorTableRanges[0].BaseShaderRegister = 0;
-		descriptorTableRanges[0].NumDescriptors = mTab0SRVCount;
-		descriptorTableRanges[0].RegisterSpace = 0;
-		descriptorTableRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-		descriptorTableRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-		descriptorTableRanges[1].BaseShaderRegister = 0;
-		descriptorTableRanges[1].NumDescriptors = mTab0UAVCount;
-		descriptorTableRanges[1].RegisterSpace = 0;
-		descriptorTableRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	D3D12_DESCRIPTOR_RANGE  descriptorTable0Ranges[2];
+	descriptorTable0Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	descriptorTable0Ranges[0].BaseShaderRegister = 0;
+	descriptorTable0Ranges[0].NumDescriptors = mTab0SRVCount;
+	descriptorTable0Ranges[0].RegisterSpace = 0;
+	descriptorTable0Ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+	descriptorTable0Ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	descriptorTable0Ranges[1].BaseShaderRegister = 0;
+	descriptorTable0Ranges[1].NumDescriptors = mTab0UAVCount;
+	descriptorTable0Ranges[1].RegisterSpace = 0;
+	descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable;
-		descriptorTable.NumDescriptorRanges = _countof(descriptorTableRanges);
-		descriptorTable.pDescriptorRanges = &descriptorTableRanges[0]; 
+	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable0;
+	descriptorTable0.NumDescriptorRanges = _countof(descriptorTable0Ranges);
+	descriptorTable0.pDescriptorRanges = &descriptorTable0Ranges[0];
 
-		D3D12_ROOT_PARAMETER param;
-		param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-		param.DescriptorTable = descriptorTable;
-		param.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-		rootParameters.push_back(param);
-		mRootSignatureDWordUsed += 1;// _countof(descriptorTableRanges);
-	}
+	D3D12_ROOT_PARAMETER paramTab0;
+	paramTab0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	paramTab0.DescriptorTable = descriptorTable0;
+	paramTab0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	rootParameters.push_back(paramTab0);
+	mRootSignatureDWordUsed += 1;				// Descriptor table
 
 	// Check bound correctness
 	ATLASSERT(mRootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63u : 64u));
@@ -1369,7 +1366,7 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
 		sampler.ShaderRegister = 0;
 		sampler.RegisterSpace = 0;
-		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
 	}
 
@@ -1382,9 +1379,9 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 
 	ID3DBlob* rootSignBlob;
 	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
-	ATLASSERT(hr == S_OK);
+	ATLENSURE(hr == S_OK);
 	hr = dev->CreateRootSignature(0, rootSignBlob->GetBufferPointer(), rootSignBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
-	ATLASSERT(hr == S_OK);
+	ATLENSURE(hr == S_OK);
 }
 
 RootSignature::~RootSignature()

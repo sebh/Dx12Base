@@ -6,6 +6,9 @@
 #include "DirectXMath.h"
 
 
+//#pragma optimize("", off)
+
+
 InputLayout* layout;
 
 RenderBuffer* vertexBuffer;

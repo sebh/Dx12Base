@@ -114,7 +114,7 @@ private:
 	ID3D12Device5*								mDev;										// the pointer to our Direct3D device interface
 	IDXGIFactory4*								mDxgiFactory;
 	IDXGISwapChain3*							mSwapchain;									// the pointer to the swap chain interface
-	int											mFrameIndex;								// Current swap chain frame index (back buffer)
+	int											mFrameIndex=0;								// Current swap chain frame index (back buffer)
 	ID3D12CommandQueue*							mCommandQueue;								// command list container
 
 	ID3D12DescriptorHeap*						mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
