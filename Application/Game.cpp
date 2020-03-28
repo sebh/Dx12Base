@@ -30,6 +30,7 @@ PipelineStateObject* psoCS;
 
 RenderTexture* texture;
 RenderTexture* HdrTexture;
+RenderTexture* DepthTexture;
 
 Game::Game()
 {
@@ -105,17 +106,31 @@ void Game::initialise()
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
 	D3D12_CLEAR_VALUE ClearValue;
 	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
-	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.33f;
+	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.0f;
 	HdrTexture = new RenderTexture(
 		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
-		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
 		&ClearValue, 0, nullptr);
 
-	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, ClearValue.Format);
+	D3D12_CLEAR_VALUE DepthClearValue;
+	DepthClearValue.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	DepthClearValue.DepthStencil.Depth = 1.0f;
+	DepthClearValue.DepthStencil.Stencil = 0;
+	DepthTexture = new RenderTexture(
+		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+		&DepthClearValue, 0, nullptr);
+
+	//pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, ClearValue.Format);
+	DepthStencilState DSS = getDepthStencilState_Default();
+	RasterizerState RS = getRasterizerState_Default();
+	BlendState BS = getBlendState_Default();
+	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, 
+		DSS, RS, BS, HdrTexture->getClearColor().Format, DepthTexture->getClearColor().Format);
 	pso->setDebugName(L"TriangleDrawPso");
 
 	ToneMapPassPSO = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *ToneMapShaderPS, backBuffer->GetDesc().Format);
-	pso->setDebugName(L"TriangleDrawPso");
+	ToneMapPassPSO->setDebugName(L"ToneMapPso");
 
 	psoCS = new PipelineStateObject(g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
 	psoCS->setDebugName(L"ComputePso");
@@ -141,6 +156,7 @@ void Game::shutdown()
 
 	delete texture;
 	delete HdrTexture;
+	delete DepthTexture;
 }
 
 void Game::update(const WindowInputData& inputData)
@@ -185,9 +201,12 @@ void Game::render()
 
 	// Set the HDR texture and clear it
 	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET);
-	D3D12_CPU_DESCRIPTOR_HANDLE descriptor = HdrTexture->getRTVCPUHandle();
-	commandList->OMSetRenderTargets(1, &HdrTexture->getRTVCPUHandle(), FALSE, nullptr);
-	commandList->ClearRenderTargetView(descriptor, HdrTexture->getClearColor().Color, 0, nullptr);
+	DepthTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	D3D12_CPU_DESCRIPTOR_HANDLE HdrTextureRTV = HdrTexture->getRTVCPUHandle();
+	D3D12_CPU_DESCRIPTOR_HANDLE DepthTextureRTV = DepthTexture->getRTVCPUHandle();
+	commandList->OMSetRenderTargets(1, &HdrTextureRTV, FALSE, &DepthTextureRTV);
+	commandList->ClearRenderTargetView(HdrTextureRTV, HdrTexture->getClearColor().Color, 0, nullptr);
+	commandList->ClearDepthStencilView(DepthTextureRTV, D3D12_CLEAR_FLAG_DEPTH, DepthTexture->getClearColor().DepthStencil.Depth, DepthTexture->getClearColor().DepthStencil.Stencil, 0, nullptr);
 
 	// Set the viewport
 	D3D12_VIEWPORT viewport;

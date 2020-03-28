@@ -455,6 +455,7 @@ public:
 	virtual ~RenderTexture();
 
 	const D3D12_CPU_DESCRIPTOR_HANDLE getRTVCPUHandle() const { return mRTVHeap->getCPUHandle(); }
+	const D3D12_CPU_DESCRIPTOR_HANDLE getDSVCPUHandle() const { return mDSVHeap->getCPUHandle(); }
 	const D3D12_CLEAR_VALUE& getClearColor() const { return mClearValue; }
 private:
 	RenderTexture();
@@ -463,7 +464,11 @@ private:
 
 	// All texture will have this RTV related data... But fine for such a small project.
 	D3D12_CLEAR_VALUE mClearValue;
-	DescriptorHeap* mRTVHeap;
+	union
+	{
+		DescriptorHeap* mRTVHeap;
+		DescriptorHeap* mDSVHeap;
+	};
 };
 
 
@@ -510,12 +515,11 @@ class PipelineStateObject
 {
 public:
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, 
-		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM);
+		DXGI_FORMAT buffer0Format=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
 		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState,
-		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM
-		);
+		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
 	PipelineStateObject(RootSignature& rootSign, ComputeShader& cs);
 

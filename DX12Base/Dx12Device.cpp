@@ -23,7 +23,6 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - Texture Depth buffer 
 //  - Buffer typed, structured and byte buffer.
 //  - PipelineStateObject cached + reuse
 //  - Proper upload handling in shared pool
@@ -1019,6 +1018,76 @@ D3D12_INDEX_BUFFER_VIEW RenderBuffer::getIndexBufferView(DXGI_FORMAT format)
 	return view;
 }
 
+DXGI_FORMAT getDepthStencilResourceFormatFromTypeless(DXGI_FORMAT format)
+{
+	switch (format)
+	{
+	case DXGI_FORMAT_R16_TYPELESS:
+		return DXGI_FORMAT_D16_UNORM;
+		break;
+	case DXGI_FORMAT_R24G8_TYPELESS:
+		return  DXGI_FORMAT_D24_UNORM_S8_UINT;
+		break;
+	case DXGI_FORMAT_R32_TYPELESS:
+		return  DXGI_FORMAT_D32_FLOAT;
+		break;
+	}
+	ATLASSERT(false); // unknown format
+	return DXGI_FORMAT_UNKNOWN;
+}
+DXGI_FORMAT getDepthShaderViewFormatFromTypeless(DXGI_FORMAT format)
+{
+	switch (format)
+	{
+	case DXGI_FORMAT_R16_TYPELESS:
+		return DXGI_FORMAT_R16_UNORM;
+		break;
+	case DXGI_FORMAT_R24G8_TYPELESS:
+		return  DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+		break;
+	case DXGI_FORMAT_R32_TYPELESS:
+		return  DXGI_FORMAT_D32_FLOAT;
+		break;
+	}
+	ATLASSERT(false); // unknown format
+	return DXGI_FORMAT_UNKNOWN;
+}
+
+bool isFormatTypeless(DXGI_FORMAT format)
+{
+	switch (format)
+	{
+	case DXGI_FORMAT_R32G32B32A32_TYPELESS:
+	case DXGI_FORMAT_R32G32B32_TYPELESS:
+	case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+	case DXGI_FORMAT_R32G32_TYPELESS:
+	case DXGI_FORMAT_R32G8X24_TYPELESS:
+	case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+	case DXGI_FORMAT_X32_TYPELESS_G8X24_UINT:
+	case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+	case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+	case DXGI_FORMAT_R16G16_TYPELESS:
+	case DXGI_FORMAT_R32_TYPELESS:
+	case DXGI_FORMAT_R24G8_TYPELESS:
+		//case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+		//case DXGI_FORMAT_X24_TYPELESS_G8_UINT:
+	case DXGI_FORMAT_R8G8_TYPELESS:
+	case DXGI_FORMAT_R16_TYPELESS:
+	case DXGI_FORMAT_R8_TYPELESS:
+	case DXGI_FORMAT_BC1_TYPELESS:
+	case DXGI_FORMAT_BC2_TYPELESS:
+	case DXGI_FORMAT_BC3_TYPELESS:
+	case DXGI_FORMAT_BC4_TYPELESS:
+	case DXGI_FORMAT_BC5_TYPELESS:
+	case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+	case DXGI_FORMAT_B8G8R8X8_TYPELESS:
+	case DXGI_FORMAT_BC6H_TYPELESS:
+	case DXGI_FORMAT_BC7_TYPELESS:
+		return true;
+	}
+	return false;
+}
+
 RenderTexture::RenderTexture(
 	unsigned int width, unsigned int height, unsigned int depth,
 	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags,
@@ -1034,6 +1103,10 @@ RenderTexture::RenderTexture(
 	D3D12_RESOURCE_DIMENSION dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	if (depth > 1)
 		dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+
+	const bool IsDepthTexture = (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) == D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+	DXGI_FORMAT ViewFormat = IsDepthTexture ? getDepthShaderViewFormatFromTypeless(format) : format;
+	DXGI_FORMAT ResourceFormat = IsDepthTexture ? getDepthStencilResourceFormatFromTypeless(format) : format;
 	
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -1042,7 +1115,7 @@ RenderTexture::RenderTexture(
 	resourceDesc.Height = height;
 	resourceDesc.DepthOrArraySize = depth;
 	resourceDesc.MipLevels = 1;
-	resourceDesc.Format = format;
+	resourceDesc.Format = ResourceFormat;
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resourceDesc.Flags = flags;
 	resourceDesc.SampleDesc.Count = 1;
@@ -1051,13 +1124,20 @@ RenderTexture::RenderTexture(
 	if (ClearValue)
 	{
 		mClearValue = *ClearValue;
+		mClearValue.Format = ResourceFormat;
 	}
 	else
 	{
-		mClearValue.Format = format;
-		mClearValue.DepthStencil.Depth = 1.0f;
-		mClearValue.DepthStencil.Stencil = 0;
-		mClearValue.Color[0] = mClearValue.Color[1] = mClearValue.Color[2] = mClearValue.Color[3] = 0.0f;
+		mClearValue.Format = ResourceFormat;
+		if (IsDepthTexture)
+		{
+			mClearValue.DepthStencil.Depth = 1.0f;
+			mClearValue.DepthStencil.Stencil = 0;
+		}
+		else
+		{
+			mClearValue.Color[0] = mClearValue.Color[1] = mClearValue.Color[2] = mClearValue.Color[3] = 0.0f;
+		}
 	}
 
 	mResourceState = D3D12_RESOURCE_STATE_COMMON;
@@ -1065,7 +1145,7 @@ RenderTexture::RenderTexture(
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
 		mResourceState,
-		ClearValue,		// Still use potential nullptr paraemter if not specified
+		ClearValue ? &mClearValue : nullptr,		// Still use potential nullptr paraemter if not specified
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, L"RenderTexture");
 
@@ -1075,13 +1155,14 @@ RenderTexture::RenderTexture(
 	// Now create a shader resource view over our descriptor allocated memory
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = format;
+	srvDesc.Format = ViewFormat;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 	srvDesc.Texture2D.MipLevels = 1;
 	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	if (initData)
 	{
+		ATLASSERT(!IsDepthTexture);
 		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// ??
@@ -1108,7 +1189,7 @@ RenderTexture::RenderTexture(
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
-		uavDesc.Format = format;
+		uavDesc.Format = ViewFormat;
 		if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
 		{
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -1132,6 +1213,7 @@ RenderTexture::RenderTexture(
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)
 	{
+		ATLASSERT(!IsDepthTexture);
 		mRTVHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
@@ -1155,6 +1237,25 @@ RenderTexture::RenderTexture(
 		}
 
 		dev->CreateRenderTargetView(mResource, &rtvDesc, mRTVHeap->getCPUHandle());
+	}
+	else if (IsDepthTexture)
+	{
+		mDSVHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 1);
+
+		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+		dsvDesc.Format = ResourceFormat;
+		if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
+		{
+			dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+			dsvDesc.Texture2D.MipSlice = 0;
+		}
+		else
+		{
+			ATLASSERT(false);
+		}
+		dsvDesc.Flags = D3D12_DSV_FLAG_NONE; // Can be used for read only behavior
+
+		dev->CreateDepthStencilView(mResource, &dsvDesc, mDSVHeap->getCPUHandle());
 	}
 }
 
@@ -1454,7 +1555,8 @@ RasterizerState getRasterizerState_Default()
 }
 
 PipelineStateObject::PipelineStateObject(
-	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, DXGI_FORMAT bufferFormat)
+	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, 
+	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1469,6 +1571,7 @@ PipelineStateObject::PipelineStateObject(
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	psoDesc.RTVFormats[0] = bufferFormat;
+	psoDesc.DSVFormat = depthBufferFormat;
 	psoDesc.SampleMask = 0xffffffff;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.SampleDesc.Count = 1;
@@ -1485,7 +1588,7 @@ PipelineStateObject::PipelineStateObject(
 PipelineStateObject::PipelineStateObject(
 	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
 	DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState, 
-	DXGI_FORMAT bufferFormat)
+	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1499,7 +1602,8 @@ PipelineStateObject::PipelineStateObject(
 	psoDesc.PS.pShaderBytecode = ps.getShaderByteCode();
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.RTVFormats[0] = bufferFormat;
+	psoDesc.DSVFormat = depthBufferFormat;
 	psoDesc.SampleMask = 0xffffffff;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.SampleDesc.Count = 1;
