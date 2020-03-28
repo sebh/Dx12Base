@@ -20,9 +20,11 @@ RenderBuffer* constantBufferTest0;
 
 VertexShader* vertexShader;
 PixelShader*  pixelShader;
+PixelShader*  ToneMapShaderPS;
 ComputeShader*  computeShader;
 
 PipelineStateObject* pso;
+PipelineStateObject* ToneMapPassPSO;
 
 PipelineStateObject* psoCS;
 
@@ -44,6 +46,7 @@ void Game::loadShaders(bool exitIfFail)
 
 	vertexShader = new VertexShader(L"Resources\\TestShader.hlsl", "ColorVertexShader");
 	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
+	ToneMapShaderPS = new PixelShader(L"Resources\\TestShader.hlsl", "ToneMapPS");
 	computeShader = new ComputeShader(L"Resources\\TestShader.hlsl", "MainComputeShader");
 
 	/*success &= reload(&vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", exitIfFail);
@@ -56,6 +59,7 @@ void Game::releaseShaders()
 {
 	delete vertexShader;
 	delete pixelShader;
+	delete ToneMapShaderPS;
 	delete computeShader;
 }
 
@@ -96,14 +100,25 @@ void Game::initialise()
 	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
 
-	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader);
+	texture = new RenderTexture(L"Resources\\texture.png");
+
+	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
+	D3D12_CLEAR_VALUE ClearValue;
+	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
+	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.33f;
+	HdrTexture = new RenderTexture(
+		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+		&ClearValue, 0, nullptr);
+
+	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, ClearValue.Format);
+	pso->setDebugName(L"TriangleDrawPso");
+
+	ToneMapPassPSO = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *ToneMapShaderPS, backBuffer->GetDesc().Format);
 	pso->setDebugName(L"TriangleDrawPso");
 
 	psoCS = new PipelineStateObject(g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
 	psoCS->setDebugName(L"ComputePso");
-
-	texture = new RenderTexture(L"Resources\\texture.png");
-	HdrTexture = new RenderTexture(128, 128, 1, DXGI_FORMAT_R11G11B10_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, 0, nullptr);
 }
 
 void Game::shutdown()
@@ -121,6 +136,7 @@ void Game::shutdown()
 	releaseShaders();
 
 	delete pso;
+	delete ToneMapPassPSO;
 	delete psoCS;
 
 	delete texture;
@@ -167,35 +183,25 @@ void Game::render()
 	descriptorHeaps.push_back(g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
 
-	// Set the back buffer and clear it
-	{
-		D3D12_RESOURCE_BARRIER bbPresentToRt = {};
-		bbPresentToRt.Transition.pResource = backBuffer;
-		bbPresentToRt.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-		bbPresentToRt.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-		bbPresentToRt.Transition.Subresource = 0;
-		commandList->ResourceBarrier(1, &bbPresentToRt);
-
-		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
-		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
-
-		const float clearColor[] = { 0.1f, 0.2f, 0.4f, 1.0f };
-		commandList->ClearRenderTargetView(descriptor, clearColor, 0, nullptr);
-	}
+	// Set the HDR texture and clear it
+	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET);
+	D3D12_CPU_DESCRIPTOR_HANDLE descriptor = HdrTexture->getRTVCPUHandle();
+	commandList->OMSetRenderTargets(1, &HdrTexture->getRTVCPUHandle(), FALSE, nullptr);
+	commandList->ClearRenderTargetView(descriptor, HdrTexture->getClearColor().Color, 0, nullptr);
 
 	// Set the viewport
 	D3D12_VIEWPORT viewport;
 	viewport.TopLeftX = 0;
 	viewport.TopLeftY = 0;
-	viewport.Width = (float)backBuffer->GetDesc().Width;
-	viewport.Height = (float)backBuffer->GetDesc().Height;
+	viewport.Width = (float)HdrTexture->getD3D12Resource()->GetDesc().Width;
+	viewport.Height = (float)HdrTexture->getD3D12Resource()->GetDesc().Height;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
 	D3D12_RECT scissorRect;
 	scissorRect.left = 0;
 	scissorRect.top = 0;
-	scissorRect.right = (LONG)backBuffer->GetDesc().Width;
-	scissorRect.bottom = (LONG)backBuffer->GetDesc().Height;
+	scissorRect.right = (LONG)HdrTexture->getD3D12Resource()->GetDesc().Width;
+	scissorRect.bottom = (LONG)HdrTexture->getD3D12Resource()->GetDesc().Height;
 	commandList->RSSetViewports(1, &viewport); // set the viewports
 
 	// Transition buffers for rasterisation
@@ -250,13 +256,46 @@ void Game::render()
 		commandList->Dispatch(1, 1, 1);
 	}
 
-	// Make back-buffer presentable.
-	D3D12_RESOURCE_BARRIER bbRtToPresent = {};
-	bbRtToPresent.Transition.pResource = backBuffer;
-	bbRtToPresent.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-	bbRtToPresent.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-	bbRtToPresent.Transition.Subresource = 0;
-	commandList->ResourceBarrier(1, &bbRtToPresent);
+	//
+	// Set result into the back buffer
+	//
+
+	// Transition HDR texture to readable
+	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	{
+		// Make back buffer targetable and set it
+		D3D12_RESOURCE_BARRIER bbPresentToRt = {};
+		bbPresentToRt.Transition.pResource = backBuffer;
+		bbPresentToRt.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		bbPresentToRt.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		bbPresentToRt.Transition.Subresource = 0;
+		commandList->ResourceBarrier(1, &bbPresentToRt);
+		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
+		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
+
+		// Apply tonemapping on the HDR buffer
+		SCOPED_GPU_TIMER(ToneMapToBackBuffer, 255, 255, 255);
+		commandList->SetPipelineState(ToneMapPassPSO->getPso());
+		commandList->RSSetScissorRects(1, &scissorRect);
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
+		commandList->IASetIndexBuffer(&indexBufferView);
+
+		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		CallDescriptors.SetSRV(0, *HdrTexture);
+
+		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+
+		// Make back-buffer presentable.
+		D3D12_RESOURCE_BARRIER bbRtToPresent = {};
+		bbRtToPresent.Transition.pResource = backBuffer;
+		bbRtToPresent.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		bbRtToPresent.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		bbRtToPresent.Transition.Subresource = 0;
+		commandList->ResourceBarrier(1, &bbRtToPresent);
+	}
 }
 
 

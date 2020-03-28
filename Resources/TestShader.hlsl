@@ -48,10 +48,16 @@ float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 	//int index = input.position.x + input.position.y * 1280;
 
 	//return float4(input.uv, 0.0, 1.0) * buffer[0];
-	return float4(input.uv, 0.0, 1.0) * texture0.Sample(sampler0, input.uv);
+	//return float4(input.uv, 0.0, 1.0) * texture0.Sample(sampler0, input.uv);
+	return texture0.Sample(sampler0, float2(input.uv.x, 1.0f - input.uv.y));		// orientation problem with UV or texture loading
 	//return float4(input.uv, 0.0, 1.0);
 }
 
+float4 ToneMapPS(VertexOutput input) : SV_TARGET
+{
+	float4 RGBA = texture0.Sample(sampler0, input.uv);
+	return float4(pow(RGBA.rgb, 1.0f / 2.2f), RGBA.a);
+}
 
 
 RWBuffer<int4> myBuffer : register(u0);

@@ -403,10 +403,10 @@ public:
 	ID3D12Resource* getD3D12Resource() { return mResource; }
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
 
-	D3D12_CPU_DESCRIPTOR_HANDLE  getSRVCPUHandle() { return mSRVCPUHandle; }
-	D3D12_CPU_DESCRIPTOR_HANDLE  getUAVCPUHandle() { return mUAVCPUHandle; }
-	D3D12_GPU_DESCRIPTOR_HANDLE  getSRVGPUHandle() { return mSRVGPUHandle; }
-	D3D12_GPU_DESCRIPTOR_HANDLE  getUAVGPUHandle() { return mUAVGPUHandle; }
+	const D3D12_CPU_DESCRIPTOR_HANDLE& getSRVCPUHandle() const { return mSRVCPUHandle; }
+	const D3D12_CPU_DESCRIPTOR_HANDLE& getUAVCPUHandle() const { return mUAVCPUHandle; }
+	const D3D12_GPU_DESCRIPTOR_HANDLE& getSRVGPUHandle() const { return mSRVGPUHandle; }
+	const D3D12_GPU_DESCRIPTOR_HANDLE& getUAVGPUHandle() const { return mUAVGPUHandle; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mResource, debugName); }
 
@@ -449,17 +449,21 @@ public:
 		unsigned int width, unsigned int height, 
 		unsigned int depth, DXGI_FORMAT format,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+		D3D12_CLEAR_VALUE* ClearValue = nullptr,
 		unsigned int initDataCopySizeByte  = 0, void* initData = nullptr);
 	RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	virtual ~RenderTexture();
+
+	const D3D12_CPU_DESCRIPTOR_HANDLE getRTVCPUHandle() const { return mRTVHeap->getCPUHandle(); }
+	const D3D12_CLEAR_VALUE& getClearColor() const { return mClearValue; }
 private:
 	RenderTexture();
 	RenderTexture(RenderTexture&);
 	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
 
-	DescriptorHeap* mRTVHeap;	// All texture will have some potential RTV management. Fine in such a small project...
-	D3D12_CPU_DESCRIPTOR_HANDLE mRTVCPUHandle;
-	D3D12_GPU_DESCRIPTOR_HANDLE mRTVGPUHandle;
+	// All texture will have this RTV related data... But fine for such a small project.
+	D3D12_CLEAR_VALUE mClearValue;
+	DescriptorHeap* mRTVHeap;
 };
 
 
@@ -505,10 +509,13 @@ RasterizerState						getRasterizerState_Default();		// solide, front=clockwise, 
 class PipelineStateObject
 {
 public:
-	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps);
+	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, 
+		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM);
 
 	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
-		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState);
+		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState,
+		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM
+		);
 
 	PipelineStateObject(RootSignature& rootSign, ComputeShader& cs);
 

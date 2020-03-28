@@ -24,8 +24,8 @@
 
 // TODO: 
 //  - Texture Depth buffer 
-//  - Render to HDR + depth => tone map to back buffer
 //  - Buffer typed, structured and byte buffer.
+//  - PipelineStateObject cached + reuse
 //  - Proper upload handling in shared pool
 
 
@@ -939,8 +939,6 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		mResourceState,
 		nullptr,
 		IID_PPV_ARGS(&mResource));
-
-
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
@@ -1023,11 +1021,13 @@ D3D12_INDEX_BUFFER_VIEW RenderBuffer::getIndexBufferView(DXGI_FORMAT format)
 
 RenderTexture::RenderTexture(
 	unsigned int width, unsigned int height, unsigned int depth,
-	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags, 
+	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags,
+	D3D12_CLEAR_VALUE* ClearValue,
 	unsigned int initDataCopySizeByte, void* initData)
 	: RenderResource()
 	, mRTVHeap(nullptr)
 {
+	ATLASSERT(ClearValue==nullptr || (ClearValue->Format == format));
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
 
@@ -1048,12 +1048,24 @@ RenderTexture::RenderTexture(
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
+	if (ClearValue)
+	{
+		mClearValue = *ClearValue;
+	}
+	else
+	{
+		mClearValue.Format = format;
+		mClearValue.DepthStencil.Depth = 1.0f;
+		mClearValue.DepthStencil.Stencil = 0;
+		mClearValue.Color[0] = mClearValue.Color[1] = mClearValue.Color[2] = mClearValue.Color[3] = 0.0f;
+	}
+
 	mResourceState = D3D12_RESOURCE_STATE_COMMON;
 	dev->CreateCommittedResource(&defaultHeap,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
 		mResourceState,
-		nullptr,
+		ClearValue,		// Still use potential nullptr paraemter if not specified
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, L"RenderTexture");
 
@@ -1441,7 +1453,8 @@ RasterizerState getRasterizerState_Default()
 	return state;
 }
 
-PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps)
+PipelineStateObject::PipelineStateObject(
+	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, DXGI_FORMAT bufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1455,7 +1468,7 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 	psoDesc.PS.pShaderBytecode = ps.getShaderByteCode();
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+	psoDesc.RTVFormats[0] = bufferFormat;
 	psoDesc.SampleMask = 0xffffffff;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.SampleDesc.Count = 1;
@@ -1469,8 +1482,10 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 }
 
 
-PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
-	DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState)
+PipelineStateObject::PipelineStateObject(
+	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
+	DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState, 
+	DXGI_FORMAT bufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1498,7 +1513,8 @@ PipelineStateObject::PipelineStateObject(RootSignature& rootSign, InputLayout& l
 }
 
 
-PipelineStateObject::PipelineStateObject(RootSignature& rootSign, ComputeShader& cs)
+PipelineStateObject::PipelineStateObject(
+	RootSignature& rootSign, ComputeShader& cs)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
