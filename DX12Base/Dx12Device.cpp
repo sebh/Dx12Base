@@ -281,16 +281,16 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mCptRootSignature = new RootSignature(false);
 	mCptRootSignature->setDebugName(L"DefaultCptRootSignature");
 
-	const UINT TotalResourceDescriptorCount = 1024;
-	const UINT FrameDrawDispatchCallResourceDescriptorCount = 1024;
+	const UINT AllocatedResourceDescriptorCount = 1024;
+	const UINT FrameDispatchDrawCallResourceDescriptorCount = 1024;
 
-	mAllocatedResourceDecriptorHeap = new AllocatedResourceDecriptorHeap(TotalResourceDescriptorCount);
+	mAllocatedResourcesDecriptorHeapCPU = new AllocatedResourceDecriptorHeap(AllocatedResourceDescriptorCount);
 
-	mDrawDispatchCallCpuDescriptorHeap = new DrawDispatchCallCpuDescriptorHeap(FrameDrawDispatchCallResourceDescriptorCount);
+	mDispatchDrawCallDescriptorHeapCPU = new DispatchDrawCallCpuDescriptorHeap(FrameDispatchDrawCallResourceDescriptorCount);
 
 	for (int i = 0; i < frameBufferCount; i++)
 	{
-		mFrameDrawDispatchCallGpuDescriptorHeap[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDrawDispatchCallResourceDescriptorCount);
+		mFrameDispatchDrawCallDescriptorHeapGPU[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDispatchDrawCallResourceDescriptorCount);
 		mFrameConstantBuffers[i] = new FrameConstantBuffers(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT * 2);
 	}
 
@@ -342,14 +342,14 @@ void Dx12Device::internalShutdown()
 
 	for (int i = 0; i < frameBufferCount; i++)
 	{
-		resetPtr(&mFrameDrawDispatchCallGpuDescriptorHeap[i]);
+		resetPtr(&mFrameDispatchDrawCallDescriptorHeapGPU[i]);
 		resetPtr(&mFrameConstantBuffers[i]);
 
 		resetComPtr(&mTimeStampQueryHeaps[i]);
 		resetPtr(&mTimeStampQueryReadBackBuffers[i]);
 	}
-	resetPtr(&mDrawDispatchCallCpuDescriptorHeap);
-	resetPtr(&mAllocatedResourceDecriptorHeap);
+	resetPtr(&mDispatchDrawCallDescriptorHeapCPU);
+	resetPtr(&mAllocatedResourcesDecriptorHeapCPU);
 
 	// Close and release all existing COM objects
 	for (int i = 0; i < frameBufferCount; i++)
@@ -401,7 +401,7 @@ void Dx12Device::beginFrame()
 	ATLASSERT(hr == S_OK);
 
 	// Start the recodring of draw/dispatch call resource table.
-	getDrawDispatchCallCpuDescriptorHeap().BeginRecording();
+	getDispatchDrawCallCpuDescriptorHeap().BeginRecording();
 
 	// Start the constant buffer creation process, map memory to write constant
 	getFrameConstantBuffers().BeginRecording();
@@ -425,7 +425,7 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 	getFrameConstantBuffers().EndRecording();
 
 	// Copy all descriptors required from CPU to GPU heap before we execture the command list
-	getDrawDispatchCallCpuDescriptorHeap().EndRecording(*getFrameDrawDispatchCallGpuDescriptorHeap());
+	getDispatchDrawCallCpuDescriptorHeap().EndRecording(*getFrameDispatchDrawCallGpuDescriptorHeap());
 
 	// Execute array of command lists
 	ID3D12CommandList* ppCommandLists[1] = { mCommandList[0] };
@@ -732,22 +732,22 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 
 
-DrawDispatchCallCpuDescriptorHeap::DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount)
+DispatchDrawCallCpuDescriptorHeap::DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount)
 {
 	mCpuDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
 }
 
-DrawDispatchCallCpuDescriptorHeap::~DrawDispatchCallCpuDescriptorHeap()
+DispatchDrawCallCpuDescriptorHeap::~DispatchDrawCallCpuDescriptorHeap()
 {
 	resetPtr(&mCpuDescriptorHeap);
 }
 
-void DrawDispatchCallCpuDescriptorHeap::BeginRecording()
+void DispatchDrawCallCpuDescriptorHeap::BeginRecording()
 {
 	mFrameDescriptorCount = 0;
 }
 
-void DrawDispatchCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescriptoHeap)
+void DispatchDrawCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescriptoHeap)
 {
 	//Copy all descriptors required from CPU to GPU heap
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(
@@ -757,7 +757,7 @@ void DrawDispatchCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescr
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::AllocateCall(RootSignature& RootSig)
+DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::AllocateCall(RootSignature& RootSig)
 {
 	Call NewCall;
 	NewCall.mRootSig = &RootSig;
@@ -765,7 +765,7 @@ DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::Alloc
 	NewCall.mCPUHandle = mCpuDescriptorHeap->getCPUHandle();
 	NewCall.mCPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 
-	NewCall.mGPUHandle = g_dx12Device->getFrameDrawDispatchCallGpuDescriptorHeap()->getGPUHandle();
+	NewCall.mGPUHandle = g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getGPUHandle();
 	NewCall.mGPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 
 	mFrameDescriptorCount += RootSig.getTab0SRVCount() + RootSig.getTab0UAVCount();
@@ -774,10 +774,10 @@ DrawDispatchCallCpuDescriptorHeap::Call DrawDispatchCallCpuDescriptorHeap::Alloc
 }
 
 
-DrawDispatchCallCpuDescriptorHeap::Call::Call()
+DispatchDrawCallCpuDescriptorHeap::Call::Call()
 {
 }
-void DrawDispatchCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
+void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0SRVCount());
 
@@ -786,7 +786,7 @@ void DrawDispatchCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResour
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
 }
-void DrawDispatchCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
+void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0UAVCount());
 

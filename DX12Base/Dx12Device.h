@@ -31,7 +31,7 @@
 class RootSignature;
 class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
-class DrawDispatchCallCpuDescriptorHeap;
+class DispatchDrawCallCpuDescriptorHeap;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBuffer;
@@ -72,10 +72,10 @@ public:
 	UINT getRtvDescriptorSize() const { return mRtvDescriptorSize; }
 	UINT getDsvDescriptorSize() const { return mDsvDescriptorSize; }
 
-	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourceDecriptorHeap; }
-	DrawDispatchCallCpuDescriptorHeap& getDrawDispatchCallCpuDescriptorHeap() { return *mDrawDispatchCallCpuDescriptorHeap; }
+	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourcesDecriptorHeapCPU; }
+	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU; }
 
-	DescriptorHeap* getFrameDrawDispatchCallGpuDescriptorHeap() { return mFrameDrawDispatchCallGpuDescriptorHeap[mFrameIndex]; }
+	DescriptorHeap* getFrameDispatchDrawCallGpuDescriptorHeap() { return mFrameDispatchDrawCallDescriptorHeapGPU[mFrameIndex]; }
 
 	FrameConstantBuffers& getFrameConstantBuffers() { return *mFrameConstantBuffers[mFrameIndex]; }
 
@@ -116,11 +116,11 @@ private:
 	IDXGISwapChain3*							mSwapchain;									// the pointer to the swap chain interface
 	int											mFrameIndex=0;								// Current swap chain frame index (back buffer)
 	ID3D12CommandQueue*							mCommandQueue;								// command list container
+	ID3D12CommandAllocator*						mCommandAllocator[frameBufferCount];		// Command allocator in GPU memory. Need a many as frameCount as cannot rest while in use by GPU
+	ID3D12GraphicsCommandList4*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
 
 	ID3D12DescriptorHeap*						mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
 	ID3D12Resource*								mBackBuffeRtv[frameBufferCount];			// back buffer render target view
-	ID3D12CommandAllocator*						mCommandAllocator[frameBufferCount];		// Command allocator in GPU memory. Need a many as frameCount as cannot rest while in use by GPU
-	ID3D12GraphicsCommandList4*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
 
 	ID3D12Fence*								mFrameFence[frameBufferCount];				// locked while commandlist is being executed by the gpu.
 	HANDLE										mFrameFenceEvent;							// a handle to an event when our fence is unlocked by the gpu
@@ -137,18 +137,14 @@ private:
 	UINT										mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
 	UINT										mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
 
-	// Graphics default root signature
-	RootSignature* mGfxRootSignature;
-	// Compute default root signature
-	RootSignature* mCptRootSignature;
+	RootSignature* mGfxRootSignature;														// Graphics default root signature
+	RootSignature* mCptRootSignature;														// Compute default root signature
 
-	AllocatedResourceDecriptorHeap* mAllocatedResourceDecriptorHeap;						// All loaded resources
+	AllocatedResourceDecriptorHeap* mAllocatedResourcesDecriptorHeapCPU;					// All loaded resources allocate UAV/SRV if required in this CPU heap.
+	DispatchDrawCallCpuDescriptorHeap* mDispatchDrawCallDescriptorHeapCPU;					// All dispatch and draw calls have their descriptors set in this CPU heap.
+	DescriptorHeap* mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];				// GPU version of dispatch and draw calls descriptors.
 
-	DrawDispatchCallCpuDescriptorHeap* mDrawDispatchCallCpuDescriptorHeap;					// Staging CPU descriptors uploaded once for the frame
-
-	DescriptorHeap* mFrameDrawDispatchCallGpuDescriptorHeap[frameBufferCount];				// Descriptor heaps for frame
-
-	FrameConstantBuffers* mFrameConstantBuffers[frameBufferCount];							// Descriptor heaps for frame
+	FrameConstantBuffers* mFrameConstantBuffers[frameBufferCount];							// Descriptor heaps for constant buffers.
 
 	// Data used for GPU performance tracking
 	ID3D12QueryHeap* mTimeStampQueryHeaps[frameBufferCount];
@@ -320,11 +316,11 @@ private:
 };
 
 
-class DrawDispatchCallCpuDescriptorHeap
+class DispatchDrawCallCpuDescriptorHeap
 {
 public:
-	DrawDispatchCallCpuDescriptorHeap(UINT DescriptorCount);
-	virtual ~DrawDispatchCallCpuDescriptorHeap();
+	DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount);
+	virtual ~DispatchDrawCallCpuDescriptorHeap();
 
 	void BeginRecording();
 	void EndRecording(DescriptorHeap& CopyToDescriptoHeap);
@@ -339,7 +335,7 @@ public:
 		D3D12_GPU_DESCRIPTOR_HANDLE getTab0DescriptorGpuHandle() { return mGPUHandle; }
 
 	private:
-		friend class DrawDispatchCallCpuDescriptorHeap;
+		friend class DispatchDrawCallCpuDescriptorHeap;
 
 		RootSignature* mRootSig;
 		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the staging heap
@@ -355,8 +351,8 @@ public:
 	Call AllocateCall(RootSignature& RootSig);
 
 private:
-	DrawDispatchCallCpuDescriptorHeap();
-	DrawDispatchCallCpuDescriptorHeap(DrawDispatchCallCpuDescriptorHeap&);
+	DispatchDrawCallCpuDescriptorHeap();
+	DispatchDrawCallCpuDescriptorHeap(DispatchDrawCallCpuDescriptorHeap&);
 
 	DescriptorHeap* mCpuDescriptorHeap;
 

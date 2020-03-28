@@ -162,7 +162,7 @@ void Game::render()
 
 	// Set the common descriptor heap
 	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
-	descriptorHeaps.push_back(g_dx12Device->getFrameDrawDispatchCallGpuDescriptorHeap()->getHeap());
+	descriptorHeaps.push_back(g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getHeap());
 	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
 
 	// Set the back buffer and clear it
@@ -204,7 +204,7 @@ void Game::render()
 	texture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 	// Start this frame drawing process (setting up GPU call resource tables)...
-	DrawDispatchCallCpuDescriptorHeap& DrawDispatchCallCpuDescriptorHeap = g_dx12Device->getDrawDispatchCallCpuDescriptorHeap();
+	DispatchDrawCallCpuDescriptorHeap& DrawDispatchCallCpuDescriptorHeap = g_dx12Device->getDispatchDrawCallCpuDescriptorHeap();
 	// ... and constant buffer
 	FrameConstantBuffers& ConstantBuffers = g_dx12Device->getFrameConstantBuffers();
 
@@ -217,7 +217,7 @@ void Game::render()
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
 		commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
 
-		DrawDispatchCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
@@ -231,7 +231,7 @@ void Game::render()
 	// Dispatch compute
 	{
 		SCOPED_GPU_TIMER(Compute, 100, 255, 100);
-		DrawDispatchCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 		CallDescriptors.SetUAV(0, *UavBuffer);
 
