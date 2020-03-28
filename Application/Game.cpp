@@ -37,7 +37,6 @@ Game::~Game()
 {
 }
 
-
 void Game::loadShaders(bool exitIfFail)
 {
 	bool success = true;

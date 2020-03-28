@@ -7,13 +7,15 @@
 #include "WinImgui.h"
 
 // the entry point for any Windows program
-int WINAPI WinMain(HINSTANCE hInstance,
+int WINAPI WinMain(
+	HINSTANCE hInstance,
 	HINSTANCE hPrevInstance,
 	LPSTR lpCmdLine,
 	int nCmdShow)
 {
 	static bool sVSyncEnable = true;
 	static bool sStablePowerEnable = false;
+	static bool sPreviousStablePowerEnable = !sStablePowerEnable;
 	static float sTimerGraphWidth = 18.0f;
 
 	// Get a window size that matches the desired client size
@@ -69,9 +71,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 		}
 		else
 		{
-			bool bStablePowerEnable = false;
-			const char* frameGpuTimerName = "Frame";
-
 			// Game update
 			game.update(win.getInputData());
 
@@ -102,7 +101,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 					static float sTimerGraphWidthMs = 33.0f;
 					ImGui::Checkbox("VSync", &sVSyncEnable); 
 	#ifdef _DEBUG
-					ImGui::Checkbox("StablePower", &bStablePowerEnable);
+					ImGui::Checkbox("StablePower", &sStablePowerEnable);
 	#endif
 					ImGui::SliderFloat("TimerGraphWidth (ms)", &sTimerGraphWidthMs, 1.0, 60.0);
 
@@ -180,15 +179,14 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				ImGui::End();
 
 				WinImguiRender();
-
 			}
 
 			// Swap the back buffer
 			g_dx12Device->endFrameAndSwap(sVSyncEnable);
 #ifdef _DEBUG
-			if (bStablePowerEnable != sStablePowerEnable)
+			if (sPreviousStablePowerEnable != sStablePowerEnable)
 			{
-				sStablePowerEnable = bStablePowerEnable;
+				sPreviousStablePowerEnable = sStablePowerEnable;
 				g_dx12Device->getDevice()->SetStablePowerState(sStablePowerEnable);
 			}
 #endif
@@ -197,8 +195,6 @@ int WINAPI WinMain(HINSTANCE hInstance,
 			win.clearInputEvents();
 		}
 	}
-
-
 
 	g_dx12Device->closeBufferedFramesBeforeShutdown();	// close all frames
 	WinImguiShutdown();

@@ -218,7 +218,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	D3D12_DESCRIPTOR_HEAP_DESC backBuffersRtvHeapDesc = {};
 	backBuffersRtvHeapDesc.NumDescriptors = frameBufferCount; // as many descriptors in this heap as the number of frames
 	backBuffersRtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	backBuffersRtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // not D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE because never sibile to shader. Only pipeline output
+	backBuffersRtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // not D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, only CPU descriptors required
 	hr = mDev->CreateDescriptorHeap(&backBuffersRtvHeapDesc, IID_PPV_ARGS(&mBackBuffeRtvDescriptorHeap));
 	ATLASSERT(hr == S_OK);
 	setDxDebugName(mBackBuffeRtvDescriptorHeap, L"BackBuffeRtvDescriptorHeap");
@@ -1199,11 +1199,10 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 #endif
 
-	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
-	{
-		// TODO UAV VIEW
-		ATLASSERT(false);
-	}
+	// When loading a file those should not be required
+	ATLASSERT((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == 0);
+	ATLASSERT((flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == 0);
+	ATLASSERT((flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) == 0);
 }
 
 RenderTexture::~RenderTexture()

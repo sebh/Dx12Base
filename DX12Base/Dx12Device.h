@@ -144,7 +144,7 @@ private:
 	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU;			// All dispatch and draw calls have their descriptors set in this CPU heap.
 	DescriptorHeap*								mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];// GPU version of dispatch and draw calls descriptors.
 
-	FrameConstantBuffers*						 mFrameConstantBuffers[frameBufferCount];	// Descriptor heaps for constant buffers.
+	FrameConstantBuffers*						mFrameConstantBuffers[frameBufferCount];	// Descriptor heaps for constant buffers.
 
 	// Data used for GPU performance tracking
 	ID3D12QueryHeap*							mFrameTimeStampQueryHeaps[frameBufferCount];// Heaps storing time stamp query results
@@ -450,7 +450,9 @@ private:
 class RenderTexture : public RenderResource
 {
 public:
-	RenderTexture(unsigned int width, unsigned int height, unsigned int depth, DXGI_FORMAT format, // e.g. DXGI_FORMAT_R16G16B16A16_FLOAT
+	RenderTexture(
+		unsigned int width, unsigned int height, 
+		unsigned int depth, DXGI_FORMAT format,
 		unsigned int sizeByte, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
