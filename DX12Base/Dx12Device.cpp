@@ -302,11 +302,11 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	HeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
 	for (int i = 0; i < frameBufferCount; i++)
 	{
-		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mTimeStampQueryHeaps[i]));
-		mTimeStampQueryReadBackBuffers[i] = new RenderBuffer(sizeof(UINT64) * GPUTimerMaxCount * 2, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
-		mCurrentGPUTimeStampCount[i] = 0;
-		mCurrentGPUTimerSlotCount[i] = 0;
-		mCurrentGPUTimerLevel[i] = 0;
+		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mFrameTimeStampQueryHeaps[i]));
+		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(sizeof(UINT64) * GPUTimerMaxCount * 2, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
+		mFrameTimeStampCount[i] = 0;
+		mFrameGPUTimerSlotCount[i] = 0;
+		mFrameGPUTimerLevel[i] = 0;
 	}
 }
 
@@ -345,8 +345,8 @@ void Dx12Device::internalShutdown()
 		resetPtr(&mFrameDispatchDrawCallDescriptorHeapGPU[i]);
 		resetPtr(&mFrameConstantBuffers[i]);
 
-		resetComPtr(&mTimeStampQueryHeaps[i]);
-		resetPtr(&mTimeStampQueryReadBackBuffers[i]);
+		resetComPtr(&mFrameTimeStampQueryHeaps[i]);
+		resetPtr(&mFrameTimeStampQueryReadBackBuffers[i]);
 	}
 	resetPtr(&mDispatchDrawCallDescriptorHeapCPU);
 	resetPtr(&mAllocatedResourcesDecriptorHeapCPU);
@@ -407,16 +407,16 @@ void Dx12Device::beginFrame()
 	getFrameConstantBuffers().BeginRecording();
 
 	// And initialise the frame data
-	mCurrentGPUTimeStampCount[mFrameIndex] = 0;
-	mCurrentGPUTimerSlotCount[mFrameIndex] = 0;
-	mCurrentGPUTimerLevel[mFrameIndex] = 0;
+	mFrameTimeStampCount[mFrameIndex] = 0;
+	mFrameGPUTimerSlotCount[mFrameIndex] = 0;
+	mFrameGPUTimerLevel[mFrameIndex] = 0;
 }
 
 void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 {
 	HRESULT hr;
 
-	mCommandList[0]->ResolveQueryData(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, 0, 256 * 2, mTimeStampQueryReadBackBuffers[mFrameIndex]->getD3D12Resource(), 0);
+	mCommandList[0]->ResolveQueryData(mFrameTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, 0, 256 * 2, mFrameTimeStampQueryReadBackBuffers[mFrameIndex]->getD3D12Resource(), 0);
 
 	// Close the command now that we are done with this frame
 	mCommandList[0]->Close();
@@ -447,21 +447,21 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 	// Update time stamp queries
 	{
 		mCommandQueue->GetTimestampFrequency(&mLastValidTimeStampTickPerSeconds);
-		mLastUpdatedFrameTimerSet = (mFrameIndex + 1) % frameBufferCount;
-		mLastValidTimeStampCount = mCurrentGPUTimeStampCount[mLastUpdatedFrameTimerSet];
-		mLastValidGPUTimerCount = mCurrentGPUTimerSlotCount[mLastUpdatedFrameTimerSet];
+		mGPUTimersReadBackFrameId = (mFrameIndex + 1) % frameBufferCount;
+		mLastValidTimeStampCount = mFrameTimeStampCount[mGPUTimersReadBackFrameId];
+		mLastValidGPUTimerCount = mFrameGPUTimerSlotCount[mGPUTimersReadBackFrameId];
 		if (mLastValidTimeStampCount > 0)
 		{
 			void* Data;
 			D3D12_RANGE MapRange = { 0, sizeof(UINT64) * mLastValidTimeStampCount };
-			HRESULT hr = mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Map(0, &MapRange, &Data);
+			HRESULT hr = mFrameTimeStampQueryReadBackBuffers[mGPUTimersReadBackFrameId]->getD3D12Resource()->Map(0, &MapRange, &Data);
 			UINT64* TimerData = (UINT64*)Data;
 
 			if (hr == S_OK)
 			{
 				memcpy(mLastValidTimeStamps, TimerData, sizeof(UINT64) * mLastValidTimeStampCount);
-				memcpy(mLastValidGPUTimers, mGPUTimers[mLastUpdatedFrameTimerSet], sizeof(GPUTimer) * mLastValidTimeStampCount);
-				mTimeStampQueryReadBackBuffers[mLastUpdatedFrameTimerSet]->getD3D12Resource()->Unmap(0, nullptr);
+				memcpy(mLastValidGPUTimers, mFrameGPUTimers[mGPUTimersReadBackFrameId], sizeof(GPUTimer) * mLastValidTimeStampCount);
+				mFrameTimeStampQueryReadBackBuffers[mGPUTimersReadBackFrameId]->getD3D12Resource()->Unmap(0, nullptr);
 			}
 		}
 	}
@@ -491,35 +491,35 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 
 void Dx12Device::StartGPUTimer(LPCWSTR Name, UINT RGBA)
 {
-	ATLASSERT(mCurrentGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
+	ATLASSERT(mFrameGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
 
-	GPUTimer& t = mGPUTimers[mFrameIndex][mCurrentGPUTimerSlotCount[mFrameIndex]++];
-	t.EventName = Name;
-	t.QueryIndexStart = mCurrentGPUTimeStampCount[mFrameIndex]++;
-	t.QueryIndexEnd = 0;
-	t.Level = mCurrentGPUTimerLevel[mFrameIndex]++;
-	t.RGBA = RGBA;
+	GPUTimer& t = mFrameGPUTimers[mFrameIndex][mFrameGPUTimerSlotCount[mFrameIndex]++];
+	t.mEventName = Name;
+	t.mQueryIndexStart = mFrameTimeStampCount[mFrameIndex]++;
+	t.mQueryIndexEnd = 0;
+	t.mLevel = mFrameGPUTimerLevel[mFrameIndex]++;
+	t.mRGBA = RGBA;
 
-	mCommandList[0]->EndQuery(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t.QueryIndexStart);
+	mCommandList[0]->EndQuery(mFrameTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t.mQueryIndexStart);
 }
 
 void Dx12Device::EndGPUTimer(LPCWSTR Name)
 {
-	ATLASSERT(mCurrentGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
+	ATLASSERT(mFrameGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
 	GPUTimer* t = nullptr;
-	for (UINT i = 0; i < mCurrentGPUTimerSlotCount[mFrameIndex]; ++i)
+	for (UINT i = 0; i < mFrameGPUTimerSlotCount[mFrameIndex]; ++i)
 	{
-		if (Name == mGPUTimers[mFrameIndex][i].EventName)
+		if (Name == mFrameGPUTimers[mFrameIndex][i].mEventName)
 		{
-			t = &mGPUTimers[mFrameIndex][i];
+			t = &mFrameGPUTimers[mFrameIndex][i];
 			break;
 		}
 	}
 	ATLASSERT(t != nullptr);
-	t->QueryIndexEnd = mCurrentGPUTimeStampCount[mFrameIndex]++;
-	mCurrentGPUTimerLevel[mFrameIndex]--;
+	t->mQueryIndexEnd = mFrameTimeStampCount[mFrameIndex]++;
+	mFrameGPUTimerLevel[mFrameIndex]--;
 
-	mCommandList[0]->EndQuery(mTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t->QueryIndexEnd);
+	mCommandList[0]->EndQuery(mFrameTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, t->mQueryIndexEnd);
 }
 
 Dx12Device::GPUTimersReport Dx12Device::GetGPUTimerReport()

@@ -96,7 +96,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 				Dx12Device::GPUTimersReport TimerReport = g_dx12Device->GetGPUTimerReport();
 				if (TimerReport.mLastValidGPUTimerSlotCount > 0)
 				{
-					UINT64 StartTime = TimerReport.mLastValidTimeStamps[TimerReport.mLastValidGPUTimers[0].QueryIndexStart];
+					UINT64 StartTime = TimerReport.mLastValidTimeStamps[TimerReport.mLastValidGPUTimers[0].mQueryIndexStart];
 					double TickPerSeconds = double(TimerReport.mLastValidTimeStampTickPerSeconds);
 
 					static float sTimerGraphWidthMs = 33.0f;
@@ -120,15 +120,15 @@ int WINAPI WinMain(HINSTANCE hInstance,
 						{
 							Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
 						
-							if (Timer.Level == targetLevel)
+							if (Timer.mLevel == targetLevel)
 							{
-								float TimerStart = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds );
-								float TimerEnd   = float( double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd]   - StartTime) / TickPerSeconds );
+								float TimerStart = float( double(TimerReport.mLastValidTimeStamps[Timer.mQueryIndexStart] - StartTime) / TickPerSeconds );
+								float TimerEnd   = float( double(TimerReport.mLastValidTimeStamps[Timer.mQueryIndexEnd]   - StartTime) / TickPerSeconds );
 								float TimerStartMs = TimerStart * 1000.0f;
 								float TimerEndMs   = TimerEnd * 1000.0f;
 								float DurationMs   = TimerEndMs - TimerStartMs;
 
-								ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA>>8) & 0xFF, int(Timer.RGBA>>16) & 0xFF, int(Timer.RGBA>>24) & 0xFF);
+								ImU32 color = ImColor(int(Timer.mRGBA) & 0xFF, int(Timer.mRGBA>>8) & 0xFF, int(Timer.mRGBA>>16) & 0xFF, int(Timer.mRGBA>>24) & 0xFF);
 								ImGui::PushStyleColor(ImGuiCol_Button, color);
 								ImGui::PushStyleColor(ImGuiCol_ButtonHovered, color);
 								ImGui::PushStyleColor(ImGuiCol_ButtonActive, color);
@@ -138,7 +138,7 @@ int WINAPI WinMain(HINSTANCE hInstance,
 									ImGui::PushItemWidth(TimerEndMs * PixelPerMs);
 
 									char debugStr[128];
-									sprintf_s(debugStr, 128, "%ls %.3f ms\n", Timer.EventName, DurationMs);
+									sprintf_s(debugStr, 128, "%ls %.3f ms\n", Timer.mEventName, DurationMs);
 									ImGui::Button(debugStr, ImVec2(DurationMs * PixelPerMs, 0.0f));
 									if (ImGui::IsItemHovered())
 									{
@@ -161,20 +161,20 @@ int WINAPI WinMain(HINSTANCE hInstance,
 					for (UINT i = 0; i < TimerReport.mLastValidGPUTimerSlotCount; ++i)
 					{
 						Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
-						float TimerStart = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexStart] - StartTime) / TickPerSeconds);
-						float TimerEnd = float(double(TimerReport.mLastValidTimeStamps[Timer.QueryIndexEnd] - StartTime) / TickPerSeconds);
+						float TimerStart = float(double(TimerReport.mLastValidTimeStamps[Timer.mQueryIndexStart] - StartTime) / TickPerSeconds);
+						float TimerEnd = float(double(TimerReport.mLastValidTimeStamps[Timer.mQueryIndexEnd] - StartTime) / TickPerSeconds);
 						float TimerStartMs = TimerStart * 1000.0f;
 						float TimerEndMs = TimerEnd * 1000.0f;
 						float DurationMs = TimerEndMs - TimerStartMs;
 
 						char* levelOffset = "---------------";	// 16 chars
-						unsigned int levelShift = 16 - 2 * Timer.Level - 1;
+						unsigned int levelShift = 16 - 2 * Timer.mLevel - 1;
 						char* levelOffsetPtr = levelOffset + (levelShift < 0 ? 0 : levelShift); // cheap way to add shifting to a printf
 
 						char debugStr[128];
-						sprintf_s(debugStr, 128, "%s%ls %.3f ms\n", levelOffsetPtr, Timer.EventName, DurationMs);
-						ImU32 color = ImColor(int(Timer.RGBA) & 0xFF, int(Timer.RGBA >> 8) & 0xFF, int(Timer.RGBA >> 16) & 0xFF, int(Timer.RGBA >> 24) & 0xFF);
-						ImGui::TextColored(ImVec4(float(int(Timer.RGBA) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 8) & 0xFF) / 255.0f, float(int(Timer.RGBA >> 16) & 0xFF) / 255.0f, 255.0f), debugStr);
+						sprintf_s(debugStr, 128, "%s%ls %.3f ms\n", levelOffsetPtr, Timer.mEventName, DurationMs);
+						ImU32 color = ImColor(int(Timer.mRGBA) & 0xFF, int(Timer.mRGBA >> 8) & 0xFF, int(Timer.mRGBA >> 16) & 0xFF, int(Timer.mRGBA >> 24) & 0xFF);
+						ImGui::TextColored(ImVec4(float(int(Timer.mRGBA) & 0xFF) / 255.0f, float(int(Timer.mRGBA >> 8) & 0xFF) / 255.0f, float(int(Timer.mRGBA >> 16) & 0xFF) / 255.0f, 255.0f), debugStr);
 					}
 				}
 				ImGui::End();

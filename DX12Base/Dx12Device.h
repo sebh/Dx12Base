@@ -81,20 +81,20 @@ public:
 
 	struct GPUTimer
 	{
-		LPCWSTR EventName;
-		UINT QueryIndexStart;
-		UINT QueryIndexEnd;
-		UINT Level;
-		UINT RGBA;
+		LPCWSTR	mEventName;
+		UINT	mQueryIndexStart;
+		UINT	mQueryIndexEnd;
+		UINT	mLevel;
+		UINT	mRGBA;
 	};
 	void StartGPUTimer(LPCWSTR Name, UINT RGBA);
 	void EndGPUTimer(LPCWSTR Name);
 	struct GPUTimersReport
 	{
-		UINT mLastValidGPUTimerSlotCount;
-		GPUTimer* mLastValidGPUTimers;
-		UINT64* mLastValidTimeStamps;
-		UINT64 mLastValidTimeStampTickPerSeconds;
+		UINT		mLastValidGPUTimerSlotCount;
+		GPUTimer*	mLastValidGPUTimers;
+		UINT64*		mLastValidTimeStamps;
+		UINT64		mLastValidTimeStampTickPerSeconds;
 	};
 	GPUTimersReport GetGPUTimerReport();
 
@@ -137,29 +137,29 @@ private:
 	UINT										mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
 	UINT										mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
 
-	RootSignature* mGfxRootSignature;														// Graphics default root signature
-	RootSignature* mCptRootSignature;														// Compute default root signature
+	RootSignature*								mGfxRootSignature;							// Graphics default root signature
+	RootSignature*								mCptRootSignature;							// Compute default root signature
 
-	AllocatedResourceDecriptorHeap* mAllocatedResourcesDecriptorHeapCPU;					// All loaded resources allocate UAV/SRV if required in this CPU heap.
-	DispatchDrawCallCpuDescriptorHeap* mDispatchDrawCallDescriptorHeapCPU;					// All dispatch and draw calls have their descriptors set in this CPU heap.
-	DescriptorHeap* mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];				// GPU version of dispatch and draw calls descriptors.
+	AllocatedResourceDecriptorHeap*				mAllocatedResourcesDecriptorHeapCPU;		// All loaded resources allocate UAV/SRV if required in this CPU heap.
+	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU;			// All dispatch and draw calls have their descriptors set in this CPU heap.
+	DescriptorHeap*								mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];// GPU version of dispatch and draw calls descriptors.
 
-	FrameConstantBuffers* mFrameConstantBuffers[frameBufferCount];							// Descriptor heaps for constant buffers.
+	FrameConstantBuffers*						 mFrameConstantBuffers[frameBufferCount];	// Descriptor heaps for constant buffers.
 
 	// Data used for GPU performance tracking
-	ID3D12QueryHeap* mTimeStampQueryHeaps[frameBufferCount];
-	RenderBuffer*    mTimeStampQueryReadBackBuffers[frameBufferCount];
-	UINT mCurrentGPUTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
-	UINT mCurrentGPUTimerSlotCount[frameBufferCount];		// Only count, not start/end, use to allocate in the array of GPUTimer
-	UINT mCurrentGPUTimerLevel[frameBufferCount];
-	GPUTimer mGPUTimers[frameBufferCount][GPUTimerMaxCount];
-	UINT mLastUpdatedFrameTimerSet;
-	// And the last valid timer state captured
-	UINT mLastValidGPUTimerCount;
-	UINT mLastValidTimeStampCount;
-	UINT64 mLastValidTimeStamps[GPUTimerMaxCount*2];
-	GPUTimer mLastValidGPUTimers[GPUTimerMaxCount];
-	UINT64 mLastValidTimeStampTickPerSeconds;
+	ID3D12QueryHeap*							mFrameTimeStampQueryHeaps[frameBufferCount];// Heaps storing time stamp query results
+	RenderBuffer*								mFrameTimeStampQueryReadBackBuffers[frameBufferCount];// Time stamp readback heap 
+	UINT										mFrameTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
+	UINT										mFrameGPUTimerSlotCount[frameBufferCount];	// Timer allocation count. Only count, not start/end timer count (due to level hierarchy)
+	UINT										mFrameGPUTimerLevel[frameBufferCount];		// Time stamp query count.
+	GPUTimer									mFrameGPUTimers[frameBufferCount][GPUTimerMaxCount];// GPUtimer for each frame
+	UINT										mGPUTimersReadBackFrameId;					// The last read back frame id
+	// And the last valid timer state captured read to be displayed
+	UINT										mLastValidGPUTimerCount;
+	UINT										mLastValidTimeStampCount;
+	UINT64										mLastValidTimeStamps[GPUTimerMaxCount*2];
+	GPUTimer									mLastValidGPUTimers[GPUTimerMaxCount];
+	UINT64										mLastValidTimeStampTickPerSeconds;
 };
 
 extern Dx12Device* g_dx12Device;
