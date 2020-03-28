@@ -25,7 +25,6 @@
 // TODO: 
 //  - render to HDR + depth => tone map to back buffer
 //  - proper upload handling in shared pool
-//  - setstablepowerstate https://docs.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12device-setstablepowerstate
 
 
 //#pragma optimize("", off)
@@ -175,11 +174,10 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	ATLASSERT(hr == S_OK);
 	setDxDebugName(mCommandQueue, L"CommandQueue0");
 
-
-
 	//
 	// Create the Swap Chain (double/tripple buffering)
 	//
+
 	DXGI_MODE_DESC backBufferDesc = {};
 	backBufferDesc.Width = 1280;
 	backBufferDesc.Height = 720;
@@ -208,12 +206,8 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mSwapchain = static_cast<IDXGISwapChain3*>(tempSwapChain);
 	mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
 
-
-
 	//
 	// Create frame resources
-	//	- back buffers (render target views) and descriptor heap
-	//	- command allocator
 	//
 
 	mCbSrvUavDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -621,7 +615,6 @@ VertexShader::VertexShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "vs_5_0")
 {
 	if (!compilationSuccessful()) return; // failed compilation
-
 	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
 }
 VertexShader::~VertexShader() { }
@@ -630,7 +623,6 @@ PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "ps_5_0")
 {
 	if (!compilationSuccessful()) return; // failed compilation
-
 	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
 }
 PixelShader::~PixelShader() { }
@@ -639,12 +631,9 @@ ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "cs_5_0")
 {
 	if (!compilationSuccessful()) return; // failed compilation
-
 	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
 }
 ComputeShader::~ComputeShader() { }
-
-
 
 
 
@@ -1103,65 +1092,6 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 		ATLASSERT(false);
 	}
 }
-
-
-/*inline UINT64 UpdateSubresources(
-	_In_ ID3D12GraphicsCommandList* pCmdList,
-	_In_ ID3D12Resource* pDestinationResource,
-	_In_ ID3D12Resource* pIntermediate,
-	_In_range_(0, D3D12_REQ_SUBRESOURCES) UINT FirstSubresource,
-	_In_range_(0, D3D12_REQ_SUBRESOURCES - FirstSubresource) UINT NumSubresources,
-	UINT64 RequiredSize,
-	_In_reads_(NumSubresources) const D3D12_PLACED_SUBRESOURCE_FOOTPRINT* pLayouts,
-	_In_reads_(NumSubresources) const UINT* pNumRows,
-	_In_reads_(NumSubresources) const UINT64* pRowSizesInBytes,
-	_In_reads_(NumSubresources) const D3D12_SUBRESOURCE_DATA* pSrcData)
-{
-	// Minor validation
-	D3D12_RESOURCE_DESC IntermediateDesc = pIntermediate->GetDesc();
-	D3D12_RESOURCE_DESC DestinationDesc = pDestinationResource->GetDesc();
-	if (IntermediateDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER ||
-		IntermediateDesc.Width < RequiredSize + pLayouts[0].Offset ||
-		RequiredSize >(SIZE_T) - 1 ||
-		(DestinationDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER &&
-		(FirstSubresource != 0 || NumSubresources != 1)))
-	{
-		return 0;
-	}
-
-	BYTE* pData;
-	HRESULT hr = pIntermediate->Map(0, NULL, reinterpret_cast<void**>(&pData));
-	if (FAILED(hr))
-	{
-		return 0;
-	}
-
-	for (UINT i = 0; i < NumSubresources; ++i)
-	{
-		if (pRowSizesInBytes[i] >(SIZE_T)-1) return 0;
-		D3D12_MEMCPY_DEST DestData = { pData + pLayouts[i].Offset, pLayouts[i].Footprint.RowPitch, pLayouts[i].Footprint.RowPitch * pNumRows[i] };
-		MemcpySubresource(&DestData, &pSrcData[i], (SIZE_T)pRowSizesInBytes[i], pNumRows[i], pLayouts[i].Footprint.Depth);
-	}
-	pIntermediate->Unmap(0, NULL);
-
-	if (DestinationDesc.Dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
-	{
-		CD3DX12_BOX SrcBox(UINT(pLayouts[0].Offset), UINT(pLayouts[0].Offset + pLayouts[0].Footprint.Width));
-		pCmdList->CopyBufferRegion(
-			pDestinationResource, 0, pIntermediate, pLayouts[0].Offset, pLayouts[0].Footprint.Width);
-	}
-	else
-	{
-		for (UINT i = 0; i < NumSubresources; ++i)
-		{
-			CD3DX12_TEXTURE_COPY_LOCATION Dst(pDestinationResource, i + FirstSubresource);
-			CD3DX12_TEXTURE_COPY_LOCATION Src(pIntermediate, pLayouts[i]);
-			pCmdList->CopyTextureRegion(&Dst, 0, 0, 0, &Src, nullptr);
-		}
-	}
-	return RequiredSize;
-}*/
-
 
 RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags)
 {
