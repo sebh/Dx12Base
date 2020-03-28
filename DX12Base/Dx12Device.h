@@ -50,12 +50,7 @@ public:
 	IDXGISwapChain3*						getSwapChain() { return mSwapchain; }
 
 	ID3D12Resource*							getBackBuffer() { return mBackBuffeRtv[mFrameIndex]; }
-	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor()
-	{
-		D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBuffeRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
-		handle.ptr += mFrameIndex*mRtvDescriptorSize;
-		return handle;
-	}
+	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor();
 
 	// The single command list per frame since we do not prepare command in parallel yet
 	ID3D12GraphicsCommandList* getFrameCommandList() { return mCommandList[0]; }
@@ -119,7 +114,7 @@ private:
 	ID3D12CommandAllocator*						mCommandAllocator[frameBufferCount];		// Command allocator in GPU memory. Need a many as frameCount as cannot rest while in use by GPU
 	ID3D12GraphicsCommandList4*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
 
-	ID3D12DescriptorHeap*						mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
+	DescriptorHeap*								mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
 	ID3D12Resource*								mBackBuffeRtv[frameBufferCount];			// back buffer render target view
 
 	ID3D12Fence*								mFrameFence[frameBufferCount];				// locked while commandlist is being executed by the gpu.
@@ -419,8 +414,8 @@ protected:
 	ID3D12Resource* mResource;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mSRVCPUHandle;
-	D3D12_CPU_DESCRIPTOR_HANDLE mUAVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mSRVGPUHandle;
+	D3D12_CPU_DESCRIPTOR_HANDLE mUAVCPUHandle;
 	D3D12_GPU_DESCRIPTOR_HANDLE mUAVGPUHandle;
 
 	D3D12_RESOURCE_STATES mResourceState;
@@ -453,14 +448,18 @@ public:
 	RenderTexture(
 		unsigned int width, unsigned int height, 
 		unsigned int depth, DXGI_FORMAT format,
-		unsigned int sizeByte, void* initData = nullptr,
-		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+		unsigned int initDataCopySizeByte  = 0, void* initData = nullptr);
 	RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
 	virtual ~RenderTexture();
 private:
 	RenderTexture();
 	RenderTexture(RenderTexture&);
 	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
+
+	DescriptorHeap* mRTVHeap;	// All texture will have some potential RTV management. Fine in such a small project...
+	D3D12_CPU_DESCRIPTOR_HANDLE mRTVCPUHandle;
+	D3D12_GPU_DESCRIPTOR_HANDLE mRTVGPUHandle;
 };
 
 

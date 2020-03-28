@@ -23,8 +23,10 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - render to HDR + depth => tone map to back buffer
-//  - proper upload handling in shared pool
+//  - Texture Depth buffer 
+//  - Render to HDR + depth => tone map to back buffer
+//  - Buffer typed, structured and byte buffer.
+//  - Proper upload handling in shared pool
 
 
 //#pragma optimize("", off)
@@ -215,16 +217,11 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mSamplerDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 	mDsvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
 
-	D3D12_DESCRIPTOR_HEAP_DESC backBuffersRtvHeapDesc = {};
-	backBuffersRtvHeapDesc.NumDescriptors = frameBufferCount; // as many descriptors in this heap as the number of frames
-	backBuffersRtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-	backBuffersRtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE; // not D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE, only CPU descriptors required
-	hr = mDev->CreateDescriptorHeap(&backBuffersRtvHeapDesc, IID_PPV_ARGS(&mBackBuffeRtvDescriptorHeap));
-	ATLASSERT(hr == S_OK);
-	setDxDebugName(mBackBuffeRtvDescriptorHeap, L"BackBuffeRtvDescriptorHeap");
+	mBackBuffeRtvDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2);
+	setDxDebugName(mBackBuffeRtvDescriptorHeap->getHeap(), L"BackBuffeRtvDescriptorHeap");
 
 	// Create a RTV for each back buffer
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->GetCPUDescriptorHandleForHeapStart());
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		// First we get the n'th buffer in the swap chain and store it in the n'th
@@ -350,7 +347,7 @@ void Dx12Device::internalShutdown()
 		resetComPtr(&mFrameFence[i]);
 	for (int i = 0; i < frameBufferCount; i++)
 		resetComPtr(&mBackBuffeRtv[i]);
-	resetComPtr(&mBackBuffeRtvDescriptorHeap);
+	resetPtr(&mBackBuffeRtvDescriptorHeap);
 
 	for (int i = 0; i < frameBufferCount; i++)
 		resetComPtr(&mCommandAllocator[i]);
@@ -377,6 +374,12 @@ void Dx12Device::internalShutdown()
 #endif
 }
 
+D3D12_CPU_DESCRIPTOR_HANDLE Dx12Device::getBackBufferDescriptor()
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
+	handle.ptr += mFrameIndex * mRtvDescriptorSize;
+	return handle;
+}
 
 void Dx12Device::beginFrame()
 {
@@ -687,7 +690,7 @@ DescriptorHeap::DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE He
 	D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
 	heapDesc.NumDescriptors = DescriptorCount;
 	heapDesc.Flags = ShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-	heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	heapDesc.Type = HeapType;
 	HRESULT hr = dev->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(&mDescriptorHeap));
 	ATLASSERT(hr == S_OK);
 }
@@ -1018,8 +1021,12 @@ D3D12_INDEX_BUFFER_VIEW RenderBuffer::getIndexBufferView(DXGI_FORMAT format)
 	return view;
 }
 
-RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned int depth, DXGI_FORMAT format, unsigned int sizeByte, void* initData, D3D12_RESOURCE_FLAGS flags)
+RenderTexture::RenderTexture(
+	unsigned int width, unsigned int height, unsigned int depth,
+	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags, 
+	unsigned int initDataCopySizeByte, void* initData)
 	: RenderResource()
+	, mRTVHeap(nullptr)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
@@ -1036,12 +1043,12 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 	resourceDesc.DepthOrArraySize = depth;
 	resourceDesc.MipLevels = 1;
 	resourceDesc.Format = format;
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	resourceDesc.Flags = flags;
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
-	mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+	mResourceState = D3D12_RESOURCE_STATE_COMMON;
 	dev->CreateCommittedResource(&defaultHeap,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
@@ -1077,23 +1084,71 @@ RenderTexture::RenderTexture(unsigned int width, unsigned int height, unsigned i
 
 		void* p;
 		mUploadHeap->Map(0, nullptr, &p);
-		memcpy(p, initData, sizeByte);
+		memcpy(p, initData, initDataCopySizeByte);
 		mUploadHeap->Unmap(0, nullptr);
 
 		auto commandList = g_dx12Device->getFrameCommandList();
-		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, sizeByte);
+		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, initDataCopySizeByte);
 
 		resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
-		// TODO UAV VIEW
-		ATLASSERT(false);
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc;
+		uavDesc.Format = format;
+		if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+			uavDesc.Texture2D.MipSlice = 0;
+			uavDesc.Texture2D.PlaneSlice = 0;
+		}
+		else if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+		{
+			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
+			uavDesc.Texture3D.MipSlice = 0;
+			uavDesc.Texture3D.FirstWSlice = 0;
+			uavDesc.Texture3D.WSize = 1;
+		}
+		else
+		{
+			ATLASSERT(false);
+		}
+		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
+		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
+	}
+
+	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) == D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET)
+	{
+		mRTVHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 1);
+
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
+		rtvDesc.Format = format;
+		if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
+		{
+			rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+			rtvDesc.Texture2D.MipSlice = 0;
+			rtvDesc.Texture2D.PlaneSlice = 0;
+		}
+		else if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+		{
+			rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE3D;
+			rtvDesc.Texture3D.MipSlice = 0;
+			rtvDesc.Texture3D.FirstWSlice = 0;
+			rtvDesc.Texture3D.WSize = 1;
+		}
+		else
+		{
+			ATLASSERT(false);
+		}
+
+		dev->CreateRenderTargetView(mResource, &rtvDesc, mRTVHeap->getCPUHandle());
 	}
 }
 
 RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags)
+	: RenderResource()
+	, mRTVHeap(nullptr)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	auto commandList = g_dx12Device->getFrameCommandList();
@@ -1207,6 +1262,7 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 
 RenderTexture::~RenderTexture()
 {
+	resetPtr(&mRTVHeap);
 	resetComPtr(&mUploadHeap);
 }
 

@@ -27,6 +27,7 @@ PipelineStateObject* pso;
 PipelineStateObject* psoCS;
 
 RenderTexture* texture;
+RenderTexture* HdrTexture;
 
 Game::Game()
 {
@@ -102,6 +103,7 @@ void Game::initialise()
 	psoCS->setDebugName(L"ComputePso");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
+	HdrTexture = new RenderTexture(128, 128, 1, DXGI_FORMAT_R11G11B10_FLOAT, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS | D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, 0, nullptr);
 }
 
 void Game::shutdown()
@@ -122,6 +124,7 @@ void Game::shutdown()
 	delete psoCS;
 
 	delete texture;
+	delete HdrTexture;
 }
 
 void Game::update(const WindowInputData& inputData)
