@@ -907,6 +907,7 @@ RenderBuffer::RenderBuffer(
 	ATLASSERT(StructureByteStride > 0 || Format != DXGI_FORMAT_UNKNOWN || IsRaw == true);	// Either structure, or with a format, or raw
 	ATLASSERT(StructureByteStride == 0 || StructureByteStride == ElementSizeByte);			// Either not a structured buffer, or a structure buffer size is provided 
 
+	// For raw resources, SRV and UAV must use R32_TYPELESS 
 	Format = IsRaw ? DXGI_FORMAT_R32_TYPELESS : Format;
 
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -946,32 +947,35 @@ RenderBuffer::RenderBuffer(
 		IID_PPV_ARGS(&mResource));
 
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
-	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
-	// Now create a shader resource view over our descriptor allocated memory
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = Format;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	srvDesc.Buffer.FirstElement = 0;
-	srvDesc.Buffer.NumElements = NumElement;
-	srvDesc.Buffer.StructureByteStride = StructureByteStride;
-	srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
-	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
+	if ((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0)
+	{
+		ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
+
+		// Now create a shader resource view over our descriptor allocated memory
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.Format = Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = NumElement;
+		srvDesc.Buffer.StructureByteStride = StructureByteStride;
+		srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
+		dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
+	}
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
 		ATLASSERT(HeapType == D3D12_HEAP_TYPE_DEFAULT);
-
 		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = IsRaw ? DXGI_FORMAT_R32_UINT : Format;
+		uavDesc.Format = Format;
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
 		uavDesc.Buffer.NumElements = NumElement;
 		uavDesc.Buffer.StructureByteStride = StructureByteStride;
-		srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
+		uavDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
 		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
@@ -1159,6 +1163,8 @@ RenderTexture::RenderTexture(
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
+	// A texture will most likely need a srv
+	ATLASSERT((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0);
 	// Now create a shader resource view over our descriptor allocated memory
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1303,6 +1309,8 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 		IID_PPV_ARGS(&mResource));
 	setDxDebugName(mResource, szFileName);
 
+	// A texture will most likely need a srv
+	ATLASSERT((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0);
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
