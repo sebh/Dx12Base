@@ -23,7 +23,6 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - Buffer typed, structured and byte buffer.
 //  - PipelineStateObject cached + reuse
 //  - Proper upload handling in shared pool
 
@@ -293,7 +292,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mFrameTimeStampQueryHeaps[i]));
-		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(sizeof(UINT64) * GPUTimerMaxCount * 2, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
+		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(GPUTimerMaxCount * 2, sizeof(UINT64), sizeof(UINT64), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
 		mFrameTimeStampCount[i] = 0;
 		mFrameGPUTimerSlotCount[i] = 0;
 		mFrameGPUTimerLevel[i] = 0;
@@ -899,10 +898,17 @@ void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
 
 
 
-RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, D3D12_HEAP_TYPE HeapType)
+RenderBuffer::RenderBuffer(
+	UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride, DXGI_FORMAT Format, bool IsRaw, 
+	void* initData, D3D12_RESOURCE_FLAGS flags, D3D12_HEAP_TYPE HeapType)
 	: RenderResource()
-	, mSizeInByte(sizeInByte)
+	, mSizeInByte(ElementSizeByte * NumElement)
 {
+	ATLASSERT(StructureByteStride > 0 || Format != DXGI_FORMAT_UNKNOWN || IsRaw == true);	// Either structure, or with a format, or raw
+	ATLASSERT(StructureByteStride == 0 || StructureByteStride == ElementSizeByte);			// Either not a structured buffer, or a structure buffer size is provided 
+
+	Format = IsRaw ? DXGI_FORMAT_R32_TYPELESS : Format;
+
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_HEAP_PROPERTIES HeapDesc;
 	switch (HeapType)
@@ -926,7 +932,7 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 	resourceDesc.Width = mSizeInByte;
 	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
-	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;
+	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 	resourceDesc.Flags = flags;
 	resourceDesc.SampleDesc.Count = 1;
@@ -938,18 +944,19 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		mResourceState,
 		nullptr,
 		IID_PPV_ARGS(&mResource));
+
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 	ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
 
 	// Now create a shader resource view over our descriptor allocated memory
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Format = resourceDesc.Format;
+	srvDesc.Format = Format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 	srvDesc.Buffer.FirstElement = 0;
-	srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE; // or D3D12_BUFFER_SRV_FLAG_RAW
-	srvDesc.Buffer.NumElements = mSizeInByte;
-	srvDesc.Buffer.StructureByteStride = 1;
+	srvDesc.Buffer.NumElements = NumElement;
+	srvDesc.Buffer.StructureByteStride = StructureByteStride;
+	srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
 	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
@@ -959,13 +966,13 @@ RenderBuffer::RenderBuffer(UINT sizeInByte, void* initData, D3D12_RESOURCE_FLAGS
 		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+		uavDesc.Format = IsRaw ? DXGI_FORMAT_R32_UINT : Format;
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = 1;
-		uavDesc.Buffer.StructureByteStride = sizeof(int) * 4;
+		uavDesc.Buffer.NumElements = NumElement;
+		uavDesc.Buffer.StructureByteStride = StructureByteStride;
+		srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
-		uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
 		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
 

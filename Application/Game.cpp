@@ -16,8 +16,6 @@ RenderBuffer* indexBuffer;
 
 RenderBuffer* UavBuffer;
 
-RenderBuffer* constantBufferTest0;
-
 VertexShader* vertexShader;
 PixelShader*  pixelShader;
 PixelShader*  ToneMapShaderPS;
@@ -88,17 +86,12 @@ void Game::initialise()
 	indices[0] = 0;
 	indices[1] = 1;
 	indices[2] = 2;
-	vertexBuffer = new RenderBuffer(sizeof(vertices), vertices);
+	vertexBuffer = new RenderBuffer(3, sizeof(VertexType), 0, DXGI_FORMAT_R32G32B32_FLOAT, false, vertices);
 	vertexBuffer->setDebugName(L"TriangleVertexBuffer");
-	indexBuffer = new RenderBuffer(sizeof(indices), indices);
+	indexBuffer = new RenderBuffer(3, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
-	float cb[4];
-	cb[0] = 0.0; cb[1] = 1.0; cb[2] = 0.0; cb[3] = 0.0;
-	constantBufferTest0 = new RenderBuffer(sizeof(cb), cb);
-	constantBufferTest0->setDebugName(L"constantBufferTest0");
-
-	UavBuffer = new RenderBuffer(4 * 4, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	UavBuffer = new RenderBuffer(4, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
@@ -134,6 +127,20 @@ void Game::initialise()
 
 	psoCS = new PipelineStateObject(g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
 	psoCS->setDebugName(L"ComputePso");
+
+	{
+		struct MyStruct
+		{
+			UINT a, b, c;
+			float d, e, f;
+		};
+		RenderBuffer* TestTypedBuffer = new RenderBuffer(64, sizeof(UINT) * 4, 0,DXGI_FORMAT_R32G32B32A32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		RenderBuffer* TestRawBuffer = new RenderBuffer(64, sizeof(UINT) * 5, 0, DXGI_FORMAT_UNKNOWN, true, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		RenderBuffer* TestStructuredBuffer = new RenderBuffer(64, sizeof(MyStruct), sizeof(MyStruct), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		delete TestTypedBuffer;
+		delete TestStructuredBuffer;
+		delete TestRawBuffer;
+	}
 }
 
 void Game::shutdown()
@@ -143,8 +150,6 @@ void Game::shutdown()
 	delete layout;
 	delete vertexBuffer;
 	delete indexBuffer;
-
-	delete constantBufferTest0;
 
 	delete UavBuffer;
 

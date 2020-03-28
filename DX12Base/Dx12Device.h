@@ -430,7 +430,17 @@ private:
 class RenderBuffer : public RenderResource
 {
 public:
-	RenderBuffer(UINT sizeInByte, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE HeapType = D3D12_HEAP_TYPE_DEFAULT);
+	/**
+	 * Exemple of different buffer type creation:
+	 *	- Typed buffer: specify DXGI_FORMAT, a matching ElementSizeByte and StructureByteStride=0.
+	 *			RenderBuffer* TestTypedBuffer = new RenderBuffer(64, sizeof(UINT) * 4, 0,DXGI_FORMAT_R32G32B32A32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	 *	- Raw buffer: IsRaw = true, specify NumElement and ElementSizeByte for the total resource size.
+	 *			RenderBuffer* TestRawBuffer = new RenderBuffer(64, sizeof(UINT) * 5, 0, DXGI_FORMAT_UNKNOWN, true, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	 *	- Structured buffer: specify NumElement, StructureByteStride and have ElementSizeByte = StructureByteStride.
+	 *			RenderBuffer* TestStructuredBuffer = new RenderBuffer(64, sizeof(MyStruct), sizeof(MyStruct), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	 */
+	RenderBuffer(UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride=0, DXGI_FORMAT Format = DXGI_FORMAT_UNKNOWN, bool IsRaw = false,
+		void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE HeapType = D3D12_HEAP_TYPE_DEFAULT);
 	virtual ~RenderBuffer();
 
 	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
