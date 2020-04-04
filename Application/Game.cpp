@@ -42,11 +42,6 @@ void Game::loadShaders(bool exitIfFail)
 	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
 	ToneMapShaderPS = new PixelShader(L"Resources\\TestShader.hlsl", "ToneMapPS");
 	computeShader = new ComputeShader(L"Resources\\TestShader.hlsl", "MainComputeShader");
-
-	/*success &= reload(&vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", exitIfFail);
-	success &= reload(&pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", exitIfFail);
-	success &= reload(&pixelShaderClear, L"Resources\\TestShader.hlsl", "ClearPixelShader", exitIfFail);
-	success &= reload(&pixelShaderFinal, L"Resources\\TestShader.hlsl", "FinalPixelShader", exitIfFail);*/
 }
 
 void Game::releaseShaders()
@@ -308,7 +303,7 @@ void Game::render()
 		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
 		PSODesc.mLayout = layout;
 		PSODesc.mVS = vertexShader;
-		PSODesc.mPS = pixelShader;
+		PSODesc.mPS = ToneMapShaderPS;
 		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
