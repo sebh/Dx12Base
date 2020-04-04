@@ -221,6 +221,7 @@ void Game::render()
 	{
 		SCOPED_GPU_TIMER(Raster, 255, 100, 100);
 
+		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;
 		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
 		PSODesc.mLayout = layout;
@@ -230,20 +231,23 @@ void Game::render()
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
 		PSODesc.mRenderTargetCount = 1;
-		PSODesc.mRenderTargetsDescriptor[0] = HdrTextureRTV;
-		PSODesc.mRenderTargetsFormat[0]     = HdrTexture->getClearColor().Format;
+		PSODesc.mRenderTargetDescriptors[0] = HdrTextureRTV;
+		PSODesc.mRenderTargetFormats[0]     = HdrTexture->getClearColor().Format;
 		PSODesc.mDepthTextureDescriptor = DepthTextureDSV;
 		PSODesc.mDepthTextureFormat     = DepthTexture->getClearColor().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
-		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
-		commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
-		commandList->IASetIndexBuffer(&indexBufferView); // set the vertex buffer (using the vertex buffer view)
+		// Set other raster properties
+		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
+		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);					// set the vertex buffer (using the vertex buffer view)
+		commandList->IASetIndexBuffer(&indexBufferView);							// set the vertex buffer (using the vertex buffer view)
 
+		// Set constants and constant buffer
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 
+		// Set root signature data and draw
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	}
@@ -256,7 +260,7 @@ void Game::render()
 	{
 		SCOPED_GPU_TIMER(Compute, 100, 255, 100);
 
-		// Set the compute PSO
+		// Set PSO
 		CachedComputePsoDesc PSODesc;
 		PSODesc.mCS = computeShader;
 		PSODesc.mRootSign = &g_dx12Device->GetDefaultComputeRootSignature();
@@ -267,7 +271,7 @@ void Game::render()
 		CallDescriptors.SetSRV(0, *texture);
 		CallDescriptors.SetUAV(0, *UavBuffer);
 
-		// Set constant buffer data
+		// Set constants
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(float) * 4);
 		float* CBFloat4 = (float*)CB.getCPUMemory();
 		CBFloat4[0] = 4;
@@ -275,6 +279,7 @@ void Game::render()
 		CBFloat4[2] = 6;
 		CBFloat4[3] = 7;
 
+		// Set root signature data and dispatch
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->Dispatch(1, 1, 1);
@@ -287,7 +292,10 @@ void Game::render()
 	// Transition HDR texture to readable
 	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
+	// Apply tonemapping on the HDR buffer
 	{
+		SCOPED_GPU_TIMER(ToneMapToBackBuffer, 255, 255, 255);
+
 		// Make back buffer targetable and set it
 		D3D12_RESOURCE_BARRIER bbPresentToRt = {};
 		bbPresentToRt.Transition.pResource = backBuffer;
@@ -296,11 +304,7 @@ void Game::render()
 		bbPresentToRt.Transition.Subresource = 0;
 		commandList->ResourceBarrier(1, &bbPresentToRt);
 
-
-		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
-		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
-
-
+		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;
 		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
 		PSODesc.mLayout = layout;
@@ -310,21 +314,21 @@ void Game::render()
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
 		PSODesc.mRenderTargetCount = 1;
-		PSODesc.mRenderTargetsDescriptor[0] = descriptor;
-		PSODesc.mRenderTargetsFormat[0]     = backBuffer->GetDesc().Format;
+		PSODesc.mRenderTargetDescriptors[0] = g_dx12Device->getBackBufferDescriptor();
+		PSODesc.mRenderTargetFormats[0]     = backBuffer->GetDesc().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
-
-		// Apply tonemapping on the HDR buffer
-		SCOPED_GPU_TIMER(ToneMapToBackBuffer, 255, 255, 255);
+		// Set other raster properties
 		commandList->RSSetScissorRects(1, &scissorRect);
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 		commandList->IASetIndexBuffer(&indexBufferView);
 
+		// Set shader resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *HdrTexture);
 
+		// Set root signature data and draw
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 

@@ -1594,7 +1594,7 @@ PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	for (UINT32 i = 0; i < PSODesc.mRenderTargetCount; ++i)
-		psoDesc.RTVFormats[i] = PSODesc.mRenderTargetsFormat[i];
+		psoDesc.RTVFormats[i] = PSODesc.mRenderTargetFormats[i];
 	psoDesc.DSVFormat = PSODesc.mDepthTextureFormat;
 	psoDesc.SampleMask = 0xffffffff;
 	psoDesc.NumRenderTargets = PSODesc.mRenderTargetCount;
@@ -1712,8 +1712,8 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 
 	ATLASSERT(PsoDesc.mRenderTargetCount <= 8);
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetCount),	sizeof(UINT32));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetsDescriptor), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE)*_countof(PsoDesc.mRenderTargetsDescriptor));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetsFormat), sizeof(DXGI_FORMAT)*_countof(PsoDesc.mRenderTargetsFormat));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetDescriptors), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE)*_countof(PsoDesc.mRenderTargetDescriptors));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetFormats), sizeof(DXGI_FORMAT)*_countof(PsoDesc.mRenderTargetFormats));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureDescriptor), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureFormat),	sizeof(DXGI_FORMAT));
 
@@ -1758,6 +1758,10 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 void CachedPSOManager::SetPipelineState(ID3D12GraphicsCommandList* commandList, const CachedRasterPsoDesc& PsoDesc)
 {
 	const PipelineStateObject& PSO = GetCachedPSO(PsoDesc);
+
+	commandList->OMSetRenderTargets(PsoDesc.mRenderTargetCount, PsoDesc.mRenderTargetDescriptors, FALSE, 
+		PsoDesc.mDepthTextureDescriptor.ptr == INVALID_CPU_DESCRIPTOR_HANDLE ? nullptr : &PsoDesc.mDepthTextureDescriptor);
+
 	commandList->SetPipelineState(PSO.getPso());
 }
 
