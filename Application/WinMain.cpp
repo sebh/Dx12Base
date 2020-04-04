@@ -35,6 +35,7 @@ int WINAPI WinMain(
 
 	// Create the d3d device
 	Dx12Device::initialise(win.getHwnd());
+	CachedPSOManager::initialise();
 
 	WinImguiInitialise(win.getHwnd());
 
@@ -197,8 +198,10 @@ int WINAPI WinMain(
 	}
 
 	g_dx12Device->closeBufferedFramesBeforeShutdown();	// close all frames
+
 	WinImguiShutdown();
 	game.shutdown();									// game release its resources
+	CachedPSOManager::shutdown();						// release the cached PSOs
 	Dx12Device::shutdown();								// now we can safely delete the dx12 device we hold
 
 	// End of application

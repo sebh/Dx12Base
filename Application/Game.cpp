@@ -21,11 +21,6 @@ PixelShader*  pixelShader;
 PixelShader*  ToneMapShaderPS;
 ComputeShader*  computeShader;
 
-PipelineStateObject* pso;
-PipelineStateObject* ToneMapPassPSO;
-
-PipelineStateObject* psoCS;
-
 RenderTexture* texture;
 RenderTexture* HdrTexture;
 RenderTexture* DepthTexture;
@@ -76,13 +71,13 @@ void Game::initialise()
 
 	loadShaders(true);
 
-	InputLayout* layout = new InputLayout();
+	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
 
-	vertices[0] = { { -1.0f, -1.0f, 0.0f },{ 0.0f, 0.0f } };
-	vertices[1] = { { -1.0f,  3.0f, 0.0f },{ 0.0f, 2.0f } };
-	vertices[2] = { {  3.0f, -1.0f, 0.0f },{ 2.0f, 0.0f } };
+	vertices[0] = { { -1.0f, -1.0f, 0.0f },{ 0.0f, 1.0f } };
+	vertices[1] = { { -1.0f,  3.0f, 0.0f },{ 0.0f, -1.0f } };
+	vertices[2] = { {  3.0f, -1.0f, 0.0f },{ 2.0f, 1.0f } };
 	indices[0] = 0;
 	indices[1] = 1;
 	indices[2] = 2;
@@ -114,20 +109,6 @@ void Game::initialise()
 		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 		&DepthClearValue, 0, nullptr);
 
-	//pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, ClearValue.Format);
-	DepthStencilState DSS = getDepthStencilState_Default();
-	RasterizerState RS = getRasterizerState_Default();
-	BlendState BS = getBlendState_Default();
-	pso = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *pixelShader, 
-		DSS, RS, BS, HdrTexture->getClearColor().Format, DepthTexture->getClearColor().Format);
-	pso->setDebugName(L"TriangleDrawPso");
-
-	ToneMapPassPSO = new PipelineStateObject(g_dx12Device->GetDefaultGraphicRootSignature(), *layout, *vertexShader, *ToneMapShaderPS, backBuffer->GetDesc().Format);
-	ToneMapPassPSO->setDebugName(L"ToneMapPso");
-
-	psoCS = new PipelineStateObject(g_dx12Device->GetDefaultComputeRootSignature(), *computeShader);
-	psoCS->setDebugName(L"ComputePso");
-
 	{
 		struct MyStruct
 		{
@@ -154,10 +135,6 @@ void Game::shutdown()
 	delete UavBuffer;
 
 	releaseShaders();
-
-	delete pso;
-	delete ToneMapPassPSO;
-	delete psoCS;
 
 	delete texture;
 	delete HdrTexture;
@@ -208,10 +185,10 @@ void Game::render()
 	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET);
 	DepthTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	D3D12_CPU_DESCRIPTOR_HANDLE HdrTextureRTV = HdrTexture->getRTVCPUHandle();
-	D3D12_CPU_DESCRIPTOR_HANDLE DepthTextureRTV = DepthTexture->getRTVCPUHandle();
-	commandList->OMSetRenderTargets(1, &HdrTextureRTV, FALSE, &DepthTextureRTV);
+	D3D12_CPU_DESCRIPTOR_HANDLE DepthTextureDSV = DepthTexture->getDSVCPUHandle();
+	commandList->OMSetRenderTargets(1, &HdrTextureRTV, FALSE, &DepthTextureDSV);
 	commandList->ClearRenderTargetView(HdrTextureRTV, HdrTexture->getClearColor().Color, 0, nullptr);
-	commandList->ClearDepthStencilView(DepthTextureRTV, D3D12_CLEAR_FLAG_DEPTH, DepthTexture->getClearColor().DepthStencil.Depth, DepthTexture->getClearColor().DepthStencil.Stencil, 0, nullptr);
+	commandList->ClearDepthStencilView(DepthTextureDSV, D3D12_CLEAR_FLAG_DEPTH, DepthTexture->getClearColor().DepthStencil.Depth, DepthTexture->getClearColor().DepthStencil.Stencil, 0, nullptr);
 
 	// Set the viewport
 	D3D12_VIEWPORT viewport;
@@ -243,7 +220,20 @@ void Game::render()
 	// Render a triangle
 	{
 		SCOPED_GPU_TIMER(Raster, 255, 100, 100);
-		commandList->SetPipelineState(pso->getPso());
+
+		CachedRasterPsoDesc PsoDesc;
+		PsoDesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PsoDesc.mLayout = layout;
+		PsoDesc.mVS = vertexShader;
+		PsoDesc.mPS = pixelShader;
+		PsoDesc.mDepthStencilState = &getDepthStencilState_Default();
+		PsoDesc.mRasterizerState = &getRasterizerState_Default();
+		PsoDesc.mBlendState = &getBlendState_Default();
+		PsoDesc.mRenderTargetCount = 1;
+		PsoDesc.mRenderTargets[0] = { HdrTextureRTV , HdrTexture->getClearColor().Format };
+		PsoDesc.mDepthTexture = { DepthTextureDSV , DepthTexture->getClearColor().Format };
+		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+
 		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView); // set the vertex buffer (using the vertex buffer view)
@@ -263,18 +253,26 @@ void Game::render()
 	// Dispatch compute
 	{
 		SCOPED_GPU_TIMER(Compute, 100, 255, 100);
+
+		// Set the compute PSO
+		CachedComputePsoDesc PsoDesc;
+		PsoDesc.mCS = computeShader;
+		PsoDesc.mRootSign = &g_dx12Device->GetDefaultComputeRootSignature();
+		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+
+		// Set shader resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 		CallDescriptors.SetUAV(0, *UavBuffer);
 
-		commandList->SetPipelineState(psoCS->getPso());
-
+		// Set constant buffer data
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(float) * 4);
 		float* CBFloat4 = (float*)CB.getCPUMemory();
 		CBFloat4[0] = 4;
 		CBFloat4[1] = 5;
 		CBFloat4[2] = 6;
 		CBFloat4[3] = 7;
+
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->Dispatch(1, 1, 1);
@@ -298,9 +296,22 @@ void Game::render()
 		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
 		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
 
+
+		CachedRasterPsoDesc PsoDesc;
+		PsoDesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PsoDesc.mLayout = layout;
+		PsoDesc.mVS = vertexShader;
+		PsoDesc.mPS = pixelShader;
+		PsoDesc.mDepthStencilState = &getDepthStencilState_Disabled();
+		PsoDesc.mRasterizerState = &getRasterizerState_Default();
+		PsoDesc.mBlendState = &getBlendState_Default();
+		PsoDesc.mRenderTargetCount = 1;
+		PsoDesc.mRenderTargets[0] = { descriptor , backBuffer->GetDesc().Format };
+		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+
+
 		// Apply tonemapping on the HDR buffer
 		SCOPED_GPU_TIMER(ToneMapToBackBuffer, 255, 255, 255);
-		commandList->SetPipelineState(ToneMapPassPSO->getPso());
 		commandList->RSSetScissorRects(1, &scissorRect);
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);

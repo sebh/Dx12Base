@@ -28,6 +28,8 @@
 #include "pix3.h"
 #endif 
 
+#define INVALID_CPU_DESCRIPTOR_HANDLE 0xFFFFFFFFFFFFFFFF
+
 class RootSignature;
 class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
@@ -512,26 +514,26 @@ private:
 
 
 typedef D3D12_DEPTH_STENCIL_DESC	DepthStencilState;
-DepthStencilState					getDepthStencilState_Default();		// Depth and depth write enabled
-DepthStencilState					getDepthStencilState_Disabled();
+const DepthStencilState&			getDepthStencilState_Default();		// Depth and depth write enabled
+const DepthStencilState&			getDepthStencilState_Disabled();
 
 typedef D3D12_BLEND_DESC			BlendState;
-BlendState							getBlendState_Default();			// Disabled
+const BlendState&					getBlendState_Default();			// Disabled
 
 typedef D3D12_RASTERIZER_DESC		RasterizerState;
-RasterizerState						getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
+const RasterizerState&				getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
 
 class PipelineStateObject
 {
 public:
-	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, 
+	PipelineStateObject(const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
 		DXGI_FORMAT buffer0Format=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
-	PipelineStateObject(RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
-		DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState,
+	PipelineStateObject(const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
+		const DepthStencilState& depthStencilState, const RasterizerState& rasterizerState, const BlendState& blendState,
 		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
 
-	PipelineStateObject(RootSignature& rootSign, ComputeShader& cs);
+	PipelineStateObject(const RootSignature& rootSign, const ComputeShader& cs);
 
 	~PipelineStateObject();
 	ID3D12PipelineState* getPso() const { return mPso; }
@@ -605,6 +607,69 @@ private:
 	bool released = false;
 };
 #define SCOPED_GPU_TIMER(timerName, R, G, B) ScopedGpuEvent gpuEvent##timerName##(L""#timerName); ScopedGpuTimer gpuTimer##timerName##(L""#timerName, R, G, B);
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+struct CachedRenderTargetDesc
+{
+	D3D12_CPU_DESCRIPTOR_HANDLE mRenderTarget = { INVALID_CPU_DESCRIPTOR_HANDLE };
+	DXGI_FORMAT mFormat = DXGI_FORMAT_UNKNOWN;
+};
+
+// Pointers in that structure should point to static global elements (not stack). 
+// This to avoid infinite PSOs creation because it is part of the hash key used to cache them.
+struct CachedRasterPsoDesc
+{
+	const RootSignature*		mRootSign;
+
+	const InputLayout*			mLayout;
+	const VertexShader*			mVS;
+	const PixelShader*			mPS;
+
+	const DepthStencilState*	mDepthStencilState;
+	const RasterizerState*		mRasterizerState;
+	const BlendState*			mBlendState;
+
+	UINT32						mRenderTargetCount;
+	CachedRenderTargetDesc		mRenderTargets[8];
+	CachedRenderTargetDesc		mDepthTexture;
+};
+
+struct CachedComputePsoDesc
+{
+	const RootSignature*		mRootSign;
+
+	const ComputeShader*		mCS;
+};
+
+typedef UINT32 PSOKEY;
+typedef std::map<PSOKEY, PipelineStateObject*> CachedPSOs;
+
+class CachedPSOManager
+{
+public:
+	CachedPSOManager();
+	virtual ~CachedPSOManager();
+
+	static void initialise();
+	static void shutdown();
+
+	PipelineStateObject& GetCachedPSO(CachedRasterPsoDesc& PsoDesc);
+	PipelineStateObject& GetCachedPSO(CachedComputePsoDesc& PsoDesc);
+
+private:
+
+	CachedPSOs	mCachedRasterPSOs;
+	CachedPSOs	mCachedComputePSOs;
+};
+
+extern CachedPSOManager* g_CachedPSOManager;
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

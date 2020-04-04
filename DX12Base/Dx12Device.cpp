@@ -852,8 +852,13 @@ FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameCon
 
 RenderResource::RenderResource()
 	: mResource(nullptr)
+	, mSRVCPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
+	, mSRVGPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
+	, mUAVCPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
+	, mUAVGPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
 {
 }
+
 RenderResource::~RenderResource()
 {
 	resetComPtr(&mResource);
@@ -1504,73 +1509,78 @@ RootSignature::~RootSignature()
 
 
 
-DepthStencilState getDepthStencilState_Default()
+static DepthStencilState DepthStencilState_Default;
+const DepthStencilState& getDepthStencilState_Default()
 {
-	DepthStencilState state;
-	state.DepthEnable = TRUE;
-	state.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	state.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	state.StencilEnable = FALSE;
-	state.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-	state.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-	state.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	state.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-	state.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	state.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
-	state.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-	state.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
-	state.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	state.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
-	return state;
+	DepthStencilState_Default.DepthEnable = TRUE;
+	DepthStencilState_Default.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	DepthStencilState_Default.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	DepthStencilState_Default.StencilEnable = FALSE;
+	DepthStencilState_Default.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	DepthStencilState_Default.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	DepthStencilState_Default.FrontFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	DepthStencilState_Default.BackFace.StencilFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+	DepthStencilState_Default.FrontFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	DepthStencilState_Default.BackFace.StencilDepthFailOp = D3D12_STENCIL_OP_KEEP;
+	DepthStencilState_Default.FrontFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	DepthStencilState_Default.BackFace.StencilPassOp = D3D12_STENCIL_OP_KEEP;
+	DepthStencilState_Default.FrontFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	DepthStencilState_Default.BackFace.StencilFailOp = D3D12_STENCIL_OP_KEEP;
+	return DepthStencilState_Default;
 }
 
-DepthStencilState getDepthStencilState_Disabled()
+static DepthStencilState DepthStencilState_Disabled;
+const DepthStencilState& getDepthStencilState_Disabled()
 {
-	DepthStencilState state = getDepthStencilState_Default();
-	state.DepthEnable = FALSE;
-	state.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	state.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	state.StencilEnable = FALSE;
-	return state;
+	DepthStencilState_Disabled = getDepthStencilState_Default();
+	DepthStencilState_Disabled.DepthEnable = FALSE;
+	DepthStencilState_Disabled.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	DepthStencilState_Disabled.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	DepthStencilState_Disabled.StencilEnable = FALSE;
+	return DepthStencilState_Disabled;
 }
 
-BlendState getBlendState_Default()
+static BlendState BlendState_Default;
+const BlendState& getBlendState_Default()
 {
-	BlendState state;
-	state.AlphaToCoverageEnable = FALSE;
-	state.IndependentBlendEnable = FALSE;
-	state.RenderTarget[0].BlendEnable = FALSE;
-	state.RenderTarget[0].LogicOpEnable = FALSE;
-	state.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
-	state.RenderTarget[0].DestBlend = D3D12_BLEND_ZERO;
-	state.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-	state.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-	state.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-	state.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-	state.RenderTarget[0].LogicOp = D3D12_LOGIC_OP_NOOP;
-	state.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-	return state;
+	BlendState_Default.AlphaToCoverageEnable = FALSE;
+	BlendState_Default.IndependentBlendEnable = FALSE;
+	for (UINT32 i = 0; i < 8; ++i)
+	{
+		BlendState_Default.RenderTarget[i].BlendEnable = FALSE;
+		BlendState_Default.RenderTarget[i].LogicOpEnable = FALSE;
+		BlendState_Default.RenderTarget[i].SrcBlend = D3D12_BLEND_ONE;
+		BlendState_Default.RenderTarget[i].DestBlend = D3D12_BLEND_ZERO;
+		BlendState_Default.RenderTarget[i].BlendOp = D3D12_BLEND_OP_ADD;
+		BlendState_Default.RenderTarget[i].SrcBlendAlpha = D3D12_BLEND_ONE;
+		BlendState_Default.RenderTarget[i].DestBlendAlpha = D3D12_BLEND_ZERO;
+		BlendState_Default.RenderTarget[i].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+		BlendState_Default.RenderTarget[i].LogicOp = D3D12_LOGIC_OP_NOOP;
+		BlendState_Default.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+	}
+
+	return BlendState_Default;
 }
 
-RasterizerState getRasterizerState_Default()
+static RasterizerState RasterizerState_Default;
+const RasterizerState& getRasterizerState_Default()
 {
-	RasterizerState state;
-	state.FillMode = D3D12_FILL_MODE_SOLID;
-	state.CullMode = D3D12_CULL_MODE_BACK;
-	state.FrontCounterClockwise = FALSE;
-	state.DepthBias = 0;
-	state.DepthBiasClamp = 0.0f;
-	state.SlopeScaledDepthBias = 0.0f;
-	state.DepthClipEnable = TRUE;
-	state.MultisampleEnable = FALSE;
-	state.AntialiasedLineEnable = FALSE;
-	state.ForcedSampleCount = 0;
-	state.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-	return state;
+	RasterizerState_Default.FillMode = D3D12_FILL_MODE_SOLID;
+	RasterizerState_Default.CullMode = D3D12_CULL_MODE_BACK;
+	RasterizerState_Default.FrontCounterClockwise = FALSE;
+	RasterizerState_Default.DepthBias = 0;
+	RasterizerState_Default.DepthBiasClamp = 0.0f;
+	RasterizerState_Default.SlopeScaledDepthBias = 0.0f;
+	RasterizerState_Default.DepthClipEnable = TRUE;
+	RasterizerState_Default.MultisampleEnable = FALSE;
+	RasterizerState_Default.AntialiasedLineEnable = FALSE;
+	RasterizerState_Default.ForcedSampleCount = 0;
+	RasterizerState_Default.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+	return RasterizerState_Default;
 }
 
 PipelineStateObject::PipelineStateObject(
-	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps, 
+	const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
 	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -1601,8 +1611,8 @@ PipelineStateObject::PipelineStateObject(
 
 
 PipelineStateObject::PipelineStateObject(
-	RootSignature& rootSign, InputLayout& layout, VertexShader& vs, PixelShader& ps,
-	DepthStencilState& depthStencilState, RasterizerState& rasterizerState, BlendState& blendState, 
+	const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
+	const DepthStencilState& depthStencilState, const RasterizerState& rasterizerState, const BlendState& blendState,
 	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -1633,7 +1643,7 @@ PipelineStateObject::PipelineStateObject(
 
 
 PipelineStateObject::PipelineStateObject(
-	RootSignature& rootSign, ComputeShader& cs)
+	const RootSignature& rootSign, const ComputeShader& cs)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1664,6 +1674,123 @@ UINT RoundUp(UINT Value, UINT  Alignement)
 {
 	UINT Var = Value + Alignement - 1;
 	return Alignement * (Var / Alignement);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+CachedPSOManager* g_CachedPSOManager = nullptr;
+
+CachedPSOManager::CachedPSOManager()
+{
+}
+
+CachedPSOManager::~CachedPSOManager()
+{
+}
+
+void CachedPSOManager::initialise()
+{
+	g_CachedPSOManager = new CachedPSOManager();
+}
+
+void CachedPSOManager::shutdown()
+{
+	for(auto& it : g_CachedPSOManager->mCachedComputePSOs)
+	{
+		resetPtr(&it.second);
+	}
+	g_CachedPSOManager->mCachedComputePSOs.clear();
+	for (auto& it : g_CachedPSOManager->mCachedRasterPSOs)
+	{
+		resetPtr(&it.second);
+	}
+	g_CachedPSOManager->mCachedRasterPSOs.clear();
+
+	resetPtr(&g_CachedPSOManager);
+}
+
+// https://en.wikipedia.org/wiki/List_of_hash_functions
+// https://en.wikipedia.org/wiki/Jenkins_hash_function
+void jenkins_one_at_a_time_hash(UINT32& hash, const uint8_t* key, size_t length)
+{
+	size_t i = 0;
+	while (i != length)
+	{
+		hash += key[i++];
+		hash += hash << 10;
+		hash ^= hash >> 6;
+	}
+	hash += hash << 3;
+	hash ^= hash >> 11;
+	hash += hash << 15;
+}
+
+PipelineStateObject& CachedPSOManager::GetCachedPSO(CachedRasterPsoDesc& PsoDesc)
+{
+	// The structure has holes due to alignement and as such it can have random values in it. So we build the hash one element at a time.
+	PSOKEY psoKey = 0;
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRootSign),				sizeof(RootSignature*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mVS),					sizeof(VertexShader*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mPS),					sizeof(PixelShader*));
+
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthStencilState),		sizeof(DepthStencilState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mBlendState),			sizeof(BlendState*));
+
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargetCount),		sizeof(UINT32));
+	for (int i = 0; i < _countof(PsoDesc.mRenderTargets); ++i)
+	{
+		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargets[i].mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargets[i].mFormat), sizeof(DXGI_FORMAT));
+	}
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthTexture.mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthTexture.mFormat), sizeof(DXGI_FORMAT));
+
+	CachedPSOs::iterator it = mCachedRasterPSOs.find(psoKey);
+
+	if (it != mCachedRasterPSOs.end())
+	{
+		return *(it->second);
+	}
+
+	// Create the PSO
+	PipelineStateObject* PSO = new PipelineStateObject(*PsoDesc.mRootSign, *PsoDesc.mLayout, *PsoDesc.mVS, *PsoDesc.mPS, 
+		*PsoDesc.mDepthStencilState, *PsoDesc.mRasterizerState, *PsoDesc.mBlendState, PsoDesc.mRenderTargets[0].mFormat, PsoDesc.mDepthTexture.mFormat);
+	PSO->setDebugName(L"RasterPso");
+
+	// Cache it
+	mCachedRasterPSOs[psoKey] = PSO;
+
+	return *PSO;
+}
+
+PipelineStateObject& CachedPSOManager::GetCachedPSO(CachedComputePsoDesc& PsoDesc)
+{
+	PSOKEY psoKey = 0;
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRootSign)	, sizeof(RootSignature*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mCS)			, sizeof(ComputeShader*));
+
+	CachedPSOs::iterator it = mCachedComputePSOs.find(psoKey);
+	if (it != mCachedComputePSOs.end())
+	{
+		return *(it->second);
+	}
+
+	// Create the PSO
+	PipelineStateObject* PSO = new PipelineStateObject(*PsoDesc.mRootSign, *PsoDesc.mCS);
+	PSO->setDebugName(L"ComputePso");
+
+	// Cache it
+	mCachedComputePSOs[psoKey] = PSO;
+
+	return *PSO;
 }
 
 
