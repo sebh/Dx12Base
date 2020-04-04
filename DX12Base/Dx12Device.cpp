@@ -1578,79 +1578,46 @@ const RasterizerState& getRasterizerState_Default()
 	return RasterizerState_Default;
 }
 
-PipelineStateObject::PipelineStateObject(
-	const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
-	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
+
+PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 
-	psoDesc.pRootSignature = rootSign.getRootsignature();
-	psoDesc.InputLayout = *layout.getLayoutDesc();
-	psoDesc.VS.BytecodeLength = vs.getShaderByteCodeSize();
-	psoDesc.VS.pShaderBytecode = vs.getShaderByteCode();
-	psoDesc.PS.BytecodeLength = ps.getShaderByteCodeSize();
-	psoDesc.PS.pShaderBytecode = ps.getShaderByteCode();
+	psoDesc.pRootSignature = PSODesc.mRootSign->getRootsignature();
+	psoDesc.InputLayout = *PSODesc.mLayout->getLayoutDesc();
+	psoDesc.VS.BytecodeLength = PSODesc.mVS->getShaderByteCodeSize();
+	psoDesc.VS.pShaderBytecode = PSODesc.mVS->getShaderByteCode();
+	psoDesc.PS.BytecodeLength = PSODesc.mPS->getShaderByteCodeSize();
+	psoDesc.PS.pShaderBytecode = PSODesc.mPS->getShaderByteCode();
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.RTVFormats[0] = bufferFormat;
-	psoDesc.DSVFormat = depthBufferFormat;
+	for (UINT32 i = 0; i < PSODesc.mRenderTargetCount; ++i)
+		psoDesc.RTVFormats[i] = PSODesc.mRenderTargetsFormat[i];
+	psoDesc.DSVFormat = PSODesc.mDepthTextureFormat;
 	psoDesc.SampleMask = 0xffffffff;
-	psoDesc.NumRenderTargets = 1;
+	psoDesc.NumRenderTargets = PSODesc.mRenderTargetCount;
 	psoDesc.SampleDesc.Count = 1;
 
-	psoDesc.DepthStencilState = getDepthStencilState_Disabled();
-	psoDesc.RasterizerState = getRasterizerState_Default();
-	psoDesc.BlendState = getBlendState_Default();
+	psoDesc.DepthStencilState = *PSODesc.mDepthStencilState;
+	psoDesc.RasterizerState = *PSODesc.mRasterizerState;
+	psoDesc.BlendState = *PSODesc.mBlendState;
 
 	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLASSERT(hr == S_OK);
 }
 
 
-PipelineStateObject::PipelineStateObject(
-	const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
-	const DepthStencilState& depthStencilState, const RasterizerState& rasterizerState, const BlendState& blendState,
-	DXGI_FORMAT bufferFormat, DXGI_FORMAT depthBufferFormat)
-{
-	ID3D12Device* dev = g_dx12Device->getDevice();
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-
-	psoDesc.pRootSignature = rootSign.getRootsignature();
-	psoDesc.InputLayout = *layout.getLayoutDesc();
-	psoDesc.VS.BytecodeLength = vs.getShaderByteCodeSize();
-	psoDesc.VS.pShaderBytecode = vs.getShaderByteCode();
-	psoDesc.PS.BytecodeLength = ps.getShaderByteCodeSize();
-	psoDesc.PS.pShaderBytecode = ps.getShaderByteCode();
-
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.RTVFormats[0] = bufferFormat;
-	psoDesc.DSVFormat = depthBufferFormat;
-	psoDesc.SampleMask = 0xffffffff;
-	psoDesc.NumRenderTargets = 1;
-	psoDesc.SampleDesc.Count = 1;
-
-	psoDesc.DepthStencilState = depthStencilState;
-	psoDesc.RasterizerState = rasterizerState;
-	psoDesc.BlendState = blendState;
-
-	HRESULT hr = dev->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
-	ATLASSERT(hr == S_OK);
-}
-
-
-PipelineStateObject::PipelineStateObject(
-	const RootSignature& rootSign, const ComputeShader& cs)
+PipelineStateObject::PipelineStateObject(const CachedComputePsoDesc& PSODesc)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
 	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
 
-	psoDesc.pRootSignature = rootSign.getRootsignature();
-	psoDesc.CS.BytecodeLength = cs.getShaderByteCodeSize();
-	psoDesc.CS.pShaderBytecode = cs.getShaderByteCode();
+	psoDesc.pRootSignature = PSODesc.mRootSign->getRootsignature();
+	psoDesc.CS.BytecodeLength = PSODesc.mCS->getShaderByteCodeSize();
+	psoDesc.CS.pShaderBytecode = PSODesc.mCS->getShaderByteCode();
 
 	HRESULT hr = dev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLENSURE(hr == S_OK);
@@ -1743,25 +1710,21 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mBlendState),			sizeof(BlendState*));
 
+	ATLASSERT(PsoDesc.mRenderTargetCount <= 8);
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetCount),	sizeof(UINT32));
-	for (int i = 0; i < _countof(PsoDesc.mRenderTargets); ++i)
-	{
-		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargets[i].mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
-		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargets[i].mFormat), sizeof(DXGI_FORMAT));
-	}
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTexture.mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTexture.mFormat), sizeof(DXGI_FORMAT));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetsDescriptor), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE)*_countof(PsoDesc.mRenderTargetsDescriptor));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetsFormat), sizeof(DXGI_FORMAT)*_countof(PsoDesc.mRenderTargetsFormat));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureDescriptor), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureFormat),	sizeof(DXGI_FORMAT));
 
 	CachedPSOs::iterator it = mCachedRasterPSOs.find(psoKey);
-
 	if (it != mCachedRasterPSOs.end())
 	{
 		return *(it->second);
 	}
 
 	// Create the PSO
-	PipelineStateObject* PSO = new PipelineStateObject(*PsoDesc.mRootSign, *PsoDesc.mLayout, *PsoDesc.mVS, *PsoDesc.mPS, 
-		*PsoDesc.mDepthStencilState, *PsoDesc.mRasterizerState, *PsoDesc.mBlendState, PsoDesc.mRenderTargets[0].mFormat, PsoDesc.mDepthTexture.mFormat);
+	PipelineStateObject* PSO = new PipelineStateObject(PsoDesc);
 	PSO->setDebugName(L"RasterPso");
 
 	// Cache it
@@ -1783,7 +1746,7 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 	}
 
 	// Create the PSO
-	PipelineStateObject* PSO = new PipelineStateObject(*PsoDesc.mRootSign, *PsoDesc.mCS);
+	PipelineStateObject* PSO = new PipelineStateObject(PsoDesc);
 	PSO->setDebugName(L"ComputePso");
 
 	// Cache it

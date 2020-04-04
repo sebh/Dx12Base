@@ -523,17 +523,15 @@ const BlendState&					getBlendState_Default();			// Disabled
 typedef D3D12_RASTERIZER_DESC		RasterizerState;
 const RasterizerState&				getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
 
+struct CachedRasterPsoDesc;
+struct CachedComputePsoDesc;
+
 class PipelineStateObject
 {
 public:
-	PipelineStateObject(const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
-		DXGI_FORMAT buffer0Format=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
+	PipelineStateObject(const CachedRasterPsoDesc& PSODesc);
 
-	PipelineStateObject(const RootSignature& rootSign, const InputLayout& layout, const VertexShader& vs, const PixelShader& ps,
-		const DepthStencilState& depthStencilState, const RasterizerState& rasterizerState, const BlendState& blendState,
-		DXGI_FORMAT bufferFormat=DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT depthBufferFormat = DXGI_FORMAT_D24_UNORM_S8_UINT);
-
-	PipelineStateObject(const RootSignature& rootSign, const ComputeShader& cs);
+	PipelineStateObject(const CachedComputePsoDesc& PSODesc);
 
 	~PipelineStateObject();
 	ID3D12PipelineState* getPso() const { return mPso; }
@@ -616,36 +614,32 @@ private:
 
 
 
-struct CachedRenderTargetDesc
-{
-	D3D12_CPU_DESCRIPTOR_HANDLE mRenderTarget = { INVALID_CPU_DESCRIPTOR_HANDLE };
-	DXGI_FORMAT mFormat = DXGI_FORMAT_UNKNOWN;
-};
-
 // Pointers in that structure should point to static global elements (not stack). 
 // This to avoid infinite PSOs creation because it is part of the hash key used to cache them.
 struct CachedRasterPsoDesc
 {
-	const RootSignature*		mRootSign;
+	const RootSignature*		mRootSign = nullptr;
 
-	const InputLayout*			mLayout;
-	const VertexShader*			mVS;
-	const PixelShader*			mPS;
+	const InputLayout*			mLayout = nullptr;
+	const VertexShader*			mVS = nullptr;
+	const PixelShader*			mPS = nullptr;
 
-	const DepthStencilState*	mDepthStencilState;
-	const RasterizerState*		mRasterizerState;
-	const BlendState*			mBlendState;
+	const DepthStencilState*	mDepthStencilState = nullptr;
+	const RasterizerState*		mRasterizerState = nullptr;
+	const BlendState*			mBlendState = nullptr;
 
-	UINT32						mRenderTargetCount;
-	CachedRenderTargetDesc		mRenderTargets[8];
-	CachedRenderTargetDesc		mDepthTexture;
+	UINT32						mRenderTargetCount = 0;
+	D3D12_CPU_DESCRIPTOR_HANDLE	mRenderTargetsDescriptor[8] = { { INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE },{ INVALID_CPU_DESCRIPTOR_HANDLE } };
+	DXGI_FORMAT					mRenderTargetsFormat[8] = { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN};
+	D3D12_CPU_DESCRIPTOR_HANDLE	mDepthTextureDescriptor = { INVALID_CPU_DESCRIPTOR_HANDLE };
+	DXGI_FORMAT					mDepthTextureFormat = DXGI_FORMAT_UNKNOWN;
 };
 
 struct CachedComputePsoDesc
 {
-	const RootSignature*		mRootSign;
+	const RootSignature*		mRootSign = nullptr;
 
-	const ComputeShader*		mCS;
+	const ComputeShader*		mCS = nullptr;
 };
 
 typedef UINT32 PSOKEY;

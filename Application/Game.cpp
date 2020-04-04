@@ -230,8 +230,10 @@ void Game::render()
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
 		PSODesc.mRenderTargetCount = 1;
-		PSODesc.mRenderTargets[0] = { HdrTextureRTV , HdrTexture->getClearColor().Format };
-		PSODesc.mDepthTexture = { DepthTextureDSV , DepthTexture->getClearColor().Format };
+		PSODesc.mRenderTargetsDescriptor[0] = HdrTextureRTV;
+		PSODesc.mRenderTargetsFormat[0]     = HdrTexture->getClearColor().Format;
+		PSODesc.mDepthTextureDescriptor = DepthTextureDSV;
+		PSODesc.mDepthTextureFormat     = DepthTexture->getClearColor().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
@@ -308,7 +310,8 @@ void Game::render()
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
 		PSODesc.mRenderTargetCount = 1;
-		PSODesc.mRenderTargets[0] = { descriptor , backBuffer->GetDesc().Format };
+		PSODesc.mRenderTargetsDescriptor[0] = descriptor;
+		PSODesc.mRenderTargetsFormat[0]     = backBuffer->GetDesc().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 
