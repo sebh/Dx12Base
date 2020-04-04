@@ -234,13 +234,20 @@ private:
 class ShaderBase
 {
 public:
-	ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profile);
+	ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr);
 	virtual ~ShaderBase();
 	bool compilationSuccessful() { return mShaderBytecode != nullptr; }
 	LPVOID getShaderByteCode() const { return mShaderBytecode->GetBufferPointer(); }
 	SIZE_T getShaderByteCodeSize() const { return mShaderBytecode->GetBufferSize(); }
+
+	void Reload(const TCHAR* filename, const char* entryFunction);
+	const ID3DBlob* GetShaderByte() const { return mShaderBytecode; };
+
 protected:
 	ID3DBlob* mShaderBytecode;
+	const char* mProfileStr;
+
+	static bool Load(const TCHAR* filename, const char* entryFunction, const char* profile, ID3DBlob** mShaderBytecode);
 
 private:
 	ShaderBase();

@@ -558,8 +558,18 @@ void InputLayout::appendSimpleVertexDataToInputLayout(const char* semanticName, 
 }
 
 
-ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profile)
+ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr)
 	: mShaderBytecode(nullptr)
+	, mProfileStr(profileStr)
+{
+}
+
+ShaderBase::~ShaderBase()
+{
+	resetComPtr(&mShaderBytecode);
+}
+
+bool ShaderBase::Load(const TCHAR* filename, const char* entryFunction, const char* profile, ID3DBlob** ShaderBytecode)
 {
 	ID3DBlob * errorbuffer = NULL;
 	const UINT defaultFlags = 0;
@@ -582,7 +592,7 @@ ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const c
 		profile,							// target profile
 		defaultFlags,						// flag1
 		defaultFlags,						// flag2
-		&mShaderBytecode,					// ouput
+		ShaderBytecode,					// ouput
 		&errorbuffer);						// errors
 
 	if (FAILED(hr))
@@ -601,37 +611,45 @@ ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const c
 			resetComPtr(&errorbuffer);
 		}
 
-		resetComPtr(&mShaderBytecode);
+		resetComPtr(ShaderBytecode);
 		OutputDebugStringA("\n\n");
+		return false;
 	}
+	return true;
 }
 
-ShaderBase::~ShaderBase()
+void ShaderBase::Reload(const TCHAR* filename, const char* entryFunction)
 {
-	resetComPtr(&mShaderBytecode);
+	ID3DBlob* ShaderBytecode;
+	if (Load(filename, entryFunction, mProfileStr, &ShaderBytecode))
+	{
+		// We simply discard the previous bytecode for now. 
+		// TODO: garbage collect once it is safe to remove, e.g. not used by any in flight frames.
+		mShaderBytecode = ShaderBytecode;
+	}
 }
 
 VertexShader::VertexShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "vs_5_0")
 {
-	if (!compilationSuccessful()) return; // failed compilation
-	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
+	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
+	ATLENSURE(compilationSuccessful());
 }
 VertexShader::~VertexShader() { }
 
 PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "ps_5_0")
 {
-	if (!compilationSuccessful()) return; // failed compilation
-	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
+	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
+	ATLENSURE(compilationSuccessful());
 }
 PixelShader::~PixelShader() { }
 
 ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction)
 	: ShaderBase(filename, entryFunction, "cs_5_0")
 {
-	if (!compilationSuccessful()) return; // failed compilation
-	// TODO too late in dx12: valid shader have been replaced... so live update will fail. TODO Handle that in ShaderBase
+	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
+	ATLENSURE(compilationSuccessful());
 }
 ComputeShader::~ComputeShader() { }
 
@@ -1703,8 +1721,11 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	PSOKEY psoKey = 0;
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign),			sizeof(RootSignature*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mVS),					sizeof(VertexShader*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mPS),					sizeof(PixelShader*));
+
+	const ID3DBlob* VSBlob = PsoDesc.mVS->GetShaderByte();
+	const ID3DBlob* PSBlob = PsoDesc.mVS->GetShaderByte();
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(ID3DBlob*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),						sizeof(PixelShader*));
 
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthStencilState),	sizeof(DepthStencilState*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
@@ -1737,7 +1758,9 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 {
 	PSOKEY psoKey = 0;
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign)	, sizeof(RootSignature*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mCS)		, sizeof(ComputeShader*));
+
+	const ID3DBlob* CSBlob = PsoDesc.mCS->GetShaderByte();
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&CSBlob), sizeof(ID3DBlob*));
 
 	CachedPSOs::iterator it = mCachedComputePSOs.find(psoKey);
 	if (it != mCachedComputePSOs.end())

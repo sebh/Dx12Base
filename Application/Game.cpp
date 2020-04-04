@@ -34,14 +34,28 @@ Game::~Game()
 {
 }
 
-void Game::loadShaders(bool exitIfFail)
+void Game::loadShaders(bool ReloadMode)
 {
-	bool success = true;
+	#define RELOADVS(Shader, filename, entryFunction) \
+		if (ReloadMode) \
+			Shader->Reload(filename, entryFunction); \
+		else \
+			Shader = new VertexShader(filename, entryFunction);
+	#define RELOADPS(Shader, filename, entryFunction) \
+		if (ReloadMode) \
+			Shader->Reload(filename, entryFunction); \
+		else \
+			Shader = new PixelShader(filename, entryFunction);
+	#define RELOADCS(Shader, filename, entryFunction) \
+		if (ReloadMode) \
+			Shader->Reload(filename, entryFunction); \
+		else \
+			Shader = new ComputeShader(filename, entryFunction);
 
-	vertexShader = new VertexShader(L"Resources\\TestShader.hlsl", "ColorVertexShader");
-	pixelShader = new PixelShader(L"Resources\\TestShader.hlsl", "ColorPixelShader");
-	ToneMapShaderPS = new PixelShader(L"Resources\\TestShader.hlsl", "ToneMapPS");
-	computeShader = new ComputeShader(L"Resources\\TestShader.hlsl", "MainComputeShader");
+	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader");
+	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader");
+	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", "ToneMapPS");
+	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", "MainComputeShader");
 }
 
 void Game::releaseShaders()
@@ -64,7 +78,7 @@ void Game::initialise()
 {
 	////////// Load and compile shaders
 
-	loadShaders(true);
+	loadShaders(false);
 
 	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
@@ -151,7 +165,7 @@ void Game::update(const WindowInputData& inputData)
 		if (tickCount - lastLoadTime > 200)
 		{
 			Sleep(100);					// Wait for a while to let the file system finish the file write.
-			loadShaders(false);			// Reload (all) the shaders
+			loadShaders(true);			// Reload (all) the shaders
 		}
 		lastLoadTime = tickCount;
 	}

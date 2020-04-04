@@ -17,8 +17,8 @@ public:
 private:
 
 	/// Load/reload all shaders if compilation is succesful.
-	/// @exitIfFail: calls exit(0) if any of the reload/compilation failed.
-	void loadShaders(bool exitIfFail);
+	/// @ReloadMode: true if we are simply trying to reload shaders.
+	void loadShaders(bool ReloadMode);
 	/// release all shaders
 	void releaseShaders();
 };
