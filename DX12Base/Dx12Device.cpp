@@ -372,7 +372,7 @@ void Dx12Device::internalShutdown()
 #endif
 }
 
-D3D12_CPU_DESCRIPTOR_HANDLE Dx12Device::getBackBufferDescriptor()
+D3D12_CPU_DESCRIPTOR_HANDLE Dx12Device::getBackBufferDescriptor() const
 {
 	D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
 	handle.ptr += mFrameIndex * mRtvDescriptorSize;
@@ -737,7 +737,7 @@ void DispatchDrawCallCpuDescriptorHeap::BeginRecording()
 	mFrameDescriptorCount = 0;
 }
 
-void DispatchDrawCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescriptoHeap)
+void DispatchDrawCallCpuDescriptorHeap::EndRecording(const DescriptorHeap& CopyToDescriptoHeap)
 {
 	//Copy all descriptors required from CPU to GPU heap
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(
@@ -747,7 +747,7 @@ void DispatchDrawCallCpuDescriptorHeap::EndRecording(DescriptorHeap& CopyToDescr
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
-DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::AllocateCall(RootSignature& RootSig)
+DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::AllocateCall(const RootSignature& RootSig)
 {
 	Call NewCall;
 	NewCall.mRootSig = &RootSig;
@@ -1731,27 +1731,27 @@ void jenkins_one_at_a_time_hash(UINT32& hash, const uint8_t* key, size_t length)
 	hash += hash << 15;
 }
 
-PipelineStateObject& CachedPSOManager::GetCachedPSO(CachedRasterPsoDesc& PsoDesc)
+const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoDesc& PsoDesc)
 {
 	// The structure has holes due to alignement and as such it can have random values in it. So we build the hash one element at a time.
 	PSOKEY psoKey = 0;
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRootSign),				sizeof(RootSignature*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mVS),					sizeof(VertexShader*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mPS),					sizeof(PixelShader*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign),			sizeof(RootSignature*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mVS),					sizeof(VertexShader*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mPS),					sizeof(PixelShader*));
 
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthStencilState),		sizeof(DepthStencilState*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mBlendState),			sizeof(BlendState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthStencilState),	sizeof(DepthStencilState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mBlendState),			sizeof(BlendState*));
 
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargetCount),		sizeof(UINT32));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetCount),	sizeof(UINT32));
 	for (int i = 0; i < _countof(PsoDesc.mRenderTargets); ++i)
 	{
-		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargets[i].mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
-		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRenderTargets[i].mFormat), sizeof(DXGI_FORMAT));
+		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargets[i].mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+		jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargets[i].mFormat), sizeof(DXGI_FORMAT));
 	}
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthTexture.mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mDepthTexture.mFormat), sizeof(DXGI_FORMAT));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTexture.mRenderTarget), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTexture.mFormat), sizeof(DXGI_FORMAT));
 
 	CachedPSOs::iterator it = mCachedRasterPSOs.find(psoKey);
 
@@ -1771,11 +1771,11 @@ PipelineStateObject& CachedPSOManager::GetCachedPSO(CachedRasterPsoDesc& PsoDesc
 	return *PSO;
 }
 
-PipelineStateObject& CachedPSOManager::GetCachedPSO(CachedComputePsoDesc& PsoDesc)
+const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePsoDesc& PsoDesc)
 {
 	PSOKEY psoKey = 0;
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mRootSign)	, sizeof(RootSignature*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<uint8_t*>(&PsoDesc.mCS)			, sizeof(ComputeShader*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign)	, sizeof(RootSignature*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mCS)		, sizeof(ComputeShader*));
 
 	CachedPSOs::iterator it = mCachedComputePSOs.find(psoKey);
 	if (it != mCachedComputePSOs.end())

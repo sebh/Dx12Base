@@ -48,21 +48,21 @@ public:
 	static void initialise(const HWND& hWnd);
 	static void shutdown();
 
-	ID3D12Device5*							getDevice() { return mDev; }
-	IDXGISwapChain3*						getSwapChain() { return mSwapchain; }
+	ID3D12Device5*							getDevice() const { return mDev; }
+	IDXGISwapChain3*						getSwapChain() const { return mSwapchain; }
 
-	ID3D12Resource*							getBackBuffer() { return mBackBuffeRtv[mFrameIndex]; }
-	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor();
+	ID3D12Resource*							getBackBuffer() const { return mBackBuffeRtv[mFrameIndex]; }
+	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor() const;
 
 	// The single command list per frame since we do not prepare command in parallel yet
-	ID3D12GraphicsCommandList* getFrameCommandList() { return mCommandList[0]; }
+	ID3D12GraphicsCommandList* getFrameCommandList() const { return mCommandList[0]; }
 
 	void beginFrame();
 	void endFrameAndSwap(bool vsyncEnabled);
 	void closeBufferedFramesBeforeShutdown();
 
-	RootSignature& GetDefaultGraphicRootSignature() { return *mGfxRootSignature; }
-	RootSignature& GetDefaultComputeRootSignature() { return *mCptRootSignature; }
+	const RootSignature& GetDefaultGraphicRootSignature() const { return *mGfxRootSignature; }
+	const RootSignature& GetDefaultComputeRootSignature() const { return *mCptRootSignature; }
 
 	UINT getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
 	UINT getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
@@ -72,9 +72,9 @@ public:
 	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourcesDecriptorHeapCPU; }
 	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU; }
 
-	DescriptorHeap* getFrameDispatchDrawCallGpuDescriptorHeap() { return mFrameDispatchDrawCallDescriptorHeapGPU[mFrameIndex]; }
+	const DescriptorHeap* getFrameDispatchDrawCallGpuDescriptorHeap() { return mFrameDispatchDrawCallDescriptorHeapGPU[mFrameIndex]; }
 
-	FrameConstantBuffers& getFrameConstantBuffers() { return *mFrameConstantBuffers[mFrameIndex]; }
+	FrameConstantBuffers& getFrameConstantBuffers() const { return *mFrameConstantBuffers[mFrameIndex]; }
 
 	struct GPUTimer
 	{
@@ -275,9 +275,9 @@ public:
 	DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, UINT DescriptorCount);
 	virtual ~DescriptorHeap();
 
-	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap; }
-	D3D12_CPU_DESCRIPTOR_HANDLE  getCPUHandle() const { return mDescriptorHeap->GetCPUDescriptorHandleForHeapStart(); }
-	D3D12_GPU_DESCRIPTOR_HANDLE  getGPUHandle() const { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
+	ID3D12DescriptorHeap* getHeap() const { return mDescriptorHeap; }
+	D3D12_CPU_DESCRIPTOR_HANDLE getCPUHandle() const { return mDescriptorHeap->GetCPUDescriptorHandleForHeapStart(); }
+	D3D12_GPU_DESCRIPTOR_HANDLE getGPUHandle() const { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
 
 	UINT GetDescriptorCount() const { return mDescriptorCount; }
 
@@ -300,7 +300,7 @@ public:
 	virtual ~AllocatedResourceDecriptorHeap();
 
 	UINT GetAllocatedDescriptorCount() const { return mAllocatedDescriptorCount; }
-	ID3D12DescriptorHeap*  getHeap() const { return mDescriptorHeap->getHeap(); }
+	const ID3D12DescriptorHeap* getHeap() const { return mDescriptorHeap->getHeap(); }
 
 	void AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle);
 
@@ -320,7 +320,7 @@ public:
 	virtual ~DispatchDrawCallCpuDescriptorHeap();
 
 	void BeginRecording();
-	void EndRecording(DescriptorHeap& CopyToDescriptoHeap);
+	void EndRecording(const DescriptorHeap& CopyToDescriptoHeap);
 
 	struct Call
 	{
@@ -334,7 +334,7 @@ public:
 	private:
 		friend class DispatchDrawCallCpuDescriptorHeap;
 
-		RootSignature* mRootSig;
+		const RootSignature* mRootSig;
 		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the staging heap
 		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
 
@@ -345,7 +345,7 @@ public:
 		UINT mUAVOffset = 0;
 	};
 
-	Call AllocateCall(RootSignature& RootSig);
+	Call AllocateCall(const RootSignature& RootSig);
 
 private:
 	DispatchDrawCallCpuDescriptorHeap();
@@ -493,9 +493,9 @@ public:
 	~RootSignature();
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 
-	UINT getRootCBVCount() { return mRootCBVCount; }
-	UINT getTab0SRVCount() { return mTab0SRVCount; }
-	UINT getTab0UAVCount() { return mTab0UAVCount; }
+	UINT getRootCBVCount() const { return mRootCBVCount; }
+	UINT getTab0SRVCount() const { return mTab0SRVCount; }
+	UINT getTab0UAVCount() const { return mTab0UAVCount; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:
@@ -660,8 +660,8 @@ public:
 	static void initialise();
 	static void shutdown();
 
-	PipelineStateObject& GetCachedPSO(CachedRasterPsoDesc& PsoDesc);
-	PipelineStateObject& GetCachedPSO(CachedComputePsoDesc& PsoDesc);
+	const PipelineStateObject& GetCachedPSO(const CachedRasterPsoDesc& PsoDesc);
+	const PipelineStateObject& GetCachedPSO(const CachedComputePsoDesc& PsoDesc);
 
 private:
 
