@@ -221,18 +221,18 @@ void Game::render()
 	{
 		SCOPED_GPU_TIMER(Raster, 255, 100, 100);
 
-		CachedRasterPsoDesc PsoDesc;
-		PsoDesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
-		PsoDesc.mLayout = layout;
-		PsoDesc.mVS = vertexShader;
-		PsoDesc.mPS = pixelShader;
-		PsoDesc.mDepthStencilState = &getDepthStencilState_Default();
-		PsoDesc.mRasterizerState = &getRasterizerState_Default();
-		PsoDesc.mBlendState = &getBlendState_Default();
-		PsoDesc.mRenderTargetCount = 1;
-		PsoDesc.mRenderTargets[0] = { HdrTextureRTV , HdrTexture->getClearColor().Format };
-		PsoDesc.mDepthTexture = { DepthTextureDSV , DepthTexture->getClearColor().Format };
-		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+		CachedRasterPsoDesc PSODesc;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PSODesc.mLayout = layout;
+		PSODesc.mVS = vertexShader;
+		PSODesc.mPS = pixelShader;
+		PSODesc.mDepthStencilState = &getDepthStencilState_Default();
+		PSODesc.mRasterizerState = &getRasterizerState_Default();
+		PSODesc.mBlendState = &getBlendState_Default();
+		PSODesc.mRenderTargetCount = 1;
+		PSODesc.mRenderTargets[0] = { HdrTextureRTV , HdrTexture->getClearColor().Format };
+		PSODesc.mDepthTexture = { DepthTextureDSV , DepthTexture->getClearColor().Format };
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		commandList->RSSetScissorRects(1, &scissorRect); // set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // set the primitive topology
@@ -255,10 +255,10 @@ void Game::render()
 		SCOPED_GPU_TIMER(Compute, 100, 255, 100);
 
 		// Set the compute PSO
-		CachedComputePsoDesc PsoDesc;
-		PsoDesc.mCS = computeShader;
-		PsoDesc.mRootSign = &g_dx12Device->GetDefaultComputeRootSignature();
-		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+		CachedComputePsoDesc PSODesc;
+		PSODesc.mCS = computeShader;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultComputeRootSignature();
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		// Set shader resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
@@ -293,21 +293,23 @@ void Game::render()
 		bbPresentToRt.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 		bbPresentToRt.Transition.Subresource = 0;
 		commandList->ResourceBarrier(1, &bbPresentToRt);
+
+
 		D3D12_CPU_DESCRIPTOR_HANDLE descriptor = g_dx12Device->getBackBufferDescriptor();
 		commandList->OMSetRenderTargets(1, &descriptor, FALSE, nullptr);
 
 
-		CachedRasterPsoDesc PsoDesc;
-		PsoDesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
-		PsoDesc.mLayout = layout;
-		PsoDesc.mVS = vertexShader;
-		PsoDesc.mPS = pixelShader;
-		PsoDesc.mDepthStencilState = &getDepthStencilState_Disabled();
-		PsoDesc.mRasterizerState = &getRasterizerState_Default();
-		PsoDesc.mBlendState = &getBlendState_Default();
-		PsoDesc.mRenderTargetCount = 1;
-		PsoDesc.mRenderTargets[0] = { descriptor , backBuffer->GetDesc().Format };
-		commandList->SetPipelineState(g_CachedPSOManager->GetCachedPSO(PsoDesc).getPso());
+		CachedRasterPsoDesc PSODesc;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PSODesc.mLayout = layout;
+		PSODesc.mVS = vertexShader;
+		PSODesc.mPS = pixelShader;
+		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
+		PSODesc.mRasterizerState = &getRasterizerState_Default();
+		PSODesc.mBlendState = &getBlendState_Default();
+		PSODesc.mRenderTargetCount = 1;
+		PSODesc.mRenderTargets[0] = { descriptor , backBuffer->GetDesc().Format };
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 
 		// Apply tonemapping on the HDR buffer

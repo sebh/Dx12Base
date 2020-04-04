@@ -23,7 +23,6 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - PipelineStateObject cached + reuse
 //  - Proper upload handling in shared pool
 
 
@@ -1793,4 +1792,15 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 	return *PSO;
 }
 
+void CachedPSOManager::SetPipelineState(ID3D12GraphicsCommandList* commandList, const CachedRasterPsoDesc& PsoDesc)
+{
+	const PipelineStateObject& PSO = GetCachedPSO(PsoDesc);
+	commandList->SetPipelineState(PSO.getPso());
+}
+
+void CachedPSOManager::SetPipelineState(ID3D12GraphicsCommandList* commandList, const CachedComputePsoDesc& PsoDesc)
+{
+	const PipelineStateObject& PSO = GetCachedPSO(PsoDesc);
+	commandList->SetPipelineState(PSO.getPso());
+}
 

@@ -663,6 +663,9 @@ public:
 	const PipelineStateObject& GetCachedPSO(const CachedRasterPsoDesc& PsoDesc);
 	const PipelineStateObject& GetCachedPSO(const CachedComputePsoDesc& PsoDesc);
 
+	void SetPipelineState(ID3D12GraphicsCommandList* commandList, const CachedRasterPsoDesc& PsoDesc);
+	void SetPipelineState(ID3D12GraphicsCommandList* commandList, const CachedComputePsoDesc& PsoDesc);
+
 private:
 
 	CachedPSOs	mCachedRasterPSOs;
