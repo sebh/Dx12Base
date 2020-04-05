@@ -661,6 +661,9 @@ public:
 	static void initialise();
 	static void shutdown();
 
+	size_t GetCachedRasterPSOCount() const { return mCachedRasterPSOs.size(); }
+	size_t GetCachedComputePSOCount() const { return mCachedComputePSOs.size(); }
+
 	const PipelineStateObject& GetCachedPSO(const CachedRasterPsoDesc& PsoDesc);
 	const PipelineStateObject& GetCachedPSO(const CachedComputePsoDesc& PsoDesc);
 

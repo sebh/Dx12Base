@@ -158,6 +158,14 @@ int WINAPI WinMain(
 					ImGui::EndChild();
 					ImGui::PopStyleVar(3);
 
+					{
+						char debugStr[256];
+						sprintf_s(debugStr, 256, "Cached Raster  PSO count %zu", g_CachedPSOManager->GetCachedRasterPSOCount());
+						ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), debugStr);
+						sprintf_s(debugStr, 256, "Cached compute PSO count %zu", g_CachedPSOManager->GetCachedComputePSOCount());
+						ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), debugStr);
+					}
+
 					for (UINT i = 0; i < TimerReport.mLastValidGPUTimerSlotCount; ++i)
 					{
 						Dx12Device::GPUTimer& Timer = TimerReport.mLastValidGPUTimers[i];
