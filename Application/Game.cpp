@@ -1,29 +1,11 @@
 
 #include "Game.h"
-#include "Dx12Base/Dx12Device.h"
 
 #include "windows.h"
 #include "DirectXMath.h"
 
 
 //#pragma optimize("", off)
-
-
-InputLayout* layout;
-
-RenderBuffer* vertexBuffer;
-RenderBuffer* indexBuffer;
-
-RenderBuffer* UavBuffer;
-
-VertexShader* vertexShader;
-PixelShader*  pixelShader;
-PixelShader*  ToneMapShaderPS;
-ComputeShader*  computeShader;
-
-RenderTexture* texture;
-RenderTexture* HdrTexture;
-RenderTexture* DepthTexture;
 
 Game::Game()
 {

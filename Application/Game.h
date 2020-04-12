@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Dx12Base/WindowInput.h"
+#include "Dx12Base/Dx12Device.h"
 
 class Game
 {
@@ -21,6 +22,25 @@ private:
 	void loadShaders(bool ReloadMode);
 	/// release all shaders
 	void releaseShaders();
+	
+
+
+
+	InputLayout* layout;
+
+	RenderBuffer* vertexBuffer;
+	RenderBuffer* indexBuffer;
+
+	RenderBuffer* UavBuffer;
+
+	VertexShader* vertexShader;
+	PixelShader*  pixelShader;
+	PixelShader*  ToneMapShaderPS;
+	ComputeShader*  computeShader;
+
+	RenderTexture* texture;
+	RenderTexture* HdrTexture;
+	RenderTexture* DepthTexture;
 };
 
 
