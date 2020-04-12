@@ -651,7 +651,7 @@ void ShaderBase::ReCompileIfNeeded()
 	if (!mDirty)
 		return;
 
-	ID3DBlob* ShaderBytecode;
+	ID3DBlob* ShaderBytecode = nullptr;
 	if (TryCompile(mFilename, mEntryFunction, mProfile, mMacros, &ShaderBytecode))
 	{
 		// We simply discard the previous bytecode for now. 
