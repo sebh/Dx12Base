@@ -31,6 +31,14 @@ private:
 	RenderBuffer* vertexBuffer;
 	RenderBuffer* indexBuffer;
 
+	size_t SphereIndexCount;
+	InputLayout* SphereVertexLayout;
+	RenderBuffer* SphereVertexBuffer;
+	RenderBuffer* SphereIndexBuffer;
+
+	VertexShader* MeshVertexShader;
+	PixelShader*  MeshPixelShader;
+
 	RenderBuffer* UavBuffer;
 
 	VertexShader* vertexShader;

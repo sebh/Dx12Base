@@ -1,5 +1,6 @@
 
 
+
 cbuffer MyBuffer : register(b0)
 {
 	float4 FloatVector;
@@ -8,7 +9,7 @@ cbuffer MyBuffer : register(b0)
 
 struct VertexInput
 {
-	float4 position		: POSITION;
+	float3 position		: POSITION;
 	float2 uv			: TEXCOORD0;
 };
 
@@ -22,18 +23,7 @@ VertexOutput ColorVertexShader(VertexInput input)
 {
 	VertexOutput output;	// TODO init to 0
 
-
-	// Change the position vector to be 4 units for proper matrix calculations.
-	//input.position.w = 1.0f;
-
-	// Calculate the position of the vertex against the world, view, and projection matrices.
-	/*output.position = mul(input.position, worldMatrix);
-	output.position = mul(output.position, viewMatrix);
-	output.position = mul(output.position, projectionMatrix);*/
-
-
-	output.position = input.position;
-
+	output.position = float4(input.position.xyz, 1.0);
 	output.uv = input.uv;
 
 	return output;

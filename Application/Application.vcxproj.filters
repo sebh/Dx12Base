@@ -76,9 +76,15 @@
     <ClInclude Include="WinImgui.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="OBJ_Loader.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="..\Resources\TestShader.hlsl">
+      <Filter>HLSL</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Resources\MeshShader.hlsl">
       <Filter>HLSL</Filter>
     </FxCompile>
   </ItemGroup>

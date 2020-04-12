@@ -1622,6 +1622,14 @@ const RasterizerState& getRasterizerState_Default()
 	return RasterizerState_Default;
 }
 
+static RasterizerState RasterizerState_DefaultNoCulling;
+const RasterizerState& getRasterizerState_DefaultNoCulling()
+{
+	RasterizerState_DefaultNoCulling = getRasterizerState_Default();
+	RasterizerState_DefaultNoCulling.CullMode = D3D12_CULL_MODE_NONE;
+	return RasterizerState_DefaultNoCulling;
+}
+
 
 PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 {

@@ -2,8 +2,10 @@
 #include "Game.h"
 
 #include "windows.h"
-#include "DirectXMath.h"
+#include "OBJ_Loader.h"
 
+#include "DirectXMath.h"
+using namespace DirectX;
 
 //#pragma optimize("", off)
 
@@ -38,8 +40,10 @@ void Game::loadShaders(bool ReloadMode)
 	MyMacros.push_back({ "TESTSEB1", "1" });
 	MyMacros.push_back({ "TESTSEB2", "2" });
 
-	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", MyMacros);
+	RELOADVS(MeshVertexShader, L"Resources\\MeshShader.hlsl", "MeshVertexShader", MyMacros);
+	RELOADPS(MeshPixelShader, L"Resources\\MeshShader.hlsl", "MeshPixelShader", MyMacros);
 
+	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", MyMacros);
 	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", MyMacros);
 
 	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", "ToneMapPS", MyMacros);
@@ -49,6 +53,9 @@ void Game::loadShaders(bool ReloadMode)
 
 void Game::releaseShaders()
 {
+	delete MeshVertexShader;
+	delete MeshPixelShader;
+
 	delete vertexShader;
 	delete pixelShader;
 	delete ToneMapShaderPS;
@@ -73,9 +80,9 @@ void Game::initialise()
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
 
-	vertices[0] = { { -1.0f, -1.0f, 0.0f },{ 0.0f, 1.0f } };
-	vertices[1] = { { -1.0f,  3.0f, 0.0f },{ 0.0f, -1.0f } };
-	vertices[2] = { {  3.0f, -1.0f, 0.0f },{ 2.0f, 1.0f } };
+	vertices[0] = { { -1.0f, -1.0f, 0.9999999f },{ 0.0f, 1.0f } };
+	vertices[1] = { { -1.0f,  3.0f, 0.9999999f },{ 0.0f, -1.0f } };
+	vertices[2] = { {  3.0f, -1.0f, 0.9999999f },{ 2.0f, 1.0f } };
 	indices[0] = 0;
 	indices[1] = 1;
 	indices[2] = 2;
@@ -83,6 +90,25 @@ void Game::initialise()
 	vertexBuffer->setDebugName(L"TriangleVertexBuffer");
 	indexBuffer = new RenderBuffer(3, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
+
+	{
+		objl::Loader loader;
+		bool success = loader.LoadFile("./Resources/sphere.obj");
+		if (success && loader.LoadedMeshes.size() == 1)
+		{
+			SphereIndexCount = loader.LoadedIndices.size();
+			SphereVertexBuffer = new RenderBuffer((UINT)loader.LoadedVertices.size(), sizeof(float) * 8, sizeof(float) * 8, DXGI_FORMAT_UNKNOWN, false, (void*)loader.LoadedVertices.data());
+			SphereIndexBuffer = new RenderBuffer(SphereIndexCount, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, (void*)loader.LoadedIndices.data());
+		}
+		else
+		{
+			exit(-1);
+		}
+		SphereVertexLayout = new InputLayout();
+		SphereVertexLayout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
+		SphereVertexLayout->appendSimpleVertexDataToInputLayout("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT);
+		SphereVertexLayout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
+	}
 
 	UavBuffer = new RenderBuffer(4, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
@@ -130,6 +156,10 @@ void Game::shutdown()
 	delete vertexBuffer;
 	delete indexBuffer;
 
+	delete SphereVertexLayout;
+	delete SphereVertexBuffer;
+	delete SphereIndexBuffer;
+
 	delete UavBuffer;
 
 	releaseShaders();
@@ -169,6 +199,7 @@ void Game::render()
 
 	ID3D12GraphicsCommandList* commandList = g_dx12Device->getFrameCommandList();
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
+	float AspectRatioXOverY = float(backBuffer->GetDesc().Width) / float(backBuffer->GetDesc().Height);
 
 	// Set defaults graphic and compute root signatures
 	commandList->SetGraphicsRootSignature(g_dx12Device->GetDefaultGraphicRootSignature().getRootsignature());
@@ -224,7 +255,7 @@ void Game::render()
 		PSODesc.mLayout = layout;
 		PSODesc.mVS = vertexShader;
 		PSODesc.mPS = pixelShader;
-		PSODesc.mDepthStencilState = &getDepthStencilState_Default();
+		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
 		PSODesc.mRasterizerState = &getRasterizerState_Default();
 		PSODesc.mBlendState = &getBlendState_Default();
 		PSODesc.mRenderTargetCount = 1;
@@ -247,6 +278,66 @@ void Game::render()
 		// Set root signature data and draw
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	}
+
+	// Render a mesh
+	{
+		SCOPED_GPU_TIMER(RasterMesh, 255, 100, 100);
+
+		SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+		const UINT StrideInByte = sizeof(float) * 8;
+		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferPosView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
+		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferNormalView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
+		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferUVView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
+		SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
+		D3D12_INDEX_BUFFER_VIEW SphereIndexBufferView = SphereIndexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
+
+		// Set constants
+		struct MeshConstantBuffer
+		{
+			XMMATRIX ViewProjectionMatrix;
+		};
+		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+
+		FXMVECTOR eyePosition = { 30.0f, 30.0f, 30.0f, 1.0f }; // XMLoadFloat3(EyePosition);
+		FXMVECTOR focusPosition = { 0.0f, 0.0f, 0.0f, 1.0f };
+		FXMVECTOR upDirection = { 0.0f, 0.0f, 1.0f, 0.0f };	
+		XMMATRIX viewMatrix = XMMatrixLookAtLH(eyePosition, focusPosition, upDirection);
+		XMMATRIX projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
+		MeshCB->ViewProjectionMatrix = XMMatrixMultiply(viewMatrix, projMatrix);
+
+		// Set PSO and render targets
+		CachedRasterPsoDesc PSODesc;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PSODesc.mLayout = SphereVertexLayout;
+		PSODesc.mVS = MeshVertexShader;
+		PSODesc.mPS = MeshPixelShader;
+		PSODesc.mDepthStencilState = &getDepthStencilState_Default();
+		PSODesc.mRasterizerState = &getRasterizerState_Default();
+		PSODesc.mBlendState = &getBlendState_Default();
+		PSODesc.mRenderTargetCount = 1;
+		PSODesc.mRenderTargetDescriptors[0] = HdrTextureRTV;
+		PSODesc.mRenderTargetFormats[0] = HdrTexture->getClearColor().Format;
+		PSODesc.mDepthTextureDescriptor = DepthTextureDSV;
+		PSODesc.mDepthTextureFormat = DepthTexture->getClearColor().Format;
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
+
+		// Set other raster properties
+		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
+		commandList->IASetVertexBuffers(0, 1, &SphereVertexBufferPosView);
+		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferNormalView);
+		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferUVView);
+		commandList->IASetIndexBuffer(&SphereIndexBufferView);
+
+		// Set constants and constant buffer
+		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+
+		// Set root signature data and draw
+		commandList->SetGraphicsRootConstantBufferView(0, CB.getGPUVirtualAddress());
+		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
 	}
 
 	// Transition buffer to compute or UAV

@@ -543,6 +543,7 @@ const BlendState&					getBlendState_Default();			// Disabled
 
 typedef D3D12_RASTERIZER_DESC		RasterizerState;
 const RasterizerState&				getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
+const RasterizerState&				getRasterizerState_DefaultNoCulling();
 
 struct CachedRasterPsoDesc;
 struct CachedComputePsoDesc;
