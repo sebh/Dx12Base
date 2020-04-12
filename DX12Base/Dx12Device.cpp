@@ -558,10 +558,15 @@ void InputLayout::appendSimpleVertexDataToInputLayout(const char* semanticName, 
 }
 
 
-ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr)
+ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros* macros)
 	: mShaderBytecode(nullptr)
-	, mProfileStr(profileStr)
+	, mFilename(filename)
+	, mProfile(profile)
+	, mEntryFunction(entryFunction)
+	, mDirty(true)
 {
+	if (macros)
+		mMacros = *macros;
 }
 
 ShaderBase::~ShaderBase()
@@ -569,30 +574,53 @@ ShaderBase::~ShaderBase()
 	resetComPtr(&mShaderBytecode);
 }
 
-bool ShaderBase::Load(const TCHAR* filename, const char* entryFunction, const char* profile, ID3DBlob** ShaderBytecode)
+bool ShaderBase::TryCompile(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros& mMacros, ID3DBlob** ShaderBytecode)
 {
 	ID3DBlob * errorbuffer = NULL;
 	const UINT defaultFlags = 0;
 
+#define MAX_SHADER_MACRO 64
+	D3D_SHADER_MACRO shaderMacros[MAX_SHADER_MACRO];
 #if DXDEBUG
-	D3D_SHADER_MACRO macros[2];
-	macros[0].Name = "D3DCOMPILE_DEBUG";
-	macros[0].Definition = "1";
-	macros[1].Name = NULL;
-	macros[1].Definition = NULL;
+	size_t MacrosCount = 1;
+	shaderMacros[0].Name = "D3DCOMPILE_DEBUG";
+	shaderMacros[0].Definition = "1";
+	shaderMacros[1].Name = NULL;
+	shaderMacros[1].Definition = NULL;
 #else
-	const D3D_SHADER_MACRO* macros = NULL;
+	size_t MacrosCount = 1;
+	shaderMacros[0] = { NULL, NULL };	// in case there is no macros
 #endif
+
+	if (mMacros.size() > 0)
+	{
+		bool validMacroCount = (mMacros.size() + MacrosCount) <= MAX_SHADER_MACRO - 1;	// -1 to handle the null end of list macro
+		if (!validMacroCount)
+		{
+			OutputDebugStringA("\nNumber of macro is too high for shader ");
+			OutputDebugStringW(filename);
+			OutputDebugStringA("\n");
+		}
+		ATLENSURE(validMacroCount);
+
+		for (size_t m = 0; m < mMacros.size(); ++m)
+		{
+			const ShaderMacro& sm = mMacros.at(m);
+			shaderMacros[MacrosCount] = { sm.Name.c_str() , sm.Definition.c_str() };
+			MacrosCount++;
+		}
+		shaderMacros[MacrosCount] = { NULL, NULL };
+	}
 
 	HRESULT hr = D3DCompileFromFile(
 		filename,							// filename
-		macros,								// defines
+		shaderMacros,						// defines
 		D3D_COMPILE_STANDARD_FILE_INCLUDE,	// default include handler (includes relative to the compiled file)
 		entryFunction,						// function name
 		profile,							// target profile
 		defaultFlags,						// flag1
 		defaultFlags,						// flag2
-		ShaderBytecode,					// ouput
+		ShaderBytecode,						// ouput
 		&errorbuffer);						// errors
 
 	if (FAILED(hr))
@@ -618,38 +646,36 @@ bool ShaderBase::Load(const TCHAR* filename, const char* entryFunction, const ch
 	return true;
 }
 
-void ShaderBase::Reload(const TCHAR* filename, const char* entryFunction)
+void ShaderBase::ReCompileIfNeeded()
 {
+	if (!mDirty)
+		return;
+
 	ID3DBlob* ShaderBytecode;
-	if (Load(filename, entryFunction, mProfileStr, &ShaderBytecode))
+	if (TryCompile(mFilename, mEntryFunction, mProfile, mMacros, &ShaderBytecode))
 	{
 		// We simply discard the previous bytecode for now. 
-		// TODO: garbage collect once it is safe to remove, e.g. not used by any in flight frames.
+		// TODO: garbage collect and delete once it is safe, e.g. not used by any in flight command buffers.
 		mShaderBytecode = ShaderBytecode;
+		mDirty = false;
 	}
 }
 
-VertexShader::VertexShader(const TCHAR* filename, const char* entryFunction)
-	: ShaderBase(filename, entryFunction, "vs_5_0")
+VertexShader::VertexShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, "vs_5_0", macros)
 {
-	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
-	ATLENSURE(compilationSuccessful());
 }
 VertexShader::~VertexShader() { }
 
-PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction)
-	: ShaderBase(filename, entryFunction, "ps_5_0")
+PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, "ps_5_0", macros)
 {
-	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
-	ATLENSURE(compilationSuccessful());
 }
 PixelShader::~PixelShader() { }
 
-ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction)
-	: ShaderBase(filename, entryFunction, "cs_5_0")
+ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, "cs_5_0", macros)
 {
-	Load(filename, entryFunction, mProfileStr, &mShaderBytecode);
-	ATLENSURE(compilationSuccessful());
 }
 ComputeShader::~ComputeShader() { }
 
@@ -1722,8 +1748,12 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign),			sizeof(RootSignature*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
 
+	PsoDesc.mVS->ReCompileIfNeeded();
+	PsoDesc.mPS->ReCompileIfNeeded();
+	ATLENSURE(PsoDesc.mVS->CompilationSuccessful());
+	ATLENSURE(PsoDesc.mPS->CompilationSuccessful());
 	const ID3DBlob* VSBlob = PsoDesc.mVS->GetShaderByte();
-	const ID3DBlob* PSBlob = PsoDesc.mVS->GetShaderByte();
+	const ID3DBlob* PSBlob = PsoDesc.mPS->GetShaderByte();
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(ID3DBlob*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),						sizeof(PixelShader*));
 
@@ -1759,6 +1789,8 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 	PSOKEY psoKey = 0;
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign)	, sizeof(RootSignature*));
 
+	PsoDesc.mCS->ReCompileIfNeeded();
+	ATLENSURE(PsoDesc.mCS->CompilationSuccessful());
 	const ID3DBlob* CSBlob = PsoDesc.mCS->GetShaderByte();
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&CSBlob), sizeof(ID3DBlob*));
 

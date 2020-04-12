@@ -229,25 +229,39 @@ private:
 };
 
 
-
+struct ShaderMacro
+{
+	// We use string here to own the memory.
+	// This is a requirement for delayed loading with non static shader parameter (created on stack or heap with unkown lifetime)
+	std::string Name;
+	std::string Definition;
+};
+typedef std::vector<ShaderMacro> Macros; // D3D_SHADER_MACRO contains pointers to string so those string must be static as of today.
 
 class ShaderBase
 {
 public:
-	ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr);
+	ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr, const Macros* macros = nullptr);
 	virtual ~ShaderBase();
-	bool compilationSuccessful() { return mShaderBytecode != nullptr; }
 	LPVOID getShaderByteCode() const { return mShaderBytecode->GetBufferPointer(); }
 	SIZE_T getShaderByteCodeSize() const { return mShaderBytecode->GetBufferSize(); }
 
-	void Reload(const TCHAR* filename, const char* entryFunction);
+	void MarkDirty() { mDirty = true; }
+	void ReCompileIfNeeded();
+	bool CompilationSuccessful() const { return mShaderBytecode != nullptr; }
 	const ID3DBlob* GetShaderByte() const { return mShaderBytecode; };
 
 protected:
-	ID3DBlob* mShaderBytecode;
-	const char* mProfileStr;
+	const TCHAR* mFilename;
+	const char* mEntryFunction;
+	const char* mProfile;
 
-	static bool Load(const TCHAR* filename, const char* entryFunction, const char* profile, ID3DBlob** mShaderBytecode);
+	Macros mMacros;
+	bool mDirty;		// If dirty, needs to be recompiled
+
+	ID3DBlob* mShaderBytecode;
+
+	static bool TryCompile(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros& mMacros, ID3DBlob** mShaderBytecode);
 
 private:
 	ShaderBase();
@@ -257,21 +271,21 @@ private:
 class VertexShader : public ShaderBase
 {
 public:
-	VertexShader(const TCHAR* filename, const char* entryFunction);
+	VertexShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
 	virtual ~VertexShader();
 };
 
 class PixelShader : public ShaderBase
 {
 public:
-	PixelShader(const TCHAR* filename, const char* entryFunction);
+	PixelShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
 	virtual ~PixelShader();
 };
 
 class ComputeShader : public ShaderBase
 {
 public:
-	ComputeShader(const TCHAR* filename, const char* entryFunction);
+	ComputeShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
 	virtual ~ComputeShader();
 };
 
@@ -628,8 +642,8 @@ struct CachedRasterPsoDesc
 	const RootSignature*		mRootSign = nullptr;
 
 	const InputLayout*			mLayout = nullptr;
-	const VertexShader*			mVS = nullptr;
-	const PixelShader*			mPS = nullptr;
+		  VertexShader*			mVS = nullptr;
+		  PixelShader*			mPS = nullptr;
 
 	const DepthStencilState*	mDepthStencilState = nullptr;
 	const RasterizerState*		mRasterizerState = nullptr;
@@ -646,7 +660,7 @@ struct CachedComputePsoDesc
 {
 	const RootSignature*		mRootSign = nullptr;
 
-	const ComputeShader*		mCS = nullptr;
+		  ComputeShader*		mCS = nullptr;
 };
 
 typedef UINT32 PSOKEY;

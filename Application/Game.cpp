@@ -36,26 +36,33 @@ Game::~Game()
 
 void Game::loadShaders(bool ReloadMode)
 {
-	#define RELOADVS(Shader, filename, entryFunction) \
+	#define RELOADVS(Shader, filename, entryFunction, macros) \
 		if (ReloadMode) \
-			Shader->Reload(filename, entryFunction); \
+			Shader->MarkDirty(); \
 		else \
-			Shader = new VertexShader(filename, entryFunction);
-	#define RELOADPS(Shader, filename, entryFunction) \
+			Shader = new VertexShader(filename, entryFunction, &macros);
+	#define RELOADPS(Shader, filename, entryFunction, macros) \
 		if (ReloadMode) \
-			Shader->Reload(filename, entryFunction); \
+			Shader->MarkDirty(); \
 		else \
-			Shader = new PixelShader(filename, entryFunction);
-	#define RELOADCS(Shader, filename, entryFunction) \
+			Shader = new PixelShader(filename, entryFunction, &macros);
+	#define RELOADCS(Shader, filename, entryFunction, macros) \
 		if (ReloadMode) \
-			Shader->Reload(filename, entryFunction); \
+			Shader->MarkDirty(); \
 		else \
-			Shader = new ComputeShader(filename, entryFunction);
+			Shader = new ComputeShader(filename, entryFunction, &macros);
 
-	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader");
-	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader");
-	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", "ToneMapPS");
-	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", "MainComputeShader");
+	Macros MyMacros;
+	MyMacros.push_back({ "TESTSEB1", "1" });
+	MyMacros.push_back({ "TESTSEB2", "2" });
+
+	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", MyMacros);
+
+	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", MyMacros);
+
+	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", "ToneMapPS", MyMacros);
+
+	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", "MainComputeShader", MyMacros);
 }
 
 void Game::releaseShaders()
