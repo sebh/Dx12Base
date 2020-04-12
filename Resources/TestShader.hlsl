@@ -35,12 +35,7 @@ SamplerState sampler0 : register(s0);
 
 float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 {
-	//int index = input.position.x + input.position.y * 1280;
-
-	//return float4(input.uv, 0.0, 1.0) * buffer[0];
-	//return float4(input.uv, 0.0, 1.0) * texture0.Sample(sampler0, input.uv);
-	return texture0.Sample(sampler0, float2(input.uv.x, 1.0f - input.uv.y));		// orientation problem with UV or texture loading
-	//return float4(input.uv, 0.0, 1.0);
+	return texture0.Sample(sampler0, float2(input.uv.x, 1.0f - input.uv.y));
 }
 
 float4 ToneMapPS(VertexOutput input) : SV_TARGET
@@ -55,8 +50,6 @@ RWBuffer<int4> myBuffer : register(u0);
 [numthreads(1, 1, 1)]
 void MainComputeShader(uint3 groupId : SV_GroupID, uint groupIndex : SV_GroupIndex)
 {
-	//myBuffer[0] = texture0.Load(uint3(0, 0, 0)) * 100;// int4(1, 2, 3, 4);
-	//myBuffer[0] = int4(1, 2, 3, 4);
 	myBuffer[0] = FloatVector;
 }
 
