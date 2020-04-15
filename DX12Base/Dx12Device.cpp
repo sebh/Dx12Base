@@ -23,7 +23,6 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - camera
 //  - Proper upload handling in shared pool
 
 
