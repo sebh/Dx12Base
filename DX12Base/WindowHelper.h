@@ -4,6 +4,11 @@
 #include <windowsx.h>
 #include "WindowInput.h"
 
+
+// Return true if an event has been intercepted and should not be sent down to the game
+typedef bool(*WindowTopLayerProcHandler)(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+
 class WindowHelper
 {
 public:
@@ -16,7 +21,7 @@ public:
 
 	void showWindow();
 
-	bool processSingleMessage(MSG& msg);
+	bool processSingleMessage(MSG& msg, WindowTopLayerProcHandler WindowTopLayerProcHandlerFuncPtr);
 
 	const WindowInputData& getInputData()
 	{

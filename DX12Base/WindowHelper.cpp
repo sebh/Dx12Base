@@ -268,7 +268,7 @@ void WindowHelper::processKeyMessage(MSG& msg)
 }
 
 
-bool WindowHelper::processSingleMessage(MSG& msg)
+bool WindowHelper::processSingleMessage(MSG& msg, WindowTopLayerProcHandler WindowTopLayerProcHandlerFuncPtr)
 {
 	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 	{
@@ -277,6 +277,9 @@ bool WindowHelper::processSingleMessage(MSG& msg)
 
 		// send the message to the WindowProc function
 		DispatchMessage(&msg);
+
+		if (WindowTopLayerProcHandlerFuncPtr && WindowTopLayerProcHandlerFuncPtr(msg.hwnd, msg.message, msg.wParam, msg.lParam))
+			return true;	// Event intercepted by a top layer
 
 		switch (msg.message)
 		{

@@ -6,6 +6,14 @@
 
 #include "WinImgui.h"
 
+
+bool ImguiTopLayerProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	ImGui_ImplWin32_WndProcHandler(hwnd, msg, wParam, lParam);
+	return ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse;
+}
+
+
 // the entry point for any Windows program
 int WINAPI WinMain(
 	HINSTANCE hInstance,
@@ -45,7 +53,7 @@ int WINAPI WinMain(
 	MSG msg = { 0 };
 	while (true)
 	{
-		if (win.processSingleMessage(msg))
+		if (win.processSingleMessage(msg, ImguiTopLayerProcHandler))
 		{
 			// A message has been processed
 
@@ -54,11 +62,6 @@ int WINAPI WinMain(
 
 			if (msg.message == WM_QUIT)
 				break; // time to quit
-
-#if D_ENABLE_IMGUI
-			if (ImGui_ImplWin32_WndProcHandler(msg.hwnd, msg.message, msg.wParam, msg.lParam))
-				continue;
-#endif
 
 			// Take into account window resize
 			if (msg.message == WM_SIZE && g_dx12Device != NULL && msg.wParam != SIZE_MINIMIZED)
