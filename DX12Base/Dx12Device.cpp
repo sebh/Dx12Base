@@ -1460,12 +1460,11 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 
 
 	// ROOT DESCRIPTORS
-	// Current layout layout for graphics and compute is
-	//  0 - 1 : 1 constant buffer		b0 only
-	//  2 - 3 : 1 descriptor table	
-	//									t0 - t15
-	//									u0 - u7
-	//	Static samplers are static
+	// Current DWORD layout for graphics and compute is
+	//  0 - 1 : root descriptor		constant buffer			b0 only
+	//  2 - 2 : descriptor table	SRV/UAV					t0 - t0 and u0 - u0
+	//
+	//	Static samplers aside
 
 	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
 	mRootSignatureDWordUsed = 0; // a DWORD is 4 bytes
