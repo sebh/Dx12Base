@@ -24,7 +24,6 @@
 
 // TODO: 
 //  - camera
-//  - math file
 //  - Proper upload handling in shared pool
 
 
