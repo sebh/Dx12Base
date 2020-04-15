@@ -31,7 +31,7 @@ private:
 	RenderBuffer* vertexBuffer;
 	RenderBuffer* indexBuffer;
 
-	size_t SphereIndexCount;
+	uint SphereIndexCount;
 	InputLayout* SphereVertexLayout;
 	RenderBuffer* SphereVertexBuffer;
 	RenderBuffer* SphereIndexBuffer;

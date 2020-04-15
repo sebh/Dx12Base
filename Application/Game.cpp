@@ -4,9 +4,6 @@
 #include "windows.h"
 #include "OBJ_Loader.h"
 
-#include "DirectXMath.h"
-using namespace DirectX;
-
 //#pragma optimize("", off)
 
 Game::Game()
@@ -96,7 +93,7 @@ void Game::initialise()
 		bool success = loader.LoadFile("./Resources/sphere.obj");
 		if (success && loader.LoadedMeshes.size() == 1)
 		{
-			SphereIndexCount = loader.LoadedIndices.size();
+			SphereIndexCount = (uint)loader.LoadedIndices.size();
 			SphereVertexBuffer = new RenderBuffer((UINT)loader.LoadedVertices.size(), sizeof(float) * 8, sizeof(float) * 8, DXGI_FORMAT_UNKNOWN, false, (void*)loader.LoadedVertices.data());
 			SphereIndexBuffer = new RenderBuffer(SphereIndexCount, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, (void*)loader.LoadedIndices.data());
 		}
@@ -295,16 +292,16 @@ void Game::render()
 		// Set constants
 		struct MeshConstantBuffer
 		{
-			XMMATRIX ViewProjectionMatrix;
+			float4x4 ViewProjectionMatrix;
 		};
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
 		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
 
-		FXMVECTOR eyePosition = { 30.0f, 30.0f, 30.0f, 1.0f }; // XMLoadFloat3(EyePosition);
-		FXMVECTOR focusPosition = { 0.0f, 0.0f, 0.0f, 1.0f };
-		FXMVECTOR upDirection = { 0.0f, 0.0f, 1.0f, 0.0f };	
-		XMMATRIX viewMatrix = XMMatrixLookAtLH(eyePosition, focusPosition, upDirection);
-		XMMATRIX projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
+		float4 eyePosition = { 30.0f, 30.0f, 30.0f, 1.0f };
+		float4 focusPosition = { 0.0f, 0.0f, 0.0f, 1.0f };
+		float4 upDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
+		float4x4 viewMatrix = XMMatrixLookAtLH(eyePosition, focusPosition, upDirection);
+		float4x4 projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
 		MeshCB->ViewProjectionMatrix = XMMatrixMultiply(viewMatrix, projMatrix);
 
 		// Set PSO and render targets

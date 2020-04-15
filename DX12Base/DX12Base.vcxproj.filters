@@ -37,6 +37,9 @@
     <ClInclude Include="..\DirectXTex\WICTextureLoader\WICTextureLoader12.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="Dx12Math.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
