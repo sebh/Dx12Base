@@ -3,6 +3,31 @@
 #include "Dx12Base/WindowInput.h"
 #include "Dx12Base/Dx12Device.h"
 
+struct ViewCamera
+{
+	ViewCamera();
+
+	// Source state
+	float4 mPos;
+	float mYaw;
+	float mPitch;
+
+	// Derived data from source state
+	float4 mLeft;
+	float4 mForward;
+	float4 mUp;
+
+	// Movement status
+	int mMoveForward;
+	int mMoveLeft;
+	int mMouseDx;
+	int mMouseDy;
+
+	void Update();
+
+	float4x4 GetViewMatrix() const;
+};
+
 class Game
 {
 public:
@@ -23,8 +48,12 @@ private:
 	/// release all shaders
 	void releaseShaders();
 	
-
-
+	ViewCamera View;
+	bool mInitialisedMouse = false;
+	int mLastMouseX = 0;
+	int mLastMouseY = 0;
+	int mMouseX = 0;
+	int mMouseY = 0;
 
 	InputLayout* layout;
 

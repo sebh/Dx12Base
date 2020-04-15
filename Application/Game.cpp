@@ -6,10 +6,59 @@
 
 //#pragma optimize("", off)
 
+ViewCamera::ViewCamera()
+{
+	mPos = XMVectorSet(30.0f, 30.0f, 30.0f, 1.0f);
+	mYaw = Pi + Pi / 4.0f;
+	mPitch = -Pi / 4.0f;
+	Update();
+
+	mMoveForward = 0;
+	mMoveLeft = 0;
+}
+
+void ViewCamera::Update()
+{
+	// Update orientation
+	mYaw += mMouseDx * 0.01f;
+	mPitch += Clamp(mMouseDy * -0.01f, -Pi*49.0f/100.0f, Pi*49.0f / 100.0f);
+
+	// Update local basis
+	const float CosPitch = cosf(mPitch);
+	mForward = XMVectorSet(cosf(mYaw) * CosPitch, sinf(mYaw) * CosPitch, sinf(mPitch), 0.0f);
+	mUp = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+	mLeft = XMVector3Cross(mForward, mUp);// Not checking degenerate case...
+	mLeft = XMVector3Normalize(mLeft);
+	mUp = XMVector3Cross(mLeft, mForward);
+	mUp = XMVector3Normalize(mUp);
+
+	// Update position
+	if (mMoveForward != 0.0f)
+	{
+		mPos += mForward * (mMoveForward > 0 ? 1.0f : -1.0f);
+	}
+	if (mMoveLeft != 0.0f)
+	{
+		mPos += mLeft * (mMoveLeft > 0 ? 1.0f : -1.0f);
+	}
+}
+
+float4x4 ViewCamera::GetViewMatrix() const
+{
+	return XMMatrixLookAtLH(mPos, mPos + mForward, mUp);
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 Game::Game()
 {
 }
-
 
 Game::~Game()
 {
@@ -168,10 +217,47 @@ void Game::shutdown()
 
 void Game::update(const WindowInputData& inputData)
 {
+	mLastMouseX = mMouseX;
+	mLastMouseY = mMouseY;
+
 	for (auto& event : inputData.mInputEvents)
 	{
 		// Process events
+
+		if (event.type == etMouseMoved)
+		{
+			if (!mInitialisedMouse)
+			{
+				mLastMouseX = mMouseX = event.mouseX;
+				mLastMouseY = mMouseY = event.mouseY;
+				mInitialisedMouse = true;
+			}
+			else
+			{
+				mMouseX = event.mouseX;
+				mMouseY = event.mouseY;
+			}
+		}
 	}
+
+	if (inputData.mInputStatus.mouseButtons[mbLeft])
+	{
+		View.mMouseDx = mMouseX - mLastMouseX;
+		View.mMouseDy = mMouseY - mLastMouseY;
+	}
+	else
+	{
+		View.mMouseDx = 0;
+		View.mMouseDy = 0;
+	}
+	View.mMoveForward = 0;
+	View.mMoveForward += inputData.mInputStatus.keys[kW] || inputData.mInputStatus.keys[kZ] ? 1 : 0;
+	View.mMoveForward -= inputData.mInputStatus.keys[kS] ? 1 : 0;
+	View.mMoveLeft = 0;
+	View.mMoveLeft += inputData.mInputStatus.keys[kQ] || inputData.mInputStatus.keys[kA] ? 1 : 0;
+	View.mMoveLeft -= inputData.mInputStatus.keys[kD] ? 1 : 0;
+	View.Update();
+
 
 	// Listen to CTRL+S for shader live update in a very simple fashion (from http://www.lofibucket.com/articles/64k_intro.html)
 	static ULONGLONG lastLoadTime = GetTickCount64();
@@ -297,12 +383,8 @@ void Game::render()
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
 		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
 
-		float4 eyePosition = { 30.0f, 30.0f, 30.0f, 1.0f };
-		float4 focusPosition = { 0.0f, 0.0f, 0.0f, 1.0f };
-		float4 upDirection = { 0.0f, 0.0f, 1.0f, 0.0f };
-		float4x4 viewMatrix = XMMatrixLookAtLH(eyePosition, focusPosition, upDirection);
 		float4x4 projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
-		MeshCB->ViewProjectionMatrix = XMMatrixMultiply(viewMatrix, projMatrix);
+		MeshCB->ViewProjectionMatrix = XMMatrixMultiply(View.GetViewMatrix(), projMatrix);
 
 		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;

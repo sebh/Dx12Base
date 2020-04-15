@@ -136,7 +136,7 @@ typedef std::vector<InputEvent> WindowInputEventList;
 struct WindowInputData
 {
 	WindowInputStatus mInputStatus;		/// status after all events in mInputEvents
-	WindowInputEventList mInputEvents;	/// every events that occured ince last update
+	WindowInputEventList mInputEvents;	/// every events that occured since last update
 
 	void init()
 	{

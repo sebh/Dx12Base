@@ -14,8 +14,10 @@ typedef int          sint;
 typedef short word;
 typedef uint dword;
 
+
+
 typedef XMMATRIX float4x4;
-typedef FXMVECTOR float4;
+typedef XMVECTOR float4;
 
 
 
