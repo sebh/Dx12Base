@@ -1,6 +1,10 @@
 
 
 
+#include "StaticSamplers.hlsl"
+
+
+
 struct MeshVertexInput
 {
 	float3 Position		: POSITION;

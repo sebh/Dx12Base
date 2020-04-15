@@ -1,6 +1,10 @@
 
 
 
+#include "StaticSamplers.hlsl"
+
+
+
 cbuffer MyBuffer : register(b0)
 {
 	float4 FloatVector;
@@ -31,16 +35,15 @@ VertexOutput ColorVertexShader(VertexInput input)
 
 //StructuredBuffer<float4> buffer : register(t0);
 Texture2D texture0 : register(t0);
-SamplerState sampler0 : register(s0);
 
 float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 {
-	return texture0.Sample(sampler0, float2(input.uv.x, 1.0f - input.uv.y));
+	return texture0.Sample(SamplerLinearClamp, float2(input.uv.x, 1.0f - input.uv.y));
 }
 
 float4 ToneMapPS(VertexOutput input) : SV_TARGET
 {
-	float4 RGBA = texture0.Sample(sampler0, input.uv);
+	float4 RGBA = texture0.Sample(SamplerPointClamp, input.uv);
 	return float4(pow(RGBA.rgb, 1.0f / 2.2f), RGBA.a);
 }
 
