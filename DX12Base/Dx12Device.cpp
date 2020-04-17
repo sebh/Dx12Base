@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "D3Dcompiler.h"
+#include "dxcapi.h"
 
 #include "d3dx12.h"
 #include <dxgi1_2.h>
@@ -23,6 +24,7 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
+//  - TODO: get rid of D3DCompiler, only use DXC
 //  - Proper upload handling in shared pool
 
 
@@ -300,6 +302,64 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mFrameGPUTimerSlotCount[i] = 0;
 		mFrameGPUTimerLevel[i] = 0;
 	}
+
+
+#if 0
+	// https://asawicki.info/news_1719_two_shader_compilers_of_direct3d_12
+	// https://posts.tanki.ninja/2019/07/11/Using-DXC-In-Practice/
+
+	CComPtr<IDxcLibrary> library;
+	hr = DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&library));
+	if (FAILED(hr))
+	{
+		OutputDebugStringA("\nERROR\n");
+	}
+
+	CComPtr<IDxcCompiler> compiler;
+	hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+	if (FAILED(hr))
+	{
+		OutputDebugStringA("\nERROR\n");
+	}
+
+	uint32_t codePage = CP_UTF8;
+	CComPtr<IDxcBlobEncoding> sourceBlob;
+	hr = library->CreateBlobFromFile(L"Resources\\RaytracingShaders.hlsl", &codePage, &sourceBlob);
+	if (FAILED(hr))
+	{
+		OutputDebugStringA("\nERROR\n");
+	}
+
+	CComPtr<IDxcOperationResult> result;
+	hr = compiler->Compile(
+		sourceBlob, // pSource
+		L"Resources\\RaytracingShaders.hlsl", // pSourceName
+		L"MyRaygenShader", // pEntryPoint
+//		L"PS_6_0", // pTargetProfile
+		L"lib_6_3", // pTargetProfile
+		NULL, 0, // pArguments, argCount
+		NULL, 0, // pDefines, defineCount
+		NULL, // pIncludeHandler
+		&result); // ppResult
+	if (SUCCEEDED(hr))
+		result->GetStatus(&hr);
+	if (FAILED(hr))
+	{
+		if (result)
+		{
+			CComPtr<IDxcBlobEncoding> errorsBlob;
+			hr = result->GetErrorBuffer(&errorsBlob);
+			if (SUCCEEDED(hr) && errorsBlob)
+			{
+				OutputDebugStringA("\nCompilation failed with errors ");
+				OutputDebugStringA((const char*)errorsBlob->GetBufferPointer());
+				OutputDebugStringA("\n");
+			}
+		}
+	}
+	CComPtr<IDxcBlob> code;
+	result->GetResult(&code);
+#endif
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()

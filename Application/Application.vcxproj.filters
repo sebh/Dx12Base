@@ -90,6 +90,9 @@
     <FxCompile Include="..\Resources\StaticSamplers.hlsl">
       <Filter>HLSL</Filter>
     </FxCompile>
+    <FxCompile Include="..\Resources\RaytracingShaders.hlsl">
+      <Filter>HLSL</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
