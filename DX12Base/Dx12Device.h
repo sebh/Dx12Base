@@ -65,6 +65,8 @@ public:
 
 	const RootSignature& GetDefaultGraphicRootSignature() const { return *mGfxRootSignature; }
 	const RootSignature& GetDefaultComputeRootSignature() const { return *mCptRootSignature; }
+	const RootSignature& GetDefaultRayTracingGlobalRootSignature() const { return *mRtGlobalRootSignature; }
+	const RootSignature& GetDefaultRayTracingLocalRootSignature() const { return *mRtLocalRootSignature; }
 
 	UINT getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
 	UINT getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
