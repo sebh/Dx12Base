@@ -2,6 +2,7 @@
 
 #include "Dx12Base/WindowInput.h"
 #include "Dx12Base/Dx12Device.h"
+#include "Dx12Base/Dx12RayTracing.h"
 
 struct ViewCamera
 {

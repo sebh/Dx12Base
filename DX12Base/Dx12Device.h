@@ -138,6 +138,8 @@ private:
 
 	RootSignature*								mGfxRootSignature;							// Graphics default root signature
 	RootSignature*								mCptRootSignature;							// Compute default root signature
+	RootSignature*								mRtGlobalRootSignature;						// Ray tracing global root signature
+	RootSignature*								mRtLocalRootSignature;						// Ray tracing local root signature
 
 	AllocatedResourceDecriptorHeap*				mAllocatedResourcesDecriptorHeapCPU;		// All loaded resources allocate UAV/SRV if required in this CPU heap.
 	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU;			// All dispatch and draw calls have their descriptors set in this CPU heap.
@@ -507,12 +509,18 @@ private:
 };
 
 
-
+enum RootSignatureType
+{
+	RootSignatureType_Global,
+	RootSignatureType_Global_IA,
+	RootSignatureType_Global_RT,
+	RootSignatureType_Local_RT
+};
 
 class RootSignature
 {
 public:
-	RootSignature(bool GraphicsWithInputAssembly);
+	RootSignature(RootSignatureType InRootSignatureType);
 	~RootSignature();
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 

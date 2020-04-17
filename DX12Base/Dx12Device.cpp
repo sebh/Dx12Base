@@ -264,10 +264,14 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	ATLASSERT(hr == S_OK);
 
 	// Create the default root signatures
-	mGfxRootSignature = new RootSignature(true);
+	mGfxRootSignature = new RootSignature(RootSignatureType_Global_IA);
 	mGfxRootSignature->setDebugName(L"DefaultGfxRootSignature");
-	mCptRootSignature = new RootSignature(false);
+	mCptRootSignature = new RootSignature(RootSignatureType_Global);
 	mCptRootSignature->setDebugName(L"DefaultCptRootSignature");
+	mRtGlobalRootSignature = new RootSignature(RootSignatureType_Global_RT);
+	mRtGlobalRootSignature->setDebugName(L"DefaultRtGlobalRootSignature");
+	mRtLocalRootSignature = new RootSignature(RootSignatureType_Local_RT);
+	mRtLocalRootSignature->setDebugName(L"DefaultRtLocalRootSignature");
 
 	const UINT AllocatedResourceDescriptorCount = 1024;
 	const UINT FrameDispatchDrawCallResourceDescriptorCount = 1024;
@@ -327,6 +331,8 @@ void Dx12Device::internalShutdown()
 
 	resetPtr(&mGfxRootSignature);
 	resetPtr(&mCptRootSignature);
+	resetPtr(&mRtGlobalRootSignature);
+	resetPtr(&mRtLocalRootSignature);
 
 	for (int i = 0; i < frameBufferCount; i++)
 	{
@@ -1444,7 +1450,7 @@ RenderTexture::~RenderTexture()
 
 
 
-RootSignature::RootSignature(bool GraphicsWithInputAssembly)
+RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 {
 	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signatures
 
@@ -1473,12 +1479,16 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	mTab0SRVCount = 1;
 	mTab0UAVCount = 1;
 
+	// Global root signature for ray tracing will use space 1 to not conflict with other local shader.
+	// Otherwise, RT and regular root signatures have the same footprint.
+	const UINT RegisterSpace = InRootSignatureType == RootSignatureType_Global_RT ? 1 : 0;
+
 	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
 	// We only allocate a slot a single constant buffer
 	D3D12_ROOT_PARAMETER paramCBV0;
 	paramCBV0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	paramCBV0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	paramCBV0.Descriptor.RegisterSpace = 0;
+	paramCBV0.Descriptor.RegisterSpace = RegisterSpace;
 	paramCBV0.Descriptor.ShaderRegister = 0;	// b0
 	rootParameters.push_back(paramCBV0);
 	mRootSignatureDWordUsed += 2;				// Root descriptor
@@ -1488,12 +1498,12 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	descriptorTable0Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	descriptorTable0Ranges[0].BaseShaderRegister = 0;
 	descriptorTable0Ranges[0].NumDescriptors = mTab0SRVCount;
-	descriptorTable0Ranges[0].RegisterSpace = 0;
+	descriptorTable0Ranges[0].RegisterSpace = RegisterSpace;
 	descriptorTable0Ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	descriptorTable0Ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 	descriptorTable0Ranges[1].BaseShaderRegister = 0;
 	descriptorTable0Ranges[1].NumDescriptors = mTab0UAVCount;
-	descriptorTable0Ranges[1].RegisterSpace = 0;
+	descriptorTable0Ranges[1].RegisterSpace = RegisterSpace;
 	descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable0;
@@ -1508,7 +1518,7 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	mRootSignatureDWordUsed += 1;				// Descriptor table
 
 	// Check bound correctness
-	ATLASSERT(mRootSignatureDWordUsed <= (GraphicsWithInputAssembly ? 63u : 64u));
+	ATLASSERT(mRootSignatureDWordUsed <= (InRootSignatureType == RootSignatureType_Global_IA ? 63u : 64u));
 
 	// Static samplers for simplicity (see StaticSamplers.hlsl)
 	std::vector<D3D12_STATIC_SAMPLER_DESC> rootSamplers;
@@ -1552,7 +1562,8 @@ RootSignature::RootSignature(bool GraphicsWithInputAssembly)
 	rootSignDesc.pParameters = rootParameters.data();
 	rootSignDesc.NumStaticSamplers = UINT(rootSamplers.size());
 	rootSignDesc.pStaticSamplers = rootSamplers.data();
-	rootSignDesc.Flags = GraphicsWithInputAssembly ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT : D3D12_ROOT_SIGNATURE_FLAG_NONE;
+	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Global_IA ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT	: D3D12_ROOT_SIGNATURE_FLAG_NONE;
+	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Local_RT	? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE				: rootSignDesc.Flags;
 
 	ID3DBlob* rootSignBlob;
 	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
