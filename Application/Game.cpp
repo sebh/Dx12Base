@@ -423,6 +423,11 @@ void Game::initialise()
 //	D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE;
 //	D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
+	// Have a simple way to write to local root signature. Refactor current solution for global root signature to be the same (CPU, copy to GPU, double buffered)
+	// Merge CBV into the SRV+UAV Table for a single Shader entry + DescriptorTable pointer per entry?
+	// Have a CommonMeshDraw that can be used for raster and rt? But then need ot make sure it works easily when multiple hitgroup can he used.
+	// Have the SBT be allocated as an uploadheap mapped each frame with resource written to once.
+
 //	D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = {};
 //	DispatchRayDesc.RayGenerationShaderRecord.StartAddress = shdrTable->GetGPUVirtualAddress();
 //	DispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = shaderRecordSize;
