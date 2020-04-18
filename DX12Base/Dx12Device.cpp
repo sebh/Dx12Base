@@ -4,9 +4,6 @@
 #include "Strsafe.h"
 #include <iostream>
 
-#include "D3Dcompiler.h"
-#include "dxcapi.h"
-
 #include "d3dx12.h"
 #include <dxgi1_2.h>
 #if DXDEBUG
@@ -96,6 +93,10 @@ void Dx12Device::EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags)
 void Dx12Device::internalInitialise(const HWND& hWnd)
 {
 	HRESULT hr;
+
+	//UUID experimentalFeatures[] = { D3D12ExperimentalShaderModels };
+	//hr = D3D12EnableExperimentalFeatures(1, experimentalFeatures, NULL, NULL);
+	//ATLASSERT(hr == S_OK);
 
 	//
 	// Search for a DX12 GPU device and create it 
@@ -303,63 +304,27 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mFrameGPUTimerLevel[i] = 0;
 	}
 
-
-#if 0
-	// https://asawicki.info/news_1719_two_shader_compilers_of_direct3d_12
-	// https://posts.tanki.ninja/2019/07/11/Using-DXC-In-Practice/
-
-	CComPtr<IDxcLibrary> library;
-	hr = DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&library));
+	hr = DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&mDxcLibrary));
 	if (FAILED(hr))
 	{
-		OutputDebugStringA("\nERROR\n");
+		OutputDebugStringA("\nERROR cannot create DxcLibrary\n");
+		ATLASSERT(hr == S_OK);
+		exit(-1);
 	}
-
-	CComPtr<IDxcCompiler> compiler;
-	hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
+	hr = DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&mDxcCompiler));
 	if (FAILED(hr))
 	{
-		OutputDebugStringA("\nERROR\n");
+		OutputDebugStringA("\nERROR cannot create DxcCompiler\n");
+		ATLASSERT(hr == S_OK);
+		exit(-1);
 	}
-
-	uint32_t codePage = CP_UTF8;
-	CComPtr<IDxcBlobEncoding> sourceBlob;
-	hr = library->CreateBlobFromFile(L"Resources\\RaytracingShaders.hlsl", &codePage, &sourceBlob);
+	hr = mDxcLibrary->CreateIncludeHandler(&mDxcIncludeHandler);
 	if (FAILED(hr))
 	{
-		OutputDebugStringA("\nERROR\n");
+		OutputDebugStringA("\nERROR cannot create DxcIncludeHandler\n");
+		ATLASSERT(hr == S_OK);
+		exit(-1);
 	}
-
-	CComPtr<IDxcOperationResult> result;
-	hr = compiler->Compile(
-		sourceBlob, // pSource
-		L"Resources\\RaytracingShaders.hlsl", // pSourceName
-		L"MyRaygenShader", // pEntryPoint
-//		L"PS_6_0", // pTargetProfile
-		L"lib_6_3", // pTargetProfile
-		NULL, 0, // pArguments, argCount
-		NULL, 0, // pDefines, defineCount
-		NULL, // pIncludeHandler
-		&result); // ppResult
-	if (SUCCEEDED(hr))
-		result->GetStatus(&hr);
-	if (FAILED(hr))
-	{
-		if (result)
-		{
-			CComPtr<IDxcBlobEncoding> errorsBlob;
-			hr = result->GetErrorBuffer(&errorsBlob);
-			if (SUCCEEDED(hr) && errorsBlob)
-			{
-				OutputDebugStringA("\nCompilation failed with errors ");
-				OutputDebugStringA((const char*)errorsBlob->GetBufferPointer());
-				OutputDebugStringA("\n");
-			}
-		}
-	}
-	CComPtr<IDxcBlob> code;
-	result->GetResult(&code);
-#endif
 }
 
 void Dx12Device::closeBufferedFramesBeforeShutdown()
@@ -420,6 +385,10 @@ void Dx12Device::internalShutdown()
 	resetComPtr(&mDxgiFactory);
 
 	resetComPtr(&mCommandQueue);
+
+	resetComPtr(&mDxcLibrary);
+	resetComPtr(&mDxcCompiler);
+	resetComPtr(&mDxcIncludeHandler);
 
 	resetComPtr(&mSwapchain);
 	resetComPtr(&mDev);
@@ -624,7 +593,7 @@ void InputLayout::appendSimpleVertexDataToInputLayout(const char* semanticName, 
 }
 
 
-ShaderBase::ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros* macros)
+ShaderBase::ShaderBase(const TCHAR* filename, const TCHAR* entryFunction, const TCHAR* profile, const Macros* macros)
 	: mShaderBytecode(nullptr)
 	, mFilename(filename)
 	, mProfile(profile)
@@ -640,76 +609,81 @@ ShaderBase::~ShaderBase()
 	resetComPtr(&mShaderBytecode);
 }
 
-bool ShaderBase::TryCompile(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros& mMacros, ID3DBlob** ShaderBytecode)
+bool ShaderBase::TryCompile(const TCHAR* filename, const TCHAR* entryFunction, const TCHAR* profile, const Macros& mMacros, IDxcBlob** ShaderBytecode)
 {
-	ID3DBlob * errorbuffer = NULL;
-	const UINT defaultFlags = 0;
-
 #define MAX_SHADER_MACRO 64
-	D3D_SHADER_MACRO shaderMacros[MAX_SHADER_MACRO];
-#if DXDEBUG
-	size_t MacrosCount = 1;
-	shaderMacros[0].Name = "D3DCOMPILE_DEBUG";
-	shaderMacros[0].Definition = "1";
-	shaderMacros[1].Name = NULL;
-	shaderMacros[1].Definition = NULL;
-#else
-	size_t MacrosCount = 1;
-	shaderMacros[0] = { NULL, NULL };	// in case there is no macros
-#endif
-
-	if (mMacros.size() > 0)
+	DxcDefine shaderMacros[MAX_SHADER_MACRO];
+	size_t MacrosCount = mMacros.size();
+	if (MacrosCount > MAX_SHADER_MACRO)
 	{
-		bool validMacroCount = (mMacros.size() + MacrosCount) <= MAX_SHADER_MACRO - 1;	// -1 to handle the null end of list macro
-		if (!validMacroCount)
-		{
-			OutputDebugStringA("\nNumber of macro is too high for shader ");
-			OutputDebugStringW(filename);
-			OutputDebugStringA("\n");
-		}
-		ATLENSURE(validMacroCount);
-
-		for (size_t m = 0; m < mMacros.size(); ++m)
-		{
-			const ShaderMacro& sm = mMacros.at(m);
-			shaderMacros[MacrosCount] = { sm.Name.c_str() , sm.Definition.c_str() };
-			MacrosCount++;
-		}
-		shaderMacros[MacrosCount] = { NULL, NULL };
-	}
-
-	HRESULT hr = D3DCompileFromFile(
-		filename,							// filename
-		shaderMacros,						// defines
-		D3D_COMPILE_STANDARD_FILE_INCLUDE,	// default include handler (includes relative to the compiled file)
-		entryFunction,						// function name
-		profile,							// target profile
-		defaultFlags,						// flag1
-		defaultFlags,						// flag2
-		ShaderBytecode,						// ouput
-		&errorbuffer);						// errors
-
-	if (FAILED(hr))
-	{
-		OutputDebugStringA("\n===> Failed to compile shader: function=");
-		OutputDebugStringA(entryFunction);
-		OutputDebugStringA(", profile=");
-		OutputDebugStringA(profile);
-		OutputDebugStringA(", file=");
+		OutputDebugStringA("\nMacro count is too high for shader ");
 		OutputDebugStringW(filename);
-		OutputDebugStringA(" :\n");
-
-		if (errorbuffer)
-		{
-			OutputDebugStringA((char*)errorbuffer->GetBufferPointer());
-			resetComPtr(&errorbuffer);
-		}
-
-		resetComPtr(ShaderBytecode);
-		OutputDebugStringA("\n\n");
+		OutputDebugStringA("\n");
 		return false;
 	}
+	for (size_t m = 0; m < MacrosCount; ++m)
+	{
+		const ShaderMacro& sm = mMacros.at(m);
+		shaderMacros[m] = { sm.Name.c_str() , sm.Definition.c_str() };
+	}
+
+	HRESULT hr;
+	uint32_t codePage = CP_UTF8;
+	CComPtr<IDxcBlobEncoding> sourceBlob;
+	hr = g_dx12Device->getDxcLibrary()->CreateBlobFromFile(filename, &codePage, &sourceBlob);
+	if (FAILED(hr))
+	{
+		OutputDebugStringA("\nERROR cannot create DxcLibrary BlobFromFile\n");
+		return false;
+	}
+
+#if DXDEBUG
+	// Options available here https://github.com/microsoft/DirectXShaderCompiler/blob/master/include/dxc/Support/HLSLOptions.h
+	LPCWSTR DxcArgs[2];
+	DxcArgs[0] = L"-Zi";	// Attach debug information
+	DxcArgs[1] = L"-Od";	// Disable optimizations
+	uint DxcArgCount = 2;
+#else
+	LPCWSTR DxcArgs[1] = { nullptr };
+	uint DxcArgCount = 0;
+#endif
+
+	CComPtr<IDxcOperationResult> result;
+	hr = g_dx12Device->getDxcCompiler()->Compile(
+		sourceBlob,								// pSource
+		filename,								// pSourceName
+		entryFunction,							// pEntryPoint
+		profile,								// pTargetProfile
+		DxcArgs, DxcArgCount,					// pArguments, argCount
+		shaderMacros, MacrosCount,				// pDefines, defineCount
+		g_dx12Device->getDxcIncludeHandler(),	// pIncludeHandler
+		&result);								// ppResult
+	if (SUCCEEDED(hr))
+	{
+		result->GetStatus(&hr);
+	}
+	if (FAILED(hr))
+	{
+		if (result)
+		{
+			CComPtr<IDxcBlobEncoding> errorsBlob;
+			hr = result->GetErrorBuffer(&errorsBlob);
+			if (SUCCEEDED(hr) && errorsBlob)
+			{
+				OutputDebugStringA("\nCompilation failed with errors ");
+				OutputDebugStringA((const char*)errorsBlob->GetBufferPointer());
+				OutputDebugStringA("\n");
+			}
+		}
+		return false;
+	}
+
+	result->GetResult(ShaderBytecode);
 	return true;
+
+	// Good posts about dxc
+	// https://asawicki.info/news_1719_two_shader_compilers_of_direct3d_12
+	// https://posts.tanki.ninja/2019/07/11/Using-DXC-In-Practice/
 }
 
 void ShaderBase::ReCompileIfNeeded()
@@ -717,7 +691,7 @@ void ShaderBase::ReCompileIfNeeded()
 	if (!mDirty)
 		return;
 
-	ID3DBlob* ShaderBytecode = nullptr;
+	IDxcBlob* ShaderBytecode = nullptr;
 	if (TryCompile(mFilename, mEntryFunction, mProfile, mMacros, &ShaderBytecode))
 	{
 		// We simply discard the previous bytecode for now. 
@@ -727,20 +701,20 @@ void ShaderBase::ReCompileIfNeeded()
 	}
 }
 
-VertexShader::VertexShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
-	: ShaderBase(filename, entryFunction, "vs_5_0", macros)
+VertexShader::VertexShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, L"vs_6_1", macros)
 {
 }
 VertexShader::~VertexShader() { }
 
-PixelShader::PixelShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
-	: ShaderBase(filename, entryFunction, "ps_5_0", macros)
+PixelShader::PixelShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, L"ps_6_1", macros)
 {
 }
 PixelShader::~PixelShader() { }
 
-ComputeShader::ComputeShader(const TCHAR* filename, const char* entryFunction, const Macros* macros)
-	: ShaderBase(filename, entryFunction, "cs_5_0", macros)
+ComputeShader::ComputeShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros)
+	: ShaderBase(filename, entryFunction, L"cs_6_1", macros)
 {
 }
 ComputeShader::~ComputeShader() { }
@@ -1833,9 +1807,9 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	PsoDesc.mPS->ReCompileIfNeeded();
 	ATLENSURE(PsoDesc.mVS->CompilationSuccessful());
 	ATLENSURE(PsoDesc.mPS->CompilationSuccessful());
-	const ID3DBlob* VSBlob = PsoDesc.mVS->GetShaderByte();
-	const ID3DBlob* PSBlob = PsoDesc.mPS->GetShaderByte();
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(ID3DBlob*));
+	const IDxcBlob* VSBlob = PsoDesc.mVS->GetShaderByte();
+	const IDxcBlob* PSBlob = PsoDesc.mPS->GetShaderByte();
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(IDxcBlob*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),						sizeof(PixelShader*));
 
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthStencilState),	sizeof(DepthStencilState*));
@@ -1872,7 +1846,7 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 
 	PsoDesc.mCS->ReCompileIfNeeded();
 	ATLENSURE(PsoDesc.mCS->CompilationSuccessful());
-	const ID3DBlob* CSBlob = PsoDesc.mCS->GetShaderByte();
+	const IDxcBlob* CSBlob = PsoDesc.mCS->GetShaderByte();
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&CSBlob), sizeof(ID3DBlob*));
 
 	CachedPSOs::iterator it = mCachedComputePSOs.find(psoKey);

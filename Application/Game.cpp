@@ -83,18 +83,18 @@ void Game::loadShaders(bool ReloadMode)
 			Shader = new ComputeShader(filename, entryFunction, &macros);
 
 	Macros MyMacros;
-	MyMacros.push_back({ "TESTSEB1", "1" });
-	MyMacros.push_back({ "TESTSEB2", "2" });
+	MyMacros.push_back({ L"TESTSEB1", L"1" });
+	MyMacros.push_back({ L"TESTSEB2", L"2" });
 
-	RELOADVS(MeshVertexShader, L"Resources\\MeshShader.hlsl", "MeshVertexShader", MyMacros);
-	RELOADPS(MeshPixelShader, L"Resources\\MeshShader.hlsl", "MeshPixelShader", MyMacros);
+	RELOADVS(MeshVertexShader, L"Resources\\MeshShader.hlsl", L"MeshVertexShader", MyMacros);
+	RELOADPS(MeshPixelShader, L"Resources\\MeshShader.hlsl", L"MeshPixelShader", MyMacros);
 
-	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", "ColorVertexShader", MyMacros);
-	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", "ColorPixelShader", MyMacros);
+	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", L"ColorVertexShader", MyMacros);
+	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", L"ColorPixelShader", MyMacros);
 
-	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", "ToneMapPS", MyMacros);
+	RELOADPS(ToneMapShaderPS, L"Resources\\TestShader.hlsl", L"ToneMapPS", MyMacros);
 
-	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", "MainComputeShader", MyMacros);
+	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", L"MainComputeShader", MyMacros);
 }
 
 void Game::releaseShaders()

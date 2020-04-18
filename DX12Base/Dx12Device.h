@@ -13,6 +13,7 @@
 #include <d3d12.h>
 #include "DXGI1_4.h"
 #include "D3D12SDKLayers.h"
+#include "dxcapi.h"
 
 #include "Dx12Math.h"
 
@@ -52,6 +53,10 @@ public:
 
 	ID3D12Device5*							getDevice() const { return mDev; }
 	IDXGISwapChain3*						getSwapChain() const { return mSwapchain; }
+
+	IDxcLibrary*							getDxcLibrary() const { return mDxcLibrary; }
+	IDxcCompiler*							getDxcCompiler() const { return mDxcCompiler; }
+	IDxcIncludeHandler*						getDxcIncludeHandler() const { return mDxcIncludeHandler; }
 
 	ID3D12Resource*							getBackBuffer() const { return mBackBuffeRtv[mFrameIndex]; }
 	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor() const;
@@ -127,6 +132,10 @@ private:
 	HANDLE										mFrameFenceEvent;							// a handle to an event when our fence is unlocked by the gpu
 	UINT64										mFrameFenceValue[frameBufferCount];			// Incremented each frame. each fence will have its own value
 
+
+	IDxcLibrary*								mDxcLibrary;
+	IDxcCompiler*								mDxcCompiler;
+	IDxcIncludeHandler*							mDxcIncludeHandler;
 
 
 	// GPU information
@@ -239,15 +248,15 @@ struct ShaderMacro
 {
 	// We use string here to own the memory.
 	// This is a requirement for delayed loading with non static shader parameter (created on stack or heap with unkown lifetime)
-	std::string Name;
-	std::string Definition;
+	std::wstring Name;
+	std::wstring Definition;
 };
 typedef std::vector<ShaderMacro> Macros; // D3D_SHADER_MACRO contains pointers to string so those string must be static as of today.
 
 class ShaderBase
 {
 public:
-	ShaderBase(const TCHAR* filename, const char* entryFunction, const char* profileStr, const Macros* macros = nullptr);
+	ShaderBase(const TCHAR* filename, const TCHAR* entryFunction, const TCHAR* profileStr, const Macros* macros = nullptr);
 	virtual ~ShaderBase();
 	LPVOID getShaderByteCode() const { return mShaderBytecode->GetBufferPointer(); }
 	SIZE_T getShaderByteCodeSize() const { return mShaderBytecode->GetBufferSize(); }
@@ -255,19 +264,19 @@ public:
 	void MarkDirty() { mDirty = true; }
 	void ReCompileIfNeeded();
 	bool CompilationSuccessful() const { return mShaderBytecode != nullptr; }
-	const ID3DBlob* GetShaderByte() const { return mShaderBytecode; };
+	const IDxcBlob* GetShaderByte() const { return mShaderBytecode; };
 
 protected:
 	const TCHAR* mFilename;
-	const char* mEntryFunction;
-	const char* mProfile;
+	const TCHAR* mEntryFunction;
+	const TCHAR* mProfile;
 
 	Macros mMacros;
 	bool mDirty;		// If dirty, needs to be recompiled
 
-	ID3DBlob* mShaderBytecode;
+	IDxcBlob* mShaderBytecode;
 
-	static bool TryCompile(const TCHAR* filename, const char* entryFunction, const char* profile, const Macros& mMacros, ID3DBlob** mShaderBytecode);
+	static bool TryCompile(const TCHAR* filename, const TCHAR* entryFunction, const TCHAR* profile, const Macros& mMacros, IDxcBlob** mShaderBytecode);
 
 private:
 	ShaderBase();
@@ -277,21 +286,21 @@ private:
 class VertexShader : public ShaderBase
 {
 public:
-	VertexShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
+	VertexShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros);
 	virtual ~VertexShader();
 };
 
 class PixelShader : public ShaderBase
 {
 public:
-	PixelShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
+	PixelShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros);
 	virtual ~PixelShader();
 };
 
 class ComputeShader : public ShaderBase
 {
 public:
-	ComputeShader(const TCHAR* filename, const char* entryFunction, const Macros* macros);
+	ComputeShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros);
 	virtual ~ComputeShader();
 };
 
