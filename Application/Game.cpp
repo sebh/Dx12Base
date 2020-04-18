@@ -412,6 +412,40 @@ void Game::initialise()
 	desc.ScratchAccelerationStructureData = tlasScratch->getGPUVirtualAddress();
 	desc.DestAccelerationStructureData = tlasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+
+
+	////////// Create the ShaderBindingTable
+	// Each entry must be aligned to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
+	// Each shader table (RG, M, HG) must be aligned on D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT
+//	Local root signature are limited to D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE - D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES => 4096-32 = 4064
+//	D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT;
+//	D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
+//	D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE;
+//	D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+
+//	D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = {};
+//	DispatchRayDesc.RayGenerationShaderRecord.StartAddress = shdrTable->GetGPUVirtualAddress();
+//	DispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = shaderRecordSize;
+//
+//	uint32_t missOffset = DispatchRayDesc.RayGenerationShaderRecord.SizeInBytes;
+//	DispatchRayDesc.MissShaderTable.StartAddress = shdrTable->GetGPUVirtualAddress() + missOffset;
+//	DispatchRayDesc.MissShaderTable.SizeInBytes = shaderRecordSize;
+//	DispatchRayDesc.MissShaderTable.StrideInBytes = shaderRecordSize;
+//
+//	uint32_t hitOffset = missOffset + DispatchRayDesc.MissShaderTable.SizeInBytes;
+//	DispatchRayDesc.HitGroupTable.StartAddress = shdrTable->GetGPUVirtualAddress() + hitOffset;
+//	DispatchRayDesc.HitGroupTable.SizeInBytes = shaderRecordSize;
+//	DispatchRayDesc.HitGroupTable.StrideInBytes = shaderRecordSize;
+//
+//	DispatchRayDesc.Width = 256;
+//	DispatchRayDesc.Height = 256;
+//	DispatchRayDesc.Depth = 1;
+
+//	g_dx12Device->getFrameCommandList()->SetComputeRootSignature to set the global root signature
+
+//	g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateObject);
+//	g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
+
 #endif
 
 }
