@@ -1700,10 +1700,10 @@ PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 
 	psoDesc.pRootSignature = PSODesc.mRootSign->getRootsignature();
 	psoDesc.InputLayout = *PSODesc.mLayout->getLayoutDesc();
-	psoDesc.VS.BytecodeLength = PSODesc.mVS->getShaderByteCodeSize();
-	psoDesc.VS.pShaderBytecode = PSODesc.mVS->getShaderByteCode();
-	psoDesc.PS.BytecodeLength = PSODesc.mPS->getShaderByteCodeSize();
-	psoDesc.PS.pShaderBytecode = PSODesc.mPS->getShaderByteCode();
+	psoDesc.VS.BytecodeLength = PSODesc.mVS->GetShaderByteCodeSize();
+	psoDesc.VS.pShaderBytecode = PSODesc.mVS->GetShaderByteCode();
+	psoDesc.PS.BytecodeLength = PSODesc.mPS->GetShaderByteCodeSize();
+	psoDesc.PS.pShaderBytecode = PSODesc.mPS->GetShaderByteCode();
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	for (UINT32 i = 0; i < PSODesc.mRenderTargetCount; ++i)
@@ -1729,8 +1729,8 @@ PipelineStateObject::PipelineStateObject(const CachedComputePsoDesc& PSODesc)
 	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
 
 	psoDesc.pRootSignature = PSODesc.mRootSign->getRootsignature();
-	psoDesc.CS.BytecodeLength = PSODesc.mCS->getShaderByteCodeSize();
-	psoDesc.CS.pShaderBytecode = PSODesc.mCS->getShaderByteCode();
+	psoDesc.CS.BytecodeLength = PSODesc.mCS->GetShaderByteCodeSize();
+	psoDesc.CS.pShaderBytecode = PSODesc.mCS->GetShaderByteCode();
 
 	HRESULT hr = dev->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mPso));
 	ATLENSURE(hr == S_OK);
@@ -1807,8 +1807,8 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	PsoDesc.mPS->ReCompileIfNeeded();
 	ATLENSURE(PsoDesc.mVS->CompilationSuccessful());
 	ATLENSURE(PsoDesc.mPS->CompilationSuccessful());
-	const IDxcBlob* VSBlob = PsoDesc.mVS->GetShaderByte();
-	const IDxcBlob* PSBlob = PsoDesc.mPS->GetShaderByte();
+	const IDxcBlob* VSBlob = PsoDesc.mVS->GetShaderByteBlob();
+	const IDxcBlob* PSBlob = PsoDesc.mPS->GetShaderByteBlob();
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(IDxcBlob*));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),						sizeof(PixelShader*));
 
@@ -1846,7 +1846,7 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedComputePso
 
 	PsoDesc.mCS->ReCompileIfNeeded();
 	ATLENSURE(PsoDesc.mCS->CompilationSuccessful());
-	const IDxcBlob* CSBlob = PsoDesc.mCS->GetShaderByte();
+	const IDxcBlob* CSBlob = PsoDesc.mCS->GetShaderByteBlob();
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&CSBlob), sizeof(ID3DBlob*));
 
 	CachedPSOs::iterator it = mCachedComputePSOs.find(psoKey);

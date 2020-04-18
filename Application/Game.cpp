@@ -194,7 +194,7 @@ void Game::initialise()
 	}
 
 
-#if 0
+#if 1
 
 	ID3D12Device5* dev = g_dx12Device->getDevice();
 	ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
@@ -203,59 +203,89 @@ void Game::initialise()
 	// Good examples
 	//		- https://github.com/microsoft/DirectX-Graphics-Samples/blob/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingHelloWorld/D3D12RaytracingHelloWorld.cpp
 	//		- https://developer.nvidia.com/rtx/raytracing/dxr/DX12-Raytracing-tutorial/dxr_tutorial_helpers
+	//		- https://link.springer.com/content/pdf/10.1007%2F978-1-4842-4427-2_3.pdf
 	const wchar_t* hitGroupName = L"MyHitGroup";
 	const wchar_t* raygenShaderName = L"MyRaygenShader";
 	const wchar_t* closestHitShaderName = L"MyClosestHitShader";
 	const wchar_t* missShaderName = L"MyMissShader";
 
-	std::vector<D3D12_STATE_SUBOBJECT> StateObjects;
-	StateObjects.resize(5);
+	RayGenerationShader* RGShader = new RayGenerationShader(L"Resources\\RaytracingShaders.hlsl", raygenShaderName, nullptr);
+	ClosestHitShader* CHShader = new ClosestHitShader(L"Resources\\RaytracingShaders.hlsl", closestHitShaderName, nullptr);
+	MissShader* MShader = new MissShader(L"Resources\\RaytracingShaders.hlsl", missShaderName, nullptr);
 
-	D3D12_DXIL_LIBRARY_DESC LibraryDesc;
-	D3D12_EXPORT_DESC DxilExportsDesc[3];
-	DxilExportsDesc[0].Name = raygenShaderName;
-	DxilExportsDesc[1].Name = closestHitShaderName;
-	DxilExportsDesc[2].Name = missShaderName;
-	LibraryDesc.NumExports = 3;	// --0 means export everything so always do that for now if simpler?
-	LibraryDesc.pExports = DxilExportsDesc;
-	LibraryDesc.DXILLibrary.pShaderBytecode = nullptr;		// TODO
-	LibraryDesc.DXILLibrary.BytecodeLength = 1234;			// TODO
-	D3D12_STATE_SUBOBJECT& SubObjectLibrary = StateObjects.at(0);
-	SubObjectLibrary.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
-	SubObjectLibrary.pDesc = &LibraryDesc;
+	std::vector<D3D12_STATE_SUBOBJECT> StateObjects;
+	StateObjects.resize(7);
+
+	D3D12_EXPORT_DESC DxilExportsRGSDesc[1];
+	DxilExportsRGSDesc[0].Name = L"UniqueExport_CHS";
+	DxilExportsRGSDesc[0].ExportToRename = raygenShaderName;
+	DxilExportsRGSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
+	D3D12_DXIL_LIBRARY_DESC LibraryRDGDesc;
+	LibraryRDGDesc.NumExports = 1;
+	LibraryRDGDesc.pExports = DxilExportsRGSDesc;
+	LibraryRDGDesc.DXILLibrary.pShaderBytecode = RGShader->GetShaderByteCode();
+	LibraryRDGDesc.DXILLibrary.BytecodeLength = RGShader->GetShaderByteCodeSize();
+	D3D12_STATE_SUBOBJECT& SubObjectRDGLibrary = StateObjects.at(0);
+	SubObjectRDGLibrary.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+	SubObjectRDGLibrary.pDesc = &LibraryRDGDesc;
+
+	D3D12_EXPORT_DESC DxilExportsCHSDesc[1];
+	DxilExportsCHSDesc[0].Name = L"UniqueExport_RGS";
+	DxilExportsCHSDesc[0].ExportToRename = closestHitShaderName;
+	DxilExportsCHSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
+	D3D12_DXIL_LIBRARY_DESC LibraryCHSDesc;
+	LibraryCHSDesc.NumExports = 1;
+	LibraryCHSDesc.pExports = DxilExportsCHSDesc;
+	LibraryCHSDesc.DXILLibrary.pShaderBytecode = CHShader->GetShaderByteCode();
+	LibraryCHSDesc.DXILLibrary.BytecodeLength = CHShader->GetShaderByteCodeSize();
+	D3D12_STATE_SUBOBJECT& SubObjectCHSLibrary = StateObjects.at(1);
+	SubObjectCHSLibrary.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+	SubObjectCHSLibrary.pDesc = &LibraryCHSDesc;
+
+	D3D12_EXPORT_DESC DxilExportsMSDesc[1];
+	DxilExportsMSDesc[0].Name = L"UniqueExport_MS";
+	DxilExportsMSDesc[0].ExportToRename = missShaderName;
+	DxilExportsMSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
+	D3D12_DXIL_LIBRARY_DESC LibraryMSDesc;
+	LibraryMSDesc.NumExports = 1;
+	LibraryMSDesc.pExports = DxilExportsMSDesc;
+	LibraryMSDesc.DXILLibrary.pShaderBytecode = MShader->GetShaderByteCode();
+	LibraryMSDesc.DXILLibrary.BytecodeLength = MShader->GetShaderByteCodeSize();
+	D3D12_STATE_SUBOBJECT& SubObjectMSLibrary = StateObjects.at(2);
+	SubObjectMSLibrary.Type = D3D12_STATE_SUBOBJECT_TYPE_DXIL_LIBRARY;
+	SubObjectMSLibrary.pDesc = &LibraryMSDesc;
 
 	D3D12_HIT_GROUP_DESC HitGroupDesc;
-	HitGroupDesc.ClosestHitShaderImport = closestHitShaderName;
-	HitGroupDesc.HitGroupExport = hitGroupName;
+	HitGroupDesc.ClosestHitShaderImport = L"UniqueExport_CHS";
+	HitGroupDesc.HitGroupExport = L"UniqueExport_HG";
 	HitGroupDesc.AnyHitShaderImport = nullptr;
 	HitGroupDesc.IntersectionShaderImport = nullptr;
 	HitGroupDesc.Type = D3D12_HIT_GROUP_TYPE_TRIANGLES;
-	D3D12_STATE_SUBOBJECT& SubObjectHitGroup = StateObjects.at(1);
+	D3D12_STATE_SUBOBJECT& SubObjectHitGroup = StateObjects.at(3);
 	SubObjectHitGroup.Type = D3D12_STATE_SUBOBJECT_TYPE_HIT_GROUP;
 	SubObjectHitGroup.pDesc = &HitGroupDesc;
 
 	D3D12_RAYTRACING_SHADER_CONFIG RtShaderConfig;
 	RtShaderConfig.MaxAttributeSizeInBytes = 32;
 	RtShaderConfig.MaxPayloadSizeInBytes = 32;
-	D3D12_STATE_SUBOBJECT& SubObjectRtShaderConfig = StateObjects.at(2);
+	D3D12_STATE_SUBOBJECT& SubObjectRtShaderConfig = StateObjects.at(4);
 	SubObjectRtShaderConfig.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
 	SubObjectRtShaderConfig.pDesc = &RtShaderConfig;
 
 	D3D12_RAYTRACING_PIPELINE_CONFIG RtPipelineConfig;
 	RtPipelineConfig.MaxTraceRecursionDepth = 1;
-	D3D12_STATE_SUBOBJECT& SubObjectRtPipelineConfig = StateObjects.at(3);
+	D3D12_STATE_SUBOBJECT& SubObjectRtPipelineConfig = StateObjects.at(5);
 	SubObjectRtPipelineConfig.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
 	SubObjectRtPipelineConfig.pDesc = &RtPipelineConfig;
 
 	D3D12_GLOBAL_ROOT_SIGNATURE GlobalRootSignature;
 	GlobalRootSignature.pGlobalRootSignature = g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature();
-	D3D12_STATE_SUBOBJECT& SubObjectGlobalRootSignature = StateObjects.at(4);
+	D3D12_STATE_SUBOBJECT& SubObjectGlobalRootSignature = StateObjects.at(6);
 	SubObjectGlobalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 	SubObjectGlobalRootSignature.pDesc = &GlobalRootSignature;
 
 	// TODO  optionally set the local root signature: LOCAL_ROOT_SIGNATURE_SUBOBJECT
 	// TODO  optionally associate a shader with a local root signature: SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT
-
 
 	D3D12_STATE_OBJECT_DESC StateObjectDesc;
 	StateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;

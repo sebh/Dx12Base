@@ -258,13 +258,14 @@ class ShaderBase
 public:
 	ShaderBase(const TCHAR* filename, const TCHAR* entryFunction, const TCHAR* profileStr, const Macros* macros = nullptr);
 	virtual ~ShaderBase();
-	LPVOID getShaderByteCode() const { return mShaderBytecode->GetBufferPointer(); }
-	SIZE_T getShaderByteCodeSize() const { return mShaderBytecode->GetBufferSize(); }
+
+	const LPVOID GetShaderByteCode() const { return mShaderBytecode->GetBufferPointer(); }
+	SIZE_T GetShaderByteCodeSize() const { return mShaderBytecode->GetBufferSize(); }
+	const IDxcBlob* GetShaderByteBlob() const { return mShaderBytecode; };
 
 	void MarkDirty() { mDirty = true; }
 	void ReCompileIfNeeded();
 	bool CompilationSuccessful() const { return mShaderBytecode != nullptr; }
-	const IDxcBlob* GetShaderByte() const { return mShaderBytecode; };
 
 protected:
 	const TCHAR* mFilename;

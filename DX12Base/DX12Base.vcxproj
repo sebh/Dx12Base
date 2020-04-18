@@ -168,6 +168,7 @@
   <ItemGroup>
     <ClCompile Include="..\DirectXTex\WICTextureLoader\WICTextureLoader12.cpp" />
     <ClCompile Include="Dx12Device.cpp" />
+    <ClCompile Include="Dx12RayTracing.cpp" />
     <ClCompile Include="WindowHelper.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -175,6 +176,7 @@
     <ClInclude Include="d3dx12.h" />
     <ClInclude Include="Dx12Device.h" />
     <ClInclude Include="Dx12Math.h" />
+    <ClInclude Include="Dx12RayTracing.h" />
     <ClInclude Include="WindowHelper.h" />
     <ClInclude Include="WindowInput.h" />
   </ItemGroup>
