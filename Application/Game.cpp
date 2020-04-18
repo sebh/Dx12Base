@@ -214,10 +214,10 @@ void Game::initialise()
 	MissShader* MShader = new MissShader(L"Resources\\RaytracingShaders.hlsl", missShaderName, nullptr);
 
 	std::vector<D3D12_STATE_SUBOBJECT> StateObjects;
-	StateObjects.resize(7);
+	StateObjects.resize(8);
 
 	D3D12_EXPORT_DESC DxilExportsRGSDesc[1];
-	DxilExportsRGSDesc[0].Name = L"UniqueExport_CHS";
+	DxilExportsRGSDesc[0].Name = L"UniqueExport_RGS";
 	DxilExportsRGSDesc[0].ExportToRename = raygenShaderName;
 	DxilExportsRGSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
 	D3D12_DXIL_LIBRARY_DESC LibraryRDGDesc;
@@ -230,7 +230,7 @@ void Game::initialise()
 	SubObjectRDGLibrary.pDesc = &LibraryRDGDesc;
 
 	D3D12_EXPORT_DESC DxilExportsCHSDesc[1];
-	DxilExportsCHSDesc[0].Name = L"UniqueExport_RGS";
+	DxilExportsCHSDesc[0].Name = L"UniqueExport_CHS";
 	DxilExportsCHSDesc[0].ExportToRename = closestHitShaderName;
 	DxilExportsCHSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
 	D3D12_DXIL_LIBRARY_DESC LibraryCHSDesc;
@@ -272,20 +272,44 @@ void Game::initialise()
 	SubObjectRtShaderConfig.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_SHADER_CONFIG;
 	SubObjectRtShaderConfig.pDesc = &RtShaderConfig;
 
+	// Associate shader and hit group to a ray tracing shader config
+	const WCHAR* ShaderPayloadExports[] = { L"UniqueExport_RGS", L"UniqueExport_MS" , L"UniqueExport_HG" };
+	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION AssociationShaderConfigDesc;
+	AssociationShaderConfigDesc.NumExports = _countof(ShaderPayloadExports);
+	AssociationShaderConfigDesc.pExports = ShaderPayloadExports;
+	AssociationShaderConfigDesc.pSubobjectToAssociate = &SubObjectRtShaderConfig; // This needs to be the payload definition
+	D3D12_STATE_SUBOBJECT& SubObjectAssociationShaderConfigDesc = StateObjects.at(5);
+	SubObjectAssociationShaderConfigDesc.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	SubObjectAssociationShaderConfigDesc.pDesc = &AssociationShaderConfigDesc;
+
 	D3D12_RAYTRACING_PIPELINE_CONFIG RtPipelineConfig;
 	RtPipelineConfig.MaxTraceRecursionDepth = 1;
-	D3D12_STATE_SUBOBJECT& SubObjectRtPipelineConfig = StateObjects.at(5);
+	D3D12_STATE_SUBOBJECT& SubObjectRtPipelineConfig = StateObjects.at(6);
 	SubObjectRtPipelineConfig.Type = D3D12_STATE_SUBOBJECT_TYPE_RAYTRACING_PIPELINE_CONFIG;
 	SubObjectRtPipelineConfig.pDesc = &RtPipelineConfig;
 
 	D3D12_GLOBAL_ROOT_SIGNATURE GlobalRootSignature;
 	GlobalRootSignature.pGlobalRootSignature = g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature();
-	D3D12_STATE_SUBOBJECT& SubObjectGlobalRootSignature = StateObjects.at(6);
+	D3D12_STATE_SUBOBJECT& SubObjectGlobalRootSignature = StateObjects.at(7);
 	SubObjectGlobalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 	SubObjectGlobalRootSignature.pDesc = &GlobalRootSignature;
 
 	// TODO  optionally set the local root signature: LOCAL_ROOT_SIGNATURE_SUBOBJECT
-	// TODO  optionally associate a shader with a local root signature: SUBOBJECT_TO_EXPORTS_ASSOCIATION_SUBOBJECT
+	//D3D12_LOCAL_ROOT_SIGNATURE LocalRootSignature;
+	//LocalRootSignature.pLocalRootSignature = g_dx12Device->GetDefaultRayTracingLocalRootSignature().getRootsignature();
+	//D3D12_STATE_SUBOBJECT& SubObjectLocalRootSignature = StateObjects.at(X);
+	//SubObjectLocalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
+	//SubObjectLocalRootSignature.pDesc = &LocalRootSignature;
+
+	// TODO if a local root signature is used, we should assiciate shader with it
+	//const WCHAR* ShaderLocalRootSignatureExports[] = { L"UniqueExport_RGS", L"UniqueExport_MS", L"UniqueExport_HG" };
+	//D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION AssociationLocalRootSignatureDesc = {};
+	//AssociationLocalRootSignatureDesc.NumExports = _countof(ShaderLocalRootSignatureExports);
+	//AssociationLocalRootSignatureDesc.pExports = ShaderLocalRootSignatureExports;
+	//AssociationLocalRootSignatureDesc.pSubobjectToAssociate = &SubObjectLocalRootSignature;
+	//D3D12_STATE_SUBOBJECT& SubObjectAssociationLocalRootSignatureDesc = StateObjects.at(X);
+	//SubObjectAssociationLocalRootSignatureDesc.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	//SubObjectAssociationLocalRootSignatureDesc.pDesc = &AssociationLocalRootSignatureDesc;
 
 	D3D12_STATE_OBJECT_DESC StateObjectDesc;
 	StateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
