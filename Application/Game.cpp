@@ -6,6 +6,15 @@
 
 //#pragma optimize("", off)
 
+
+ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
+
+RenderBuffer* blasScratch;
+RenderBuffer* blasResult;
+RenderBuffer* tlasScratch;
+RenderBuffer* tlasResult;
+RenderBuffer* tlasInstanceBuffer;
+
 ViewCamera::ViewCamera()
 {
 	mPos = XMVectorSet(30.0f, 30.0f, 30.0f, 1.0f);
@@ -137,13 +146,17 @@ void Game::initialise()
 	indexBuffer = new RenderBuffer(3, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
+	const uint SphereVertexStride = sizeof(float) * 8;
+	SphereVertexCount = 0;
+	SphereIndexCount = 0;
 	{
 		objl::Loader loader;
 		bool success = loader.LoadFile("./Resources/sphere.obj");
 		if (success && loader.LoadedMeshes.size() == 1)
 		{
+			SphereVertexCount = (uint)loader.LoadedVertices.size();
 			SphereIndexCount = (uint)loader.LoadedIndices.size();
-			SphereVertexBuffer = new RenderBuffer((UINT)loader.LoadedVertices.size(), sizeof(float) * 8, sizeof(float) * 8, DXGI_FORMAT_UNKNOWN, false, (void*)loader.LoadedVertices.data());
+			SphereVertexBuffer = new RenderBuffer(SphereVertexCount, SphereVertexStride, SphereVertexStride, DXGI_FORMAT_UNKNOWN, false, (void*)loader.LoadedVertices.data());
 			SphereIndexBuffer = new RenderBuffer(SphereIndexCount, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, (void*)loader.LoadedIndices.data());
 		}
 		else
@@ -197,7 +210,6 @@ void Game::initialise()
 #if 1
 
 	ID3D12Device5* dev = g_dx12Device->getDevice();
-	ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
 
 	// All sub object types https://docs.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_state_subobject_type
 	// Good examples
@@ -316,7 +328,90 @@ void Game::initialise()
 	StateObjectDesc.pSubobjects = StateObjects.data();
 	StateObjectDesc.NumSubobjects = (UINT)StateObjects.size();
 	dev->CreateStateObject(&StateObjectDesc, IID_PPV_ARGS(&mRayTracingPipelineStateObject));
+	// TODO mRayTracingPipelineStateObject->setDebugName(L"TriangleVertexBuffer");
 
+
+	//////////
+	//////////
+	//////////
+
+	// Transition buffer to state required to build AS
+	SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+	//
+	D3D12_RAYTRACING_GEOMETRY_DESC geometry;
+	geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+	geometry.Triangles.VertexBuffer.StartAddress = SphereVertexBuffer->getGPUVirtualAddress();
+	geometry.Triangles.VertexBuffer.StrideInBytes = SphereVertexStride;
+	geometry.Triangles.VertexCount = SphereVertexCount;
+	geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT; 
+	geometry.Triangles.IndexBuffer = SphereIndexBuffer->getGPUVirtualAddress(); 
+	geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+	geometry.Triangles.IndexCount = SphereIndexCount; 
+	geometry.Triangles.Transform3x4 = 0; 
+	geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS ASInputs = {}; 
+	ASInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL; 
+	ASInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY; 
+	ASInputs.pGeometryDescs = &geometry; 
+	ASInputs.NumDescs = 1;
+	ASInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+	// Get the memory requirements to build the BLAS.
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
+	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
+
+
+	blasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	blasScratch->setDebugName(L"blasScratch");
+	blasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	blasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
+	blasResult->setDebugName(L"blasResult");
+
+	// Create the bottom-level acceleration structure
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
+	desc.Inputs = ASInputs;
+	desc.ScratchAccelerationStructureData = blasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = blasResult->getGPUVirtualAddress();
+	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+
+	// Create the top-level acceleration structure
+	D3D12_RAYTRACING_INSTANCE_DESC instances = {};
+	instances.InstanceID = 0;
+	instances.InstanceContributionToHitGroupIndex = 0;
+	instances.InstanceMask = 0xFF;
+	instances.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+	instances.AccelerationStructure = blasResult->getGPUVirtualAddress();
+
+	const XMMATRIX Identity = XMMatrixIdentity();
+	memcpy(instances.Transform, &Identity, sizeof(instances.Transform));
+
+
+	tlasInstanceBuffer = new RenderBuffer(sizeof(instances), 1, 0, DXGI_FORMAT_R8_UINT, false, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+
+
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
+	TSInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+	TSInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	TSInputs.InstanceDescs = tlasInstanceBuffer->getGPUVirtualAddress();
+	TSInputs.NumDescs = 1;
+	TSInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+	dev->GetRaytracingAccelerationStructurePrebuildInfo(&TSInputs, &ASBuildInfo);
+
+
+
+	tlasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	tlasScratch->setDebugName(L"blasScratch");
+	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	tlasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
+	tlasResult->setDebugName(L"blasResult");
+
+
+	desc.Inputs = TSInputs;
+	desc.ScratchAccelerationStructureData = tlasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = tlasResult->getGPUVirtualAddress();
+	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
 #endif
 
 }
@@ -324,6 +419,18 @@ void Game::initialise()
 void Game::shutdown()
 {
 	////////// Release resources
+
+	// TODO clean up
+	{
+		delete blasScratch;
+		delete blasResult;
+		resetComPtr(&mRayTracingPipelineStateObject);
+		delete tlasScratch;
+		delete tlasResult;
+		delete tlasInstanceBuffer;
+	}
+
+
 
 	delete layout;
 	delete vertexBuffer;

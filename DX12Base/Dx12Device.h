@@ -62,7 +62,7 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor() const;
 
 	// The single command list per frame since we do not prepare command in parallel yet
-	ID3D12GraphicsCommandList* getFrameCommandList() const { return mCommandList[0]; }
+	ID3D12GraphicsCommandList4* getFrameCommandList() const { return mCommandList[0]; }
 
 	void beginFrame();
 	void endFrameAndSwap(bool vsyncEnabled);
@@ -464,7 +464,13 @@ private:
 };
 
 
-
+enum RenderBufferType
+{
+	RenderBufferType_Default,
+	RenderBufferType_Upload,
+	RenderBufferType_Readback,
+	RenderBufferType_RayTracingAS,
+};
 
 class RenderBuffer : public RenderResource
 {
@@ -479,7 +485,7 @@ public:
 	 *			RenderBuffer* TestStructuredBuffer = new RenderBuffer(64, sizeof(MyStruct), sizeof(MyStruct), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	 */
 	RenderBuffer(UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride=0, DXGI_FORMAT Format = DXGI_FORMAT_UNKNOWN, bool IsRaw = false,
-		void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE HeapType = D3D12_HEAP_TYPE_DEFAULT);
+		void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~RenderBuffer();
 
 	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);

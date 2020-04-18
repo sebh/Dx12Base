@@ -298,7 +298,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mFrameTimeStampQueryHeaps[i]));
-		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(GPUTimerMaxCount * 2, sizeof(UINT64), sizeof(UINT64), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_NONE, D3D12_HEAP_TYPE_READBACK);
+		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(GPUTimerMaxCount * 2, sizeof(UINT64), sizeof(UINT64), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Readback);
 		mFrameTimeStampCount[i] = 0;
 		mFrameGPUTimerSlotCount[i] = 0;
 		mFrameGPUTimerLevel[i] = 0;
@@ -613,7 +613,7 @@ bool ShaderBase::TryCompile(const TCHAR* filename, const TCHAR* entryFunction, c
 {
 #define MAX_SHADER_MACRO 64
 	DxcDefine shaderMacros[MAX_SHADER_MACRO];
-	size_t MacrosCount = mMacros.size();
+	uint MacrosCount = (uint)mMacros.size();
 	if (MacrosCount > MAX_SHADER_MACRO)
 	{
 		OutputDebugStringA("\nMacro count is too high for shader ");
@@ -988,7 +988,7 @@ void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
 
 RenderBuffer::RenderBuffer(
 	UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride, DXGI_FORMAT Format, bool IsRaw, 
-	void* initData, D3D12_RESOURCE_FLAGS flags, D3D12_HEAP_TYPE HeapType)
+	void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: RenderResource()
 	, mSizeInByte(ElementSizeByte * NumElement)
 {
@@ -1000,19 +1000,23 @@ RenderBuffer::RenderBuffer(
 
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_HEAP_PROPERTIES HeapDesc;
-	switch (HeapType)
+	switch (Type)
 	{
-	case D3D12_HEAP_TYPE_DEFAULT:
+	case RenderBufferType_Default:
 		HeapDesc = getGpuOnlyMemoryHeapProperties();
 		mResourceState = initData ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_COMMON; // if it need to be initialised, we are going to copy into the buffer.
 		break;
-	case D3D12_HEAP_TYPE_UPLOAD:
+	case RenderBufferType_Upload:
 		HeapDesc = getUploadMemoryHeapProperties();
 		mResourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
 		break;
-	case D3D12_HEAP_TYPE_READBACK:
+	case RenderBufferType_Readback:
 		HeapDesc = getReadbackMemoryHeapProperties();
 		mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
+		break;
+	case RenderBufferType_RayTracingAS:
+		HeapDesc = getGpuOnlyMemoryHeapProperties();
+		mResourceState = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;// D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		break;
 	}
 
@@ -1027,12 +1031,13 @@ RenderBuffer::RenderBuffer(
 	resourceDesc.SampleDesc.Count = 1;
 	resourceDesc.SampleDesc.Quality = 0;
 
-	dev->CreateCommittedResource(&HeapDesc,
+	HRESULT hr = dev->CreateCommittedResource(&HeapDesc,
 		D3D12_HEAP_FLAG_NONE,
 		&resourceDesc,
 		mResourceState,
 		nullptr,
 		IID_PPV_ARGS(&mResource));
+	ATLASSERT(hr == S_OK);
 
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
@@ -1054,7 +1059,7 @@ RenderBuffer::RenderBuffer(
 
 	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS)
 	{
-		ATLASSERT(HeapType == D3D12_HEAP_TYPE_DEFAULT);
+		ATLASSERT(Type == RenderBufferType_Default || Type == RenderBufferType_RayTracingAS);
 		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
@@ -1070,7 +1075,7 @@ RenderBuffer::RenderBuffer(
 
 	if (initData)
 	{
-		ATLASSERT(HeapType == D3D12_HEAP_TYPE_DEFAULT);
+		ATLASSERT(Type == RenderBufferType_Default);
 
 		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
 		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;

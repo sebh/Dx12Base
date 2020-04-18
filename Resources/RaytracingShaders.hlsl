@@ -17,7 +17,8 @@ void MyRaygenShader()
 	Ray.TMin = 0.0001f;
 	Ray.TMax = 1000.0f;
 	RayPayload Payload = { float4(0.0f, 0.0f, 0.0f, 0.0f) };
-	TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, ~0, 0, 1, 0, Ray, Payload);
+	// RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER 
+	TraceRay(Scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, ~0, 0, 1, 0, Ray, Payload);
 	
 	// Write the raytraced color to the output texture.
 	LuminanceRenderTarget[DispatchRaysIndex().xy] = Payload.Color;
@@ -34,6 +35,6 @@ void MyClosestHitShader(inout RayPayload Payload, in BuiltInTriangleIntersection
 [shader("miss")]
 void MyMissShader(inout RayPayload Payload)
 {
-	Payload.Color = float4(0, 0, 0, 1);
+	Payload.Color = float4(0.3, 0, 0, 1);
 }
 
