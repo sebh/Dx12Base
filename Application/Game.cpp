@@ -503,7 +503,7 @@ void Game::initialise()
 	SBTMissStartOffsetInBytes = Offset;
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_MS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-	SBTRGSSizeInBytes = Offset - SBTMissStartOffsetInBytes;
+	SBTMissSizeInBytes = Offset - SBTMissStartOffsetInBytes;
 	SBTMissStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	// not local root parameters
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
@@ -810,7 +810,7 @@ void Game::render()
 		DispatchRayDesc.MissShaderTable.StrideInBytes = SBTMissStrideInBytes;
 		
 		DispatchRayDesc.HitGroupTable.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTHitGStartOffsetInBytes;
-		DispatchRayDesc.HitGroupTable.SizeInBytes = SBTMissSizeInBytes;
+		DispatchRayDesc.HitGroupTable.SizeInBytes = SBTHitGSizeInBytes;
 		DispatchRayDesc.HitGroupTable.StrideInBytes = SBTHitGStrideInBytes;
 		
 		DispatchRayDesc.Width = 256;
@@ -820,12 +820,22 @@ void Game::render()
 		g_dx12Device->getFrameCommandList()->SetComputeRootSignature(g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature());
 		g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateObject);
 
-	//	DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
-	//	CallDescriptors.SetSRV(0, *tlasResult);
-	//	CallDescriptors.SetUAV(0, *HdrTexture2);
-	//	commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		// Resources
+		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
+		CallDescriptors.SetSRV(0, *tlasResult);
+		CallDescriptors.SetUAV(0, *HdrTexture2);
 
-//		g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
+		// Constants
+		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(float) * 4);
+		float* CBFloat4 = (float*)CB.getCPUMemory();
+		CBFloat4[0] = 4;
+		CBFloat4[1] = 5;
+		CBFloat4[2] = 6;
+		CBFloat4[3] = 7;
+
+		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
+		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
 	}
 
 	//
