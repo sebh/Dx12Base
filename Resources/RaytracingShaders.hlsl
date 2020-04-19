@@ -16,9 +16,9 @@ void MyRaygenShader()
 	Ray.Direction = float3(0.0f, 1.0f, 0.0f);
 	Ray.TMin = 0.0001f;
 	Ray.TMax = 1000.0f;
-	RayPayload Payload = { float4(0.0f, 0.0f, 0.0f, 0.0f) };
+	RayPayload Payload = { float4(0.0f, 1.0f, 0.0f, 0.0f) };
 	// RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER 
-	TraceRay(Scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, ~0, 0, 1, 0, Ray, Payload);
+	TraceRay(Scene, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, 0, 1, 0, Ray, Payload);
 	
 	// Write the raytraced color to the output texture.
 	LuminanceRenderTarget[DispatchRaysIndex().xy] = Payload.Color;
