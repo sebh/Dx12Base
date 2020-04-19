@@ -79,6 +79,7 @@ private:
 
 	RenderTexture* texture;
 	RenderTexture* HdrTexture;
+	RenderTexture* HdrTexture2;
 	RenderTexture* DepthTexture;
 };
 

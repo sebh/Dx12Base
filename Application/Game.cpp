@@ -15,6 +15,16 @@ RenderBuffer* tlasScratch;
 RenderBuffer* tlasResult;
 RenderBuffer* tlasInstanceBuffer;
 
+RenderBuffer* SBTBuffer;
+uint SBTRGSStartOffsetInBytes = 0;
+uint SBTRGSSizeInBytes = 0;
+uint SBTMissStartOffsetInBytes = 0;
+uint SBTMissSizeInBytes = 0;
+uint SBTMissStrideInBytes = 0;
+uint SBTHitGStartOffsetInBytes = 0;
+uint SBTHitGSizeInBytes = 0;
+uint SBTHitGStrideInBytes = 0;
+
 ViewCamera::ViewCamera()
 {
 	mPos = XMVectorSet(30.0f, 30.0f, 30.0f, 1.0f);
@@ -183,6 +193,11 @@ void Game::initialise()
 		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
 		&ClearValue, 0, nullptr);
 
+	HdrTexture2 = new RenderTexture(
+		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+		nullptr, 0, nullptr);
+
 	D3D12_CLEAR_VALUE DepthClearValue;
 	DepthClearValue.Format = DXGI_FORMAT_R24G8_TYPELESS;
 	DepthClearValue.DepthStencil.Depth = 1.0f;
@@ -330,6 +345,8 @@ void Game::initialise()
 	dev->CreateStateObject(&StateObjectDesc, IID_PPV_ARGS(&mRayTracingPipelineStateObject));
 	// TODO mRayTracingPipelineStateObject->setDebugName(L"TriangleVertexBuffer");
 
+	ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp = nullptr;
+	mRayTracingPipelineStateObject->QueryInterface(IID_PPV_ARGS(&mRayTracingPipelineStateObjectProp));
 
 	//////////
 	//////////
@@ -413,15 +430,18 @@ void Game::initialise()
 	desc.DestAccelerationStructureData = tlasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
 
+	//////////
+	//////////
+	//////////
 
 	////////// Create the ShaderBindingTable
 	// Each entry must be aligned to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
 	// Each shader table (RG, M, HG) must be aligned on D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT
 //	Local root signature are limited to D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE - D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES => 4096-32 = 4064
-//	D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT;
-//	D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
-//	D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE;
-//	D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT;
+	D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT;
+	D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE;
+	D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 
 	// Have a simple way to write to local root signature. Refactor current solution for global root signature to be the same (CPU, copy to GPU, double buffered)
 	// Merge CBV into the SRV+UAV Table for a single Shader entry + DescriptorTable pointer per entry?
@@ -451,6 +471,55 @@ void Game::initialise()
 //	g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateObject);
 //	g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
 
+	uint Offset = 0;
+
+	// Evalaute required size
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// RGS id
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// Miss shader
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// Hit group
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+
+	const uint SBTSizeBytes = Offset;
+	u8* SBT = new u8[SBTSizeBytes];
+
+
+	// Now write the SBT
+	Offset = 0;
+
+	//// RayGeneration shaders
+	SBTRGSStartOffsetInBytes = Offset;
+	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_RGS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES); 
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	SBTRGSSizeInBytes = Offset - SBTRGSStartOffsetInBytes;
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+
+	//// Miss shaders
+	SBTMissStartOffsetInBytes = Offset;
+	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_MS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	SBTRGSSizeInBytes = Offset - SBTMissStartOffsetInBytes;
+	SBTMissStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+
+	//// Hit groups
+	SBTHitGStartOffsetInBytes = Offset;
+	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_HG"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	SBTHitGSizeInBytes = Offset - SBTHitGStartOffsetInBytes;
+	SBTHitGStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	// not local root parameters
+	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+
+	SBTBuffer = new RenderBuffer(Offset, 1, 0, DXGI_FORMAT_R8_UINT, false, SBT, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	delete [] SBT;
+
 #endif
 
 }
@@ -467,6 +536,7 @@ void Game::shutdown()
 		delete tlasScratch;
 		delete tlasResult;
 		delete tlasInstanceBuffer;
+		delete SBTBuffer;
 	}
 
 
@@ -485,6 +555,7 @@ void Game::shutdown()
 
 	delete texture;
 	delete HdrTexture;
+	delete HdrTexture2;
 	delete DepthTexture;
 }
 
@@ -723,6 +794,38 @@ void Game::render()
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		commandList->Dispatch(1, 1, 1);
+	}
+
+	// Ray tracing
+	{
+		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
+		HdrTexture2->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+		D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = {};
+		DispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTRGSStartOffsetInBytes;
+		DispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = SBTRGSSizeInBytes;
+		
+		DispatchRayDesc.MissShaderTable.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTMissStartOffsetInBytes;
+		DispatchRayDesc.MissShaderTable.SizeInBytes = SBTMissSizeInBytes;
+		DispatchRayDesc.MissShaderTable.StrideInBytes = SBTMissStrideInBytes;
+		
+		DispatchRayDesc.HitGroupTable.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTHitGStartOffsetInBytes;
+		DispatchRayDesc.HitGroupTable.SizeInBytes = SBTMissSizeInBytes;
+		DispatchRayDesc.HitGroupTable.StrideInBytes = SBTHitGStrideInBytes;
+		
+		DispatchRayDesc.Width = 256;
+		DispatchRayDesc.Height = 256;
+		DispatchRayDesc.Depth = 1;
+
+		g_dx12Device->getFrameCommandList()->SetComputeRootSignature(g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature());
+		g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateObject);
+
+	//	DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
+	//	CallDescriptors.SetSRV(0, *tlasResult);
+	//	CallDescriptors.SetUAV(0, *HdrTexture2);
+	//	commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+
+//		g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
 	}
 
 	//
