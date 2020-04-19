@@ -1574,7 +1574,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
 		sampler.ShaderRegister = 0;
-		sampler.RegisterSpace = 0;
+		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
 	}
@@ -1591,7 +1591,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
 		sampler.ShaderRegister = 1;
-		sampler.RegisterSpace = 0;
+		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
 	}
