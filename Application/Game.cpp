@@ -393,6 +393,7 @@ void Game::initialise()
 	desc.ScratchAccelerationStructureData = blasScratch->getGPUVirtualAddress();
 	desc.DestAccelerationStructureData = blasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	blasResult->resourceUAVBarrier();
 
 	// Create the top-level acceleration structure
 	D3D12_RAYTRACING_INSTANCE_DESC instances = {};
@@ -424,6 +425,7 @@ void Game::initialise()
 	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	tlasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
 	tlasResult->setDebugName(L"tlasResult");
+	tlasResult->resourceUAVBarrier();
 
 
 	desc.Inputs = TSInputs;

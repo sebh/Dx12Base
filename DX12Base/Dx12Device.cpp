@@ -967,11 +967,8 @@ void RenderResource::resourceTransitionBarrier(D3D12_RESOURCE_STATES newState)
 	mResourceState = newState;
 }
 
-void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
+void RenderResource::resourceUAVBarrier()
 {
-	if (newState == mResourceState)
-		return;
-
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_RESOURCE_BARRIER barrier;
 	barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
@@ -980,8 +977,6 @@ void RenderResource::resourceUAVBarrier(D3D12_RESOURCE_STATES newState)
 
 	auto commandList = g_dx12Device->getFrameCommandList();
 	commandList->ResourceBarrier(1, &barrier);
-
-	mResourceState = newState;
 }
 
 
