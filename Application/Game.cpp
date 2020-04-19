@@ -161,7 +161,8 @@ void Game::initialise()
 	SphereIndexCount = 0;
 	{
 		objl::Loader loader;
-		bool success = loader.LoadFile("./Resources/sphere.obj");
+		//bool success = loader.LoadFile("./Resources/sphere.obj");
+		bool success = loader.LoadFile("./Resources/cube.obj");
 		if (success && loader.LoadedMeshes.size() == 1)
 		{
 			SphereVertexCount = (uint)loader.LoadedVertices.size();
@@ -419,10 +420,10 @@ void Game::initialise()
 
 
 	tlasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
-	tlasScratch->setDebugName(L"blasScratch");
+	tlasScratch->setDebugName(L"tlasScratch");
 	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	tlasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
-	tlasResult->setDebugName(L"blasResult");
+	tlasResult->setDebugName(L"tlasResult");
 
 
 	desc.Inputs = TSInputs;
