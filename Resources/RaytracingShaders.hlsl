@@ -26,10 +26,13 @@ void MyRaygenShader()
 	Ray.Origin = float3(0.0f, 0.0f, 0.0f);
 	Ray.Direction = float3(0.0f, 1.0f, 0.0f);
 
+	// Compute clip space
 	uint2 LaunchIndex = DispatchRaysIndex().xy;
 	float2 DispatchDimension = float2(DispatchRaysDimensions().xy);
 	float2 ClipXY = (((LaunchIndex.xy + 0.5f) / DispatchDimension.xy) * 2.0f - 1.0f);
+	ClipXY.y *= -1.0f;
 
+	// Compute start and end points from view matrix
 	float4 StartPos = mul(ViewProjectionMatrixInv, float4(ClipXY, 0.0f, 1.0));
 	StartPos /= StartPos.wwww;
 	float4 EndPos = mul(ViewProjectionMatrixInv, float4(ClipXY, 1.0f, 1.0));
@@ -37,13 +40,12 @@ void MyRaygenShader()
 	Ray.Origin = StartPos.xyz;
 	Ray.Direction = normalize(EndPos.xyz - StartPos.xyz);
 
-
+	// Trace
 	RayPayload Payload = { float4(0.5f, 0.5f, 0.5f, 0.0f) };
 	// RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER 
 	TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, Ray, Payload);
 	
 	// Write the raytraced color to the output texture.
-	LuminanceRenderTarget[DispatchRaysIndex().xy] = float4(0.5+0.5*Ray.Direction, 1.0);
 	LuminanceRenderTarget[DispatchRaysIndex().xy] = Payload.Color;
 
 }
