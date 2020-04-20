@@ -8,6 +8,7 @@
 
 
 ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
+ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp;
 
 RenderBuffer* blasScratch;
 RenderBuffer* blasResult;
@@ -346,7 +347,6 @@ void Game::initialise()
 	dev->CreateStateObject(&StateObjectDesc, IID_PPV_ARGS(&mRayTracingPipelineStateObject));
 	// TODO mRayTracingPipelineStateObject->setDebugName(L"TriangleVertexBuffer");
 
-	ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp = nullptr;
 	mRayTracingPipelineStateObject->QueryInterface(IID_PPV_ARGS(&mRayTracingPipelineStateObjectProp));
 
 	//////////
@@ -535,6 +535,7 @@ void Game::shutdown()
 	{
 		delete blasScratch;
 		delete blasResult;
+		resetComPtr(&mRayTracingPipelineStateObjectProp);
 		resetComPtr(&mRayTracingPipelineStateObject);
 		delete tlasScratch;
 		delete tlasResult;
