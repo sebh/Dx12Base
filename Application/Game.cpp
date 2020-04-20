@@ -676,6 +676,11 @@ void Game::render()
 	// ... and constant buffer
 	FrameConstantBuffers& ConstantBuffers = g_dx12Device->getFrameConstantBuffers();
 
+	float4x4 projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
+	float4x4 viewProjMatrix = XMMatrixMultiply(View.GetViewMatrix(), projMatrix);
+	float4 viewProjDet = XMMatrixDeterminant(viewProjMatrix);
+	float4x4 viewProjMatrixInv = XMMatrixInverse(&viewProjDet, viewProjMatrix);
+
 	// Render a triangle
 	{
 		SCOPED_GPU_TIMER(Raster, 255, 100, 100);
@@ -730,9 +735,7 @@ void Game::render()
 		};
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
 		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
-
-		float4x4 projMatrix = XMMatrixPerspectiveFovLH(90.0f*3.14159f / 180.0f, AspectRatioXOverY, 0.1f, 20000.0f);
-		MeshCB->ViewProjectionMatrix = XMMatrixMultiply(View.GetViewMatrix(), projMatrix);
+		MeshCB->ViewProjectionMatrix = viewProjMatrix;
 
 		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;
@@ -817,8 +820,8 @@ void Game::render()
 		DispatchRayDesc.HitGroupTable.SizeInBytes = SBTHitGSizeInBytes;
 		DispatchRayDesc.HitGroupTable.StrideInBytes = SBTHitGStrideInBytes;
 		
-		DispatchRayDesc.Width = 256;
-		DispatchRayDesc.Height = 256;
+		DispatchRayDesc.Width = HdrTexture2->getD3D12Resource()->GetDesc().Width;
+		DispatchRayDesc.Height = HdrTexture2->getD3D12Resource()->GetDesc().Height;
 		DispatchRayDesc.Depth = 1;
 
 		g_dx12Device->getFrameCommandList()->SetComputeRootSignature(g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature());
@@ -830,16 +833,27 @@ void Game::render()
 		CallDescriptors.SetUAV(0, *HdrTexture2);
 
 		// Constants
-		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(float) * 4);
-		float* CBFloat4 = (float*)CB.getCPUMemory();
-		CBFloat4[0] = 4;
-		CBFloat4[1] = 5;
-		CBFloat4[2] = 6;
-		CBFloat4[3] = 7;
+		struct MeshConstantBuffer
+		{
+			float4x4 ViewProjectionMatrix;
+			float4x4 ViewProjectionMatrixInv;
+			uint	 OutputWidth;
+			uint	 OutputHeight;
+			uint	 pad0;
+			uint	 pad1;
+		};
+		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+		MeshConstantBuffer* RTCB = (MeshConstantBuffer*)CB.getCPUMemory();
+		RTCB->ViewProjectionMatrix = viewProjMatrix;
+		RTCB->ViewProjectionMatrixInv = viewProjMatrixInv;
+		RTCB->OutputWidth = DispatchRayDesc.Width;
+		RTCB->OutputHeight = DispatchRayDesc.Height;
 
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
 		g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
+
+		HdrTexture2->resourceUAVBarrier();
 	}
 
 	//
@@ -848,6 +862,7 @@ void Game::render()
 
 	// Transition HDR texture to readable
 	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	HdrTexture2->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 	// Apply tonemapping on the HDR buffer
 	{
@@ -883,7 +898,8 @@ void Game::render()
 
 		// Set shader resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
-		CallDescriptors.SetSRV(0, *HdrTexture);
+		//CallDescriptors.SetSRV(0, *HdrTexture);
+		CallDescriptors.SetSRV(0, *HdrTexture2);
 
 		// Set root signature data and draw
 		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
