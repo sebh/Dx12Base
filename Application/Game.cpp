@@ -11,9 +11,9 @@ ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
 ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp;
 
 RenderBuffer* blasScratch;
-RenderBuffer* blasResult;
+AccelerationStructureBuffer* blasResult;
 RenderBuffer* tlasScratch;
-RenderBuffer* tlasResult;
+AccelerationStructureBuffer* tlasResult;
 RenderBuffer* tlasInstanceBuffer;
 
 RenderBuffer* SBTBuffer;
@@ -384,7 +384,7 @@ void Game::initialise()
 	blasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
 	blasScratch->setDebugName(L"blasScratch");
 	blasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	blasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
+	blasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
 	blasResult->setDebugName(L"blasResult");
 
 	// Create the bottom-level acceleration structure
@@ -433,7 +433,7 @@ void Game::initialise()
 	tlasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
 	tlasScratch->setDebugName(L"tlasScratch");
 	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	tlasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
+	tlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
 	tlasResult->setDebugName(L"tlasResult");
 
 

@@ -468,9 +468,12 @@ enum RenderBufferType
 {
 	RenderBufferType_Default,
 	RenderBufferType_Upload,
-	RenderBufferType_Readback,
-	RenderBufferType_RayTracingAS,
+	RenderBufferType_Readback
 };
+
+D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties();
+D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties();
+D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 
 class RenderBuffer : public RenderResource
 {

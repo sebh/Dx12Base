@@ -721,7 +721,7 @@ ComputeShader::~ComputeShader() { }
 
 
 
-static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
+D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
 {
 	D3D12_HEAP_PROPERTIES heap;
 	heap.Type = D3D12_HEAP_TYPE_DEFAULT; // GPU memory
@@ -731,7 +731,7 @@ static D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties()
 	heap.VisibleNodeMask = 1;
 	return heap;
 }
-static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
+D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
 {
 	D3D12_HEAP_PROPERTIES heap;
 	heap.Type = D3D12_HEAP_TYPE_UPLOAD; // Memory writable by CPU, readable by GPU
@@ -741,7 +741,7 @@ static D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties()
 	heap.VisibleNodeMask = 1;
 	return heap;
 }
-static D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties()
+D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties()
 {
 	D3D12_HEAP_PROPERTIES heap;
 	heap.Type = D3D12_HEAP_TYPE_READBACK; // Memory readable by CPU, writable by GPU
@@ -1009,10 +1009,6 @@ RenderBuffer::RenderBuffer(
 		HeapDesc = getReadbackMemoryHeapProperties();
 		mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
 		break;
-	case RenderBufferType_RayTracingAS:
-		HeapDesc = getGpuOnlyMemoryHeapProperties();
-		mResourceState = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;// D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-		break;
 	}
 
 	D3D12_RESOURCE_DESC resourceDesc;
@@ -1043,29 +1039,18 @@ RenderBuffer::RenderBuffer(
 		// Now create a shader resource view over our descriptor allocated memory
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		if (Type == RenderBufferType_RayTracingAS)
-		{
-			srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
-			srvDesc.RaytracingAccelerationStructure.Location = mResource->GetGPUVirtualAddress();
-			dev->CreateShaderResourceView(nullptr, &srvDesc, mSRVCPUHandle);
-		}
-		else
-		{
-			srvDesc.Format = Format;
-			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-			srvDesc.Buffer.FirstElement = 0;
-			srvDesc.Buffer.NumElements = NumElement;
-			srvDesc.Buffer.StructureByteStride = StructureByteStride;
-			srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
-			dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
-		}
+		srvDesc.Format = Format;
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+		srvDesc.Buffer.FirstElement = 0;
+		srvDesc.Buffer.NumElements = NumElement;
+		srvDesc.Buffer.StructureByteStride = StructureByteStride;
+		srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
+		dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 	}
 
-	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS 
-		&& Type != RenderBufferType_RayTracingAS)
+	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS )
 	{
-		ATLASSERT(Type == RenderBufferType_Default || Type == RenderBufferType_RayTracingAS);
+		ATLASSERT(Type == RenderBufferType_Default);
 		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};

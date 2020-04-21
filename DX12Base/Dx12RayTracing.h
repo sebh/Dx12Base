@@ -4,6 +4,19 @@
 
 
 
+class AccelerationStructureBuffer : public RenderResource
+{
+public:
+	AccelerationStructureBuffer(UINT SizeInBytes);
+	virtual ~AccelerationStructureBuffer();
+
+private:
+	AccelerationStructureBuffer();
+	AccelerationStructureBuffer(AccelerationStructureBuffer&);
+};
+
+
+
 class RayGenerationShader : public ShaderBase
 {
 public:
