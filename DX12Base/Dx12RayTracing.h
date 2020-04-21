@@ -4,7 +4,7 @@
 
 
 
-class AccelerationStructureBuffer : public RenderResource
+class AccelerationStructureBuffer : public RenderBufferCommon
 {
 public:
 	AccelerationStructureBuffer(UINT SizeInBytes);

@@ -5,7 +5,7 @@
 
 
 AccelerationStructureBuffer::AccelerationStructureBuffer(UINT SizeInBytes)
-	: RenderResource()
+	: RenderBufferCommon(SizeInBytes)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 

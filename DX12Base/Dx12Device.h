@@ -475,7 +475,46 @@ D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 
-class RenderBuffer : public RenderResource
+// MAke AS inherit from this RenderBufferCommon
+class RenderBufferCommon : public RenderResource
+{
+public:
+
+	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
+	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
+	UINT GetSizeInByte() { return mSizeInByte; }
+
+protected:
+	RenderBufferCommon(UINT SizeInByte);
+	~RenderBufferCommon();
+	void Upload(void* InitData, D3D12_RESOURCE_DESC ResourceDescLocalCopy);
+private:
+	RenderBufferCommon();
+	RenderBufferCommon(RenderBufferCommon&);
+	ID3D12Resource* mUploadHeap;
+	UINT mSizeInByte;
+};
+
+class TypedBuffer : public RenderBufferCommon
+{
+	TypedBuffer(UINT NumElement, UINT SizeInBytes, DXGI_FORMAT ViewFormat = DXGI_FORMAT_UNKNOWN, void* initData = nullptr,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	virtual ~TypedBuffer() {}
+};
+class StructuredBuffer : public RenderBufferCommon
+{
+	StructuredBuffer(UINT NumElement, UINT StructureByteStride, void* initData = nullptr,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	virtual ~StructuredBuffer() {}
+};
+class ByteAddressBuffer: public RenderBufferCommon
+{
+	ByteAddressBuffer(UINT SizeInBytes, void* initData = nullptr,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	virtual ~ByteAddressBuffer() {}
+};
+
+class RenderBuffer : public RenderBufferCommon
 {
 public:
 	/**
@@ -490,9 +529,6 @@ public:
 	RenderBuffer(UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride=0, DXGI_FORMAT Format = DXGI_FORMAT_UNKNOWN, bool IsRaw = false,
 		void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~RenderBuffer();
-
-	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
-	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
 private:
 	RenderBuffer();
 	RenderBuffer(RenderBuffer&);
