@@ -396,25 +396,35 @@ void Game::initialise()
 	blasResult->resourceUAVBarrier();
 
 	// Create the top-level acceleration structure
-	D3D12_RAYTRACING_INSTANCE_DESC instances = {};
-	instances.InstanceID = 0;
-	instances.InstanceContributionToHitGroupIndex = 0;
-	instances.InstanceMask = 0xFF;
-	instances.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-	instances.AccelerationStructure = blasResult->getGPUVirtualAddress();
+	D3D12_RAYTRACING_INSTANCE_DESC instances[2];
+	{
+		instances[0].InstanceID = 0;
+		instances[0].InstanceContributionToHitGroupIndex = 0;
+		instances[0].InstanceMask = 0xFF;
+		instances[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		instances[0].AccelerationStructure = blasResult->getGPUVirtualAddress();
+		const XMMATRIX Identity = XMMatrixIdentity();
+		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[0].Transform, Identity);
+	}
+	{
+		instances[1].InstanceID = 1;
+		instances[1].InstanceContributionToHitGroupIndex = 0;
+		instances[1].InstanceMask = 0xFF;
+		instances[1].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		instances[1].AccelerationStructure = blasResult->getGPUVirtualAddress();
+		const XMMATRIX Transform = XMMatrixTranslation(10.0f, 10.0f, 10.0f);
+		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[1].Transform, Transform);
+	}
 
-	const XMMATRIX Identity = XMMatrixIdentity();
-	memcpy(instances.Transform, &Identity, sizeof(instances.Transform));
 
-
-	tlasInstanceBuffer = new RenderBuffer(sizeof(instances), 1, 0, DXGI_FORMAT_R8_UINT, false, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	tlasInstanceBuffer = new RenderBuffer(sizeof(D3D12_RAYTRACING_INSTANCE_DESC)*2, 1, 0, DXGI_FORMAT_R8_UINT, false, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
 
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
 	TSInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 	TSInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
 	TSInputs.InstanceDescs = tlasInstanceBuffer->getGPUVirtualAddress();
-	TSInputs.NumDescs = 1;
+	TSInputs.NumDescs = _countof(instances);
 	TSInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
 	dev->GetRaytracingAccelerationStructurePrebuildInfo(&TSInputs, &ASBuildInfo);
 
@@ -425,13 +435,13 @@ void Game::initialise()
 	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	tlasResult = new RenderBuffer(ASBuildInfo.ResultDataMaxSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_RayTracingAS);
 	tlasResult->setDebugName(L"tlasResult");
-	tlasResult->resourceUAVBarrier();
 
 
 	desc.Inputs = TSInputs;
 	desc.ScratchAccelerationStructureData = tlasScratch->getGPUVirtualAddress();
 	desc.DestAccelerationStructureData = tlasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	tlasResult->resourceUAVBarrier();
 
 	//////////
 	//////////
