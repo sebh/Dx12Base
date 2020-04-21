@@ -985,6 +985,7 @@ RenderBuffer::RenderBuffer(
 	UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride, DXGI_FORMAT Format, bool IsRaw, 
 	void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: RenderResource()
+	, mUploadHeap(nullptr)
 	, mSizeInByte(ElementSizeByte * NumElement)
 {
 	ATLASSERT(StructureByteStride > 0 || Format != DXGI_FORMAT_UNKNOWN || IsRaw == true);	// Either structure, or with a format, or raw
