@@ -4,10 +4,10 @@
 
 
 
-class AccelerationStructureBuffer : public RenderBufferCommon
+class AccelerationStructureBuffer : public RenderBufferGeneric
 {
 public:
-	AccelerationStructureBuffer(UINT SizeInBytes);
+	AccelerationStructureBuffer(UINT TotalSizeInBytes);
 	virtual ~AccelerationStructureBuffer();
 
 private:

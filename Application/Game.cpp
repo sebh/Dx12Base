@@ -10,13 +10,13 @@
 ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
 ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp;
 
-RenderBuffer* blasScratch;
+RenderBufferGeneric* blasScratch;
 AccelerationStructureBuffer* blasResult;
-RenderBuffer* tlasScratch;
+RenderBufferGeneric* tlasScratch;
 AccelerationStructureBuffer* tlasResult;
-RenderBuffer* tlasInstanceBuffer;
+RenderBufferGeneric* tlasInstanceBuffer;
 
-RenderBuffer* SBTBuffer;
+RenderBufferGeneric* SBTBuffer;
 uint SBTRGSStartOffsetInBytes = 0;
 uint SBTRGSSizeInBytes = 0;
 uint SBTMissStartOffsetInBytes = 0;
@@ -152,9 +152,9 @@ void Game::initialise()
 	indices[0] = 0;
 	indices[1] = 1;
 	indices[2] = 2;
-	vertexBuffer = new RenderBuffer(3, sizeof(VertexType), 0, DXGI_FORMAT_R32G32B32_FLOAT, false, vertices);
+	vertexBuffer = new RenderBufferGeneric(3 * sizeof(VertexType), vertices);
 	vertexBuffer->setDebugName(L"TriangleVertexBuffer");
-	indexBuffer = new RenderBuffer(3, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, indices);
+	indexBuffer = new RenderBufferGeneric(3 * sizeof(UINT), indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
 	const uint SphereVertexStride = sizeof(float) * 8;
@@ -168,8 +168,8 @@ void Game::initialise()
 		{
 			SphereVertexCount = (uint)loader.LoadedVertices.size();
 			SphereIndexCount = (uint)loader.LoadedIndices.size();
-			SphereVertexBuffer = new RenderBuffer(SphereVertexCount, SphereVertexStride, SphereVertexStride, DXGI_FORMAT_UNKNOWN, false, (void*)loader.LoadedVertices.data());
-			SphereIndexBuffer = new RenderBuffer(SphereIndexCount, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, (void*)loader.LoadedIndices.data());
+			SphereVertexBuffer = new RenderBufferGeneric(SphereVertexCount * SphereVertexStride, (void*)loader.LoadedVertices.data());
+			SphereIndexBuffer = new RenderBufferGeneric(SphereIndexCount * sizeof(UINT), (void*)loader.LoadedIndices.data());
 		}
 		else
 		{
@@ -181,7 +181,7 @@ void Game::initialise()
 		SphereVertexLayout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
 	}
 
-	UavBuffer = new RenderBuffer(4, sizeof(UINT), 0, DXGI_FORMAT_R32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	UavBuffer = new TypedBuffer(4, 4*sizeof(UINT), DXGI_FORMAT_R32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
@@ -209,7 +209,7 @@ void Game::initialise()
 		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 		&DepthClearValue, 0, nullptr);
 
-	{
+	/*{
 		struct MyStruct
 		{
 			UINT a, b, c;
@@ -221,7 +221,7 @@ void Game::initialise()
 		delete TestTypedBuffer;
 		delete TestStructuredBuffer;
 		delete TestRawBuffer;
-	}
+	}*/
 
 
 #if 1
@@ -381,7 +381,7 @@ void Game::initialise()
 	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
 
 
-	blasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	blasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
 	blasScratch->setDebugName(L"blasScratch");
 	blasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	blasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
@@ -417,7 +417,7 @@ void Game::initialise()
 	}
 
 
-	tlasInstanceBuffer = new RenderBuffer(sizeof(D3D12_RAYTRACING_INSTANCE_DESC)*2, 1, 0, DXGI_FORMAT_R8_UINT, false, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	tlasInstanceBuffer = new RenderBufferGeneric(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 2, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
 
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
@@ -430,7 +430,7 @@ void Game::initialise()
 
 
 
-	tlasScratch = new RenderBuffer(ASBuildInfo.ScratchDataSizeInBytes, 1, 0, DXGI_FORMAT_R8_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	tlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
 	tlasScratch->setDebugName(L"tlasScratch");
 	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	tlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
@@ -530,7 +530,7 @@ void Game::initialise()
 	// not local root parameters
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
-	SBTBuffer = new RenderBuffer(Offset, 1, 0, DXGI_FORMAT_R8_UINT, false, SBT, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	SBTBuffer = new RenderBufferGeneric(Offset, SBT, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
 	delete [] SBT;
 
 #endif

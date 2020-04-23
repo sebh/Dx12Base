@@ -298,7 +298,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mFrameTimeStampQueryHeaps[i]));
-		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBuffer(GPUTimerMaxCount * 2, sizeof(UINT64), sizeof(UINT64), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Readback);
+		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBufferGeneric(GPUTimerMaxCount * 2 * sizeof(UINT64), nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Readback);
 		mFrameTimeStampCount[i] = 0;
 		mFrameGPUTimerSlotCount[i] = 0;
 		mFrameGPUTimerLevel[i] = 0;
@@ -983,60 +983,6 @@ void RenderResource::resourceUAVBarrier()
 
 
 
-RenderBufferCommon::RenderBufferCommon(UINT SizeInByte)
-	: mSizeInByte(SizeInByte)
-	, mUploadHeap(nullptr)
-{
-}
-RenderBufferCommon::~RenderBufferCommon()
-{
-	resetComPtr(&mUploadHeap);
-}
-D3D12_VERTEX_BUFFER_VIEW RenderBufferCommon::getVertexBufferView(UINT strideInByte)
-{
-	D3D12_VERTEX_BUFFER_VIEW view;
-	view.BufferLocation = getGPUVirtualAddress();
-	view.StrideInBytes = strideInByte;
-	view.SizeInBytes = mSizeInByte;
-	return view;
-}
-D3D12_INDEX_BUFFER_VIEW RenderBufferCommon::getIndexBufferView(DXGI_FORMAT format)
-{
-	D3D12_INDEX_BUFFER_VIEW view;
-	view.BufferLocation = getGPUVirtualAddress();
-	view.SizeInBytes = mSizeInByte;
-	view.Format = format;
-	return view;
-}
-void RenderBufferCommon::Upload(void* InitData, D3D12_RESOURCE_DESC ResourceDescLocalCopy)
-{
-	if (InitData)
-	{
-		ID3D12Device* dev = g_dx12Device->getDevice();
-
-		D3D12_HEAP_PROPERTIES UploadHeap = getUploadMemoryHeapProperties();
-		ResourceDescLocalCopy.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		dev->CreateCommittedResource(&UploadHeap,
-			D3D12_HEAP_FLAG_NONE,
-			&ResourceDescLocalCopy,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&mUploadHeap));
-		setDxDebugName(mUploadHeap, L"RenderBufferUploadHeap");
-
-		void* p;
-		mUploadHeap->Map(0, nullptr, &p);
-		memcpy(p, InitData, mSizeInByte);
-		mUploadHeap->Unmap(0, nullptr);
-
-		auto commandList = g_dx12Device->getFrameCommandList();
-		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, mSizeInByte);
-
-		resourceTransitionBarrier(D3D12_RESOURCE_STATE_COMMON);
-	}
-}
-
 static void GetHeapDescAndState(RenderBufferType Type, void* InitData, D3D12_HEAP_PROPERTIES& HeapDesc, D3D12_RESOURCE_STATES& State)
 {
 	switch (Type)
@@ -1053,12 +999,18 @@ static void GetHeapDescAndState(RenderBufferType Type, void* InitData, D3D12_HEA
 		HeapDesc = getReadbackMemoryHeapProperties();
 		State = D3D12_RESOURCE_STATE_COPY_DEST;
 		break;
+	case RenderBufferType_AccelerationStructure:
+		HeapDesc = getGpuOnlyMemoryHeapProperties();
+		State = D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE;
+		break;
 	}
 }
 
-TypedBuffer::TypedBuffer(
-	UINT NumElement, UINT SizeInBytes, DXGI_FORMAT ViewFormat, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
-	: RenderBufferCommon(SizeInBytes)
+
+
+RenderBufferGeneric::RenderBufferGeneric(UINT TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+	: mSizeInBytes(TotalSizeInByte)
+	, mUploadHeap(nullptr)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
@@ -1068,7 +1020,7 @@ TypedBuffer::TypedBuffer(
 	D3D12_RESOURCE_DESC resourceDesc;
 	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-	resourceDesc.Width = GetSizeInByte();
+	resourceDesc.Width = GetSizeInBytes();
 	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
 	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
 	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
@@ -1084,6 +1036,74 @@ TypedBuffer::TypedBuffer(
 		IID_PPV_ARGS(&mResource));
 	ATLASSERT(hr == S_OK);
 
+	if (Type == RenderBufferType_Default && initData)
+		Upload(initData);
+}
+RenderBufferGeneric::~RenderBufferGeneric()
+{
+	resetComPtr(&mUploadHeap);
+}
+D3D12_VERTEX_BUFFER_VIEW RenderBufferGeneric::getVertexBufferView(UINT strideInByte)
+{
+	D3D12_VERTEX_BUFFER_VIEW view;
+	view.BufferLocation = getGPUVirtualAddress();
+	view.StrideInBytes = strideInByte;
+	view.SizeInBytes = mSizeInBytes;
+	return view;
+}
+D3D12_INDEX_BUFFER_VIEW RenderBufferGeneric::getIndexBufferView(DXGI_FORMAT format)
+{
+	D3D12_INDEX_BUFFER_VIEW view;
+	view.BufferLocation = getGPUVirtualAddress();
+	view.SizeInBytes = mSizeInBytes;
+	view.Format = format;
+	return view;
+}
+void RenderBufferGeneric::Upload(void* InitData)
+{
+	if (InitData)
+	{
+		ID3D12Device* dev = g_dx12Device->getDevice();
+
+		D3D12_HEAP_PROPERTIES UploadHeap = getUploadMemoryHeapProperties();
+
+		D3D12_RESOURCE_DESC UploadResourceDesc;
+		UploadResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+		UploadResourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
+		UploadResourceDesc.Width = GetSizeInBytes();
+		UploadResourceDesc.Height = UploadResourceDesc.DepthOrArraySize = UploadResourceDesc.MipLevels = 1;
+		UploadResourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
+		UploadResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+		UploadResourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		UploadResourceDesc.SampleDesc.Count = 1;
+		UploadResourceDesc.SampleDesc.Quality = 0;
+
+		dev->CreateCommittedResource(&UploadHeap,
+			D3D12_HEAP_FLAG_NONE,
+			&UploadResourceDesc,
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&mUploadHeap));
+		setDxDebugName(mUploadHeap, L"RenderBufferUploadHeap");
+
+		void* p;
+		mUploadHeap->Map(0, nullptr, &p);
+		memcpy(p, InitData, GetSizeInBytes());
+		mUploadHeap->Unmap(0, nullptr);
+
+		auto commandList = g_dx12Device->getFrameCommandList();
+		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, GetSizeInBytes());
+
+		resourceTransitionBarrier(D3D12_RESOURCE_STATE_COMMON);
+	}
+}
+
+TypedBuffer::TypedBuffer(
+	UINT NumElement, UINT TotalSizeInByte, DXGI_FORMAT ViewFormat, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+	: RenderBufferGeneric(TotalSizeInByte, initData, flags, Type)
+{
+	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
+	ID3D12Device* dev = g_dx12Device->getDevice();
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
 	if ((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0)
@@ -1117,40 +1137,15 @@ TypedBuffer::TypedBuffer(
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
 		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
-
-	if (Type == RenderBufferType_Default && initData)
-		Upload(initData, resourceDesc);
 }
 
 StructuredBuffer::StructuredBuffer(
 	UINT NumElement, UINT StructureByteStride,
 	void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
-	: RenderBufferCommon(StructureByteStride * NumElement)
+	: RenderBufferGeneric(StructureByteStride * NumElement, initData, flags, Type)
 {
+	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
 	ID3D12Device* dev = g_dx12Device->getDevice();
-
-	D3D12_HEAP_PROPERTIES HeapDesc;
-	GetHeapDescAndState(Type, initData, HeapDesc, mResourceState);
-
-	D3D12_RESOURCE_DESC resourceDesc;
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-	resourceDesc.Width = GetSizeInByte();
-	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
-	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	resourceDesc.Flags = flags;
-	resourceDesc.SampleDesc.Count = 1;
-	resourceDesc.SampleDesc.Quality = 0;
-
-	HRESULT hr = dev->CreateCommittedResource(&HeapDesc,
-		D3D12_HEAP_FLAG_NONE,
-		&resourceDesc,
-		mResourceState,
-		nullptr,
-		IID_PPV_ARGS(&mResource));
-	ATLASSERT(hr == S_OK);
-
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
 	if ((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0)
@@ -1184,40 +1179,16 @@ StructuredBuffer::StructuredBuffer(
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
 		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
-
-	if (Type == RenderBufferType_Default && initData)
-		Upload(initData, resourceDesc);
 }
 
-ByteAddressBuffer::ByteAddressBuffer(UINT SizeInBytes, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
-	: RenderBufferCommon(SizeInBytes)
+ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+	: RenderBufferGeneric(TotalSizeInByte, initData, flags, Type)
 {
+	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
 	ID3D12Device* dev = g_dx12Device->getDevice();
-
-	D3D12_HEAP_PROPERTIES HeapDesc;
-	GetHeapDescAndState(Type, initData, HeapDesc, mResourceState);
 
 	// For raw resources, SRV and UAV must use R32_TYPELESS 
 	DXGI_FORMAT Format = DXGI_FORMAT_R32_TYPELESS;
-
-	D3D12_RESOURCE_DESC resourceDesc;
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-	resourceDesc.Width = GetSizeInByte();
-	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
-	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	resourceDesc.Flags = flags;
-	resourceDesc.SampleDesc.Count = 1;
-	resourceDesc.SampleDesc.Quality = 0;
-
-	HRESULT hr = dev->CreateCommittedResource(&HeapDesc,
-		D3D12_HEAP_FLAG_NONE,
-		&resourceDesc,
-		mResourceState,
-		nullptr,
-		IID_PPV_ARGS(&mResource));
-	ATLASSERT(hr == S_OK);
 
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
@@ -1231,7 +1202,7 @@ ByteAddressBuffer::ByteAddressBuffer(UINT SizeInBytes, void* initData, D3D12_RES
 		srvDesc.Format = Format;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = GetSizeInByte();
+		srvDesc.Buffer.NumElements = GetSizeInBytes();
 		srvDesc.Buffer.StructureByteStride = 0;
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
@@ -1246,133 +1217,15 @@ ByteAddressBuffer::ByteAddressBuffer(UINT SizeInBytes, void* initData, D3D12_RES
 		uavDesc.Format = Format;
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = GetSizeInByte();
+		uavDesc.Buffer.NumElements = GetSizeInBytes();
 		uavDesc.Buffer.StructureByteStride = 0;
 		uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
 		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
 	}
-
-	if(Type== RenderBufferType_Default && initData)
-		Upload(initData, resourceDesc);
 }
 
 
-
-RenderBuffer::RenderBuffer(
-	UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride, DXGI_FORMAT Format, bool IsRaw, 
-	void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
-	: RenderBufferCommon(ElementSizeByte * NumElement)
-	, mUploadHeap(nullptr)
-	, mSizeInByte(ElementSizeByte * NumElement)
-{
-	ATLASSERT(StructureByteStride > 0 || Format != DXGI_FORMAT_UNKNOWN || IsRaw == true);	// Either structure, or with a format, or raw
-	ATLASSERT(StructureByteStride == 0 || StructureByteStride == ElementSizeByte);			// Either not a structured buffer, or a structure buffer size is provided 
-
-	// For raw resources, SRV and UAV must use R32_TYPELESS 
-	Format = IsRaw ? DXGI_FORMAT_R32_TYPELESS : Format;
-
-	ID3D12Device* dev = g_dx12Device->getDevice();
-	D3D12_HEAP_PROPERTIES HeapDesc;
-	switch (Type)
-	{
-	case RenderBufferType_Default:
-		HeapDesc = getGpuOnlyMemoryHeapProperties();
-		mResourceState = initData ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_COMMON; // if it need to be initialised, we are going to copy into the buffer.
-		break;
-	case RenderBufferType_Upload:
-		HeapDesc = getUploadMemoryHeapProperties();
-		mResourceState = D3D12_RESOURCE_STATE_GENERIC_READ;
-		break;
-	case RenderBufferType_Readback:
-		HeapDesc = getReadbackMemoryHeapProperties();
-		mResourceState = D3D12_RESOURCE_STATE_COPY_DEST;
-		break;
-	}
-
-	D3D12_RESOURCE_DESC resourceDesc;
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
-	resourceDesc.Width = mSizeInByte;
-	resourceDesc.Height = resourceDesc.DepthOrArraySize = resourceDesc.MipLevels = 1;
-	resourceDesc.Format = DXGI_FORMAT_UNKNOWN;	// Weak typing. Type is selected on the views.
-	resourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	resourceDesc.Flags = flags;
-	resourceDesc.SampleDesc.Count = 1;
-	resourceDesc.SampleDesc.Quality = 0;
-
-	HRESULT hr = dev->CreateCommittedResource(&HeapDesc,
-		D3D12_HEAP_FLAG_NONE,
-		&resourceDesc,
-		mResourceState,
-		nullptr,
-		IID_PPV_ARGS(&mResource));
-	ATLASSERT(hr == S_OK);
-
-	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
-
-	if ((flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0)
-	{
-		ResDescHeap.AllocateResourceDecriptors(&mSRVCPUHandle, &mSRVGPUHandle);
-
-		// Now create a shader resource view over our descriptor allocated memory
-		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		srvDesc.Format = Format;
-		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = NumElement;
-		srvDesc.Buffer.StructureByteStride = StructureByteStride;
-		srvDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_SRV_FLAG_RAW : D3D12_BUFFER_SRV_FLAG_NONE;
-		dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
-	}
-
-	if ((flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS )
-	{
-		ATLASSERT(Type == RenderBufferType_Default);
-		ResDescHeap.AllocateResourceDecriptors(&mUAVCPUHandle, &mUAVGPUHandle);
-
-		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-		uavDesc.Format = Format;
-		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = NumElement;
-		uavDesc.Buffer.StructureByteStride = StructureByteStride;
-		uavDesc.Buffer.Flags = IsRaw ? D3D12_BUFFER_UAV_FLAG_RAW : D3D12_BUFFER_UAV_FLAG_NONE;
-		uavDesc.Buffer.CounterOffsetInBytes = 0;
-		dev->CreateUnorderedAccessView(mResource, nullptr, &uavDesc, mUAVCPUHandle);
-	}
-
-	if (initData)
-	{
-		ATLASSERT(Type == RenderBufferType_Default);
-
-		D3D12_HEAP_PROPERTIES uploadHeap = getUploadMemoryHeapProperties();
-		resourceDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-
-		dev->CreateCommittedResource(&uploadHeap,
-			D3D12_HEAP_FLAG_NONE,
-			&resourceDesc,
-			D3D12_RESOURCE_STATE_GENERIC_READ,
-			nullptr,
-			IID_PPV_ARGS(&mUploadHeap));
-		setDxDebugName(mUploadHeap, L"RenderBufferUploadHeap");
-
-		void* p;
-		mUploadHeap->Map(0, nullptr, &p);
-		memcpy(p, initData, mSizeInByte);
-		mUploadHeap->Unmap(0, nullptr);
-
-		auto commandList = g_dx12Device->getFrameCommandList();
-		commandList->CopyBufferRegion(mResource, 0, mUploadHeap, 0, mSizeInByte);
-
-		resourceTransitionBarrier(D3D12_RESOURCE_STATE_COMMON);
-	}
-}
-
-RenderBuffer::~RenderBuffer()
-{
-}
 
 DXGI_FORMAT getDepthStencilResourceFormatFromTypeless(DXGI_FORMAT format)
 {

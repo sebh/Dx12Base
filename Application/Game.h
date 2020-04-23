@@ -58,19 +58,19 @@ private:
 
 	InputLayout* layout;
 
-	RenderBuffer* vertexBuffer;
-	RenderBuffer* indexBuffer;
+	RenderBufferGeneric* vertexBuffer;
+	RenderBufferGeneric* indexBuffer;
 
 	uint SphereIndexCount;
 	uint SphereVertexCount;
 	InputLayout* SphereVertexLayout;
-	RenderBuffer* SphereVertexBuffer;
-	RenderBuffer* SphereIndexBuffer;
+	RenderBufferGeneric* SphereVertexBuffer;
+	RenderBufferGeneric* SphereIndexBuffer;
 
 	VertexShader* MeshVertexShader;
 	PixelShader*  MeshPixelShader;
 
-	RenderBuffer* UavBuffer;
+	TypedBuffer* UavBuffer;
 
 	VertexShader* vertexShader;
 	PixelShader*  pixelShader;

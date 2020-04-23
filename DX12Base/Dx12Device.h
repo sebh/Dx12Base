@@ -39,7 +39,7 @@ class AllocatedResourceDecriptorHeap;
 class DispatchDrawCallCpuDescriptorHeap;
 class FrameConstantBuffers;
 class RenderResource;
-class RenderBuffer;
+class RenderBufferGeneric;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 static const int GPUTimerMaxCount = 256;
@@ -160,7 +160,7 @@ private:
 
 	// Data used for GPU performance tracking
 	ID3D12QueryHeap*							mFrameTimeStampQueryHeaps[frameBufferCount];// Heaps storing time stamp query results
-	RenderBuffer*								mFrameTimeStampQueryReadBackBuffers[frameBufferCount];// Time stamp readback heap 
+	RenderBufferGeneric*						mFrameTimeStampQueryReadBackBuffers[frameBufferCount];// Time stamp readback heap 
 	UINT										mFrameTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
 	UINT										mFrameGPUTimerSlotCount[frameBufferCount];	// Timer allocation count. Only count, not start/end timer count (due to level hierarchy)
 	UINT										mFrameGPUTimerLevel[frameBufferCount];		// Time stamp query count.
@@ -440,7 +440,6 @@ public:
 	void resourceUAVBarrier();
 
 	ID3D12Resource* getD3D12Resource() { return mResource; }
-	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }// Only for buffer so could be moved to RenderBuffer? (GetGPUVirtualAddress returns NULL for non-buffer resources)
 
 	const D3D12_CPU_DESCRIPTOR_HANDLE& getSRVCPUHandle() const { return mSRVCPUHandle; }
 	const D3D12_CPU_DESCRIPTOR_HANDLE& getUAVCPUHandle() const { return mUAVCPUHandle; }
@@ -468,71 +467,54 @@ enum RenderBufferType
 {
 	RenderBufferType_Default,
 	RenderBufferType_Upload,
-	RenderBufferType_Readback
+	RenderBufferType_Readback,
+	RenderBufferType_AccelerationStructure
 };
 
 D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 
-class RenderBufferCommon : public RenderResource
+class RenderBufferGeneric : public RenderResource
 {
 public:
+	RenderBufferGeneric(UINT TotalSizeInBytes, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	virtual ~RenderBufferGeneric();
 
 	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
 	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
-	UINT GetSizeInByte() { return mSizeInByte; }
+	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }
+	UINT GetSizeInBytes() { return mSizeInBytes; }
 
 protected:
-	RenderBufferCommon(UINT SizeInByte);
-	~RenderBufferCommon();
-	void Upload(void* InitData, D3D12_RESOURCE_DESC ResourceDescLocalCopy);
+	void Upload(void* InitData);
 private:
-	RenderBufferCommon();
-	RenderBufferCommon(RenderBufferCommon&);
+	RenderBufferGeneric();
+	RenderBufferGeneric(RenderBufferGeneric&);
 	ID3D12Resource* mUploadHeap;
-	UINT mSizeInByte;
+	UINT mSizeInBytes;
 };
 
-class TypedBuffer : public RenderBufferCommon
+class TypedBuffer : public RenderBufferGeneric
 {
-	TypedBuffer(UINT NumElement, UINT SizeInBytes, DXGI_FORMAT ViewFormat = DXGI_FORMAT_UNKNOWN, void* initData = nullptr,
+public:
+	TypedBuffer(UINT NumElement, UINT TotalSizeInBytes, DXGI_FORMAT ViewFormat = DXGI_FORMAT_UNKNOWN, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~TypedBuffer() {}
 };
-class StructuredBuffer : public RenderBufferCommon
+class StructuredBuffer : public RenderBufferGeneric
 {
+public:
 	StructuredBuffer(UINT NumElement, UINT StructureByteStride, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~StructuredBuffer() {}
 };
-class ByteAddressBuffer: public RenderBufferCommon
-{
-	ByteAddressBuffer(UINT SizeInBytes, void* initData = nullptr,
-		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
-	virtual ~ByteAddressBuffer() {}
-};
-
-class RenderBuffer : public RenderBufferCommon
+class ByteAddressBuffer: public RenderBufferGeneric
 {
 public:
-	/**
-	 * Exemple of different buffer type creation:
-	 *	- Typed buffer: specify DXGI_FORMAT, a matching ElementSizeByte and StructureByteStride=0.
-	 *			RenderBuffer* TestTypedBuffer = new RenderBuffer(64, sizeof(UINT) * 4, 0,DXGI_FORMAT_R32G32B32A32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	 *	- Raw buffer: IsRaw = true, specify NumElement and ElementSizeByte for the total resource size.
-	 *			RenderBuffer* TestRawBuffer = new RenderBuffer(64, sizeof(UINT) * 5, 0, DXGI_FORMAT_UNKNOWN, true, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	 *	- Structured buffer: specify NumElement, StructureByteStride and have ElementSizeByte = StructureByteStride.
-	 *			RenderBuffer* TestStructuredBuffer = new RenderBuffer(64, sizeof(MyStruct), sizeof(MyStruct), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-	 */
-	RenderBuffer(UINT NumElement, UINT ElementSizeByte, UINT StructureByteStride=0, DXGI_FORMAT Format = DXGI_FORMAT_UNKNOWN, bool IsRaw = false,
-		void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
-	virtual ~RenderBuffer();
-private:
-	RenderBuffer();
-	RenderBuffer(RenderBuffer&);
-	ID3D12Resource* mUploadHeap;// private dedicated upload heap, TODO: fix bad design, handle that on Dx12Device
-	UINT mSizeInByte;
+	ByteAddressBuffer(UINT TotalSizeInBytes, void* initData = nullptr,
+		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	virtual ~ByteAddressBuffer() {}
 };
 
 class RenderTexture : public RenderResource
