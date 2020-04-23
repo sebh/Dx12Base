@@ -209,19 +209,19 @@ void Game::initialise()
 		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 		&DepthClearValue, 0, nullptr);
 
-	/*{
+	{
 		struct MyStruct
 		{
 			UINT a, b, c;
 			float d, e, f;
 		};
-		RenderBuffer* TestTypedBuffer = new RenderBuffer(64, sizeof(UINT) * 4, 0,DXGI_FORMAT_R32G32B32A32_UINT, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-		RenderBuffer* TestRawBuffer = new RenderBuffer(64, sizeof(UINT) * 5, 0, DXGI_FORMAT_UNKNOWN, true, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-		RenderBuffer* TestStructuredBuffer = new RenderBuffer(64, sizeof(MyStruct), sizeof(MyStruct), DXGI_FORMAT_UNKNOWN, false, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		TypedBuffer* TestTypedBuffer = new TypedBuffer(64, 64 * sizeof(UINT) * 4, DXGI_FORMAT_R32G32B32A32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		ByteAddressBuffer* TestRawBuffer = new ByteAddressBuffer(64, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		StructuredBuffer* TestStructuredBuffer = new StructuredBuffer(64, sizeof(MyStruct), nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		delete TestTypedBuffer;
-		delete TestStructuredBuffer;
 		delete TestRawBuffer;
-	}*/
+		delete TestStructuredBuffer;
+	}
 
 
 #if 1

@@ -1182,13 +1182,14 @@ StructuredBuffer::StructuredBuffer(
 }
 
 ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
-	: RenderBufferGeneric(TotalSizeInByte, initData, flags, Type)
+	: RenderBufferGeneric(RoundUp(TotalSizeInByte, 4), initData, flags, Type)
 {
 	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
 	// For raw resources, SRV and UAV must use R32_TYPELESS 
 	DXGI_FORMAT Format = DXGI_FORMAT_R32_TYPELESS;
+	const uint NumElements = GetSizeInBytes() / 4;
 
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
@@ -1202,7 +1203,7 @@ ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12
 		srvDesc.Format = Format;
 		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
 		srvDesc.Buffer.FirstElement = 0;
-		srvDesc.Buffer.NumElements = GetSizeInBytes();
+		srvDesc.Buffer.NumElements = NumElements;
 		srvDesc.Buffer.StructureByteStride = 0;
 		srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
 		dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
@@ -1217,7 +1218,7 @@ ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12
 		uavDesc.Format = Format;
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
 		uavDesc.Buffer.FirstElement = 0;
-		uavDesc.Buffer.NumElements = GetSizeInBytes();
+		uavDesc.Buffer.NumElements = NumElements;
 		uavDesc.Buffer.StructureByteStride = 0;
 		uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
 		uavDesc.Buffer.CounterOffsetInBytes = 0;
