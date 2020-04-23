@@ -853,6 +853,7 @@ DispatchDrawCallCpuDescriptorHeap::Call::Call()
 void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0SRVCount());
+	ATLASSERT(Resource.getSRVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
 	Destination.ptr += mUsedSRVs * g_dx12Device->getCbSrvUavDescriptorSize();
@@ -862,6 +863,7 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResour
 void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0UAVCount());
+	ATLASSERT(Resource.getUAVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
 	Destination.ptr += (mRootSig->getTab0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
@@ -935,10 +937,10 @@ FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameCon
 
 RenderResource::RenderResource()
 	: mResource(nullptr)
-	, mSRVCPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
-	, mSRVGPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
-	, mUAVCPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
-	, mUAVGPUHandle({ INVALID_CPU_DESCRIPTOR_HANDLE })
+	, mSRVCPUHandle({ INVALID_DESCRIPTOR_HANDLE })
+	, mSRVGPUHandle({ INVALID_DESCRIPTOR_HANDLE })
+	, mUAVCPUHandle({ INVALID_DESCRIPTOR_HANDLE })
+	, mUAVGPUHandle({ INVALID_DESCRIPTOR_HANDLE })
 {
 }
 
@@ -2125,7 +2127,7 @@ void CachedPSOManager::SetPipelineState(ID3D12GraphicsCommandList* commandList, 
 	const PipelineStateObject& PSO = GetCachedPSO(PsoDesc);
 
 	commandList->OMSetRenderTargets(PsoDesc.mRenderTargetCount, PsoDesc.mRenderTargetDescriptors, FALSE, 
-		PsoDesc.mDepthTextureDescriptor.ptr == INVALID_CPU_DESCRIPTOR_HANDLE ? nullptr : &PsoDesc.mDepthTextureDescriptor);
+		PsoDesc.mDepthTextureDescriptor.ptr == INVALID_DESCRIPTOR_HANDLE ? nullptr : &PsoDesc.mDepthTextureDescriptor);
 
 	commandList->SetPipelineState(PSO.getPso());
 }
