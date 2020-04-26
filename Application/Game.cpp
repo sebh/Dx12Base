@@ -186,6 +186,7 @@ void Game::initialise()
 	UavBuffer->setDebugName(L"UavBuffer");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
+	texture2 = new RenderTexture(L"Resources\\BlueNoise64x64.png");
 
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
 	D3D12_CLEAR_VALUE ClearValue;
@@ -569,6 +570,8 @@ void Game::shutdown()
 	releaseShaders();
 
 	delete texture;
+	delete texture2;
+
 	delete HdrTexture;
 	delete HdrTexture2;
 	delete DepthTexture;
@@ -786,6 +789,7 @@ void Game::render()
 
 			// Set constants and constant buffer
 			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+			CallDescriptors.SetSRV(0, *texture);
 
 			// Set root signature data and draw
 			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
@@ -802,7 +806,8 @@ void Game::render()
 
 			// Set constants and constant buffer
 			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
-
+			CallDescriptors.SetSRV(0, *texture2);
+			
 			// Set root signature data and draw
 			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
 			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());

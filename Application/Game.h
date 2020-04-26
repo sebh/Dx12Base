@@ -78,6 +78,7 @@ private:
 	ComputeShader*  computeShader;
 
 	RenderTexture* texture;
+	RenderTexture* texture2;
 	RenderTexture* HdrTexture;
 	RenderTexture* HdrTexture2;
 	RenderTexture* DepthTexture;

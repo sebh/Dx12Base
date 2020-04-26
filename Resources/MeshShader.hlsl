@@ -25,6 +25,8 @@ cbuffer MeshConstantBuffer : register(b0)
 	float4x4 MeshWorldMatrix;
 }
 
+Texture2D MeshTexture : register(t0);
+
 MeshVertexOutput MeshVertexShader(MeshVertexInput input)
 {
 	MeshVertexOutput output;
@@ -39,8 +41,9 @@ MeshVertexOutput MeshVertexShader(MeshVertexInput input)
 
 float4 MeshPixelShader(MeshVertexOutput input) : SV_TARGET
 {
-	return float4(input.Normal.xyz, 1.0f);
+	//return float4(input.Normal.xyz, 1.0f);
 	//return float4(input.UV.xy, 0.0f, 1.0f);
+	return MeshTexture.Sample(SamplerLinearClamp, float2(input.UV.xy));
 }
 
 

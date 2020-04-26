@@ -1620,8 +1620,8 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	mRootSignatureDWordUsed = 0; // a DWORD is 4 bytes
 
 	mRootCBVCount = 1;
-	mDescriptorTable0SRVCount = 1;
-	mDescriptorTable0UAVCount = 1;
+	mDescriptorTable0SRVCount = 8;
+	mDescriptorTable0UAVCount = 4;
 
 	// Global root signature for ray tracing will use space 1 to not conflict with other local shader.
 	// Otherwise, RT and regular root signatures have the same footprint.
