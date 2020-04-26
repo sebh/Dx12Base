@@ -1,5 +1,6 @@
 
 #include "Game.h"
+#include "WinImgui.h"
 
 #include "windows.h"
 #include "OBJ_Loader.h"
@@ -635,6 +636,11 @@ void Game::update(const WindowInputData& inputData)
 
 void Game::render()
 {
+	ImGui::Begin("Scene");
+	ImGui::Checkbox("Show RayTraced", &ShowRtResult);
+	ImGui::End();
+
+
 	// here we start recording commands into the commandList (which all the commands will be stored in the commandAllocator)
 	SCOPED_GPU_TIMER(GameRender, 100, 100, 100);
 
@@ -722,7 +728,7 @@ void Game::render()
 		CallDescriptors.SetSRV(0, *texture);
 
 		// Set root signature data and draw
-		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	}
 
@@ -737,15 +743,6 @@ void Game::render()
 		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferUVView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
 		SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
 		D3D12_INDEX_BUFFER_VIEW SphereIndexBufferView = SphereIndexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
-
-		// Set constants
-		struct MeshConstantBuffer
-		{
-			float4x4 ViewProjectionMatrix;
-		};
-		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
-		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
-		MeshCB->ViewProjectionMatrix = viewProjMatrix;
 
 		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;
@@ -763,6 +760,15 @@ void Game::render()
 		PSODesc.mDepthTextureFormat = DepthTexture->getClearColor().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
+		// Set constants
+		struct MeshConstantBuffer
+		{
+			float4x4 ViewProjectionMatrix;
+		};
+		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+		MeshCB->ViewProjectionMatrix = viewProjMatrix;
+
 		// Set other raster properties
 		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
@@ -775,8 +781,8 @@ void Game::render()
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 
 		// Set root signature data and draw
-		commandList->SetGraphicsRootConstantBufferView(0, CB.getGPUVirtualAddress());
-		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
+		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
 		commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
 	}
 
@@ -809,7 +815,7 @@ void Game::render()
 
 		// Set root signature data and dispatch
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
-		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getRootDescriptorTable0GpuHandle());
 		commandList->Dispatch(1, 1, 1);
 	}
 
@@ -860,7 +866,7 @@ void Game::render()
 		RTCB->OutputHeight = DispatchRayDesc.Height;
 
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
-		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getRootDescriptorTable0GpuHandle());
 		g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
 
 		HdrTexture2->resourceUAVBarrier();
@@ -908,11 +914,10 @@ void Game::render()
 
 		// Set shader resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
-		//CallDescriptors.SetSRV(0, *HdrTexture);
-		CallDescriptors.SetSRV(0, *HdrTexture2);
+		CallDescriptors.SetSRV(0, ShowRtResult ? *HdrTexture2 : *HdrTexture);
 
 		// Set root signature data and draw
-		commandList->SetGraphicsRootDescriptorTable(1, CallDescriptors.getTab0DescriptorGpuHandle());
+		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 
 		// Make back-buffer presentable.

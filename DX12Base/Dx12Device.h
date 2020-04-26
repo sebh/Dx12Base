@@ -366,7 +366,7 @@ public:
 		void SetSRV(UINT Register, RenderResource& Resource);
 		void SetUAV(UINT Register, RenderResource& Resource);
 
-		D3D12_GPU_DESCRIPTOR_HANDLE getTab0DescriptorGpuHandle() { return mGPUHandle; }
+		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTable0GpuHandle() { return mGPUHandle; }
 
 	private:
 		friend class DispatchDrawCallCpuDescriptorHeap;
@@ -555,6 +555,13 @@ enum RootSignatureType
 	RootSignatureType_Local_RT
 };
 
+// Static assignement of root parameters
+enum RootParameterIndex
+{
+	RootParameterIndex_CBV0				= 0,
+	RootParameterIndex_DescriptorTable0	= 1
+};
+
 class RootSignature
 {
 public:
@@ -563,8 +570,8 @@ public:
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 
 	UINT getRootCBVCount() const { return mRootCBVCount; }
-	UINT getTab0SRVCount() const { return mTab0SRVCount; }
-	UINT getTab0UAVCount() const { return mTab0UAVCount; }
+	UINT getRootDescriptorTable0SRVCount() const { return mDescriptorTable0SRVCount; }
+	UINT getRootDescriptorTable0UAVCount() const { return mDescriptorTable0UAVCount; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:
@@ -572,8 +579,8 @@ private:
 	RootSignature(RootSignature&);
 
 	UINT mRootCBVCount;
-	UINT mTab0SRVCount;
-	UINT mTab0UAVCount;
+	UINT mDescriptorTable0SRVCount;
+	UINT mDescriptorTable0UAVCount;
 
 	ID3D12RootSignature* mRootSignature;
 	UINT mRootSignatureDWordUsed;

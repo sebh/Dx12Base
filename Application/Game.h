@@ -81,6 +81,8 @@ private:
 	RenderTexture* HdrTexture;
 	RenderTexture* HdrTexture2;
 	RenderTexture* DepthTexture;
+
+	bool ShowRtResult = true;
 };
 
 

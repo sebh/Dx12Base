@@ -21,7 +21,6 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - TODO: get rid of D3DCompiler, only use DXC
 //  - Proper upload handling in shared pool
 
 
@@ -841,7 +840,7 @@ DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::Alloc
 	NewCall.mGPUHandle = g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getGPUHandle();
 	NewCall.mGPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 
-	mFrameDescriptorCount += RootSig.getTab0SRVCount() + RootSig.getTab0UAVCount();
+	mFrameDescriptorCount += RootSig.getRootDescriptorTable0SRVCount() + RootSig.getRootDescriptorTable0UAVCount();
 
 	return NewCall;
 }
@@ -852,7 +851,7 @@ DispatchDrawCallCpuDescriptorHeap::Call::Call()
 }
 void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
 {
-	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0SRVCount());
+	ATLASSERT(Register >= 0 && Register < mRootSig->getRootDescriptorTable0SRVCount());
 	ATLASSERT(Resource.getSRVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
@@ -862,11 +861,11 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResour
 }
 void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
 {
-	ATLASSERT(Register >= 0 && Register < mRootSig->getTab0UAVCount());
+	ATLASSERT(Register >= 0 && Register < mRootSig->getRootDescriptorTable0UAVCount());
 	ATLASSERT(Resource.getUAVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
-	Destination.ptr += (mRootSig->getTab0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
+	Destination.ptr += (mRootSig->getRootDescriptorTable0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
 }
@@ -1621,8 +1620,8 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	mRootSignatureDWordUsed = 0; // a DWORD is 4 bytes
 
 	mRootCBVCount = 1;
-	mTab0SRVCount = 1;
-	mTab0UAVCount = 1;
+	mDescriptorTable0SRVCount = 1;
+	mDescriptorTable0UAVCount = 1;
 
 	// Global root signature for ray tracing will use space 1 to not conflict with other local shader.
 	// Otherwise, RT and regular root signatures have the same footprint.
@@ -1642,12 +1641,12 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	D3D12_DESCRIPTOR_RANGE  descriptorTable0Ranges[2];
 	descriptorTable0Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	descriptorTable0Ranges[0].BaseShaderRegister = 0;
-	descriptorTable0Ranges[0].NumDescriptors = mTab0SRVCount;
+	descriptorTable0Ranges[0].NumDescriptors = mDescriptorTable0SRVCount;
 	descriptorTable0Ranges[0].RegisterSpace = RegisterSpace;
 	descriptorTable0Ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 	descriptorTable0Ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 	descriptorTable0Ranges[1].BaseShaderRegister = 0;
-	descriptorTable0Ranges[1].NumDescriptors = mTab0UAVCount;
+	descriptorTable0Ranges[1].NumDescriptors = mDescriptorTable0UAVCount;
 	descriptorTable0Ranges[1].RegisterSpace = RegisterSpace;
 	descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
@@ -1655,11 +1654,11 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	descriptorTable0.NumDescriptorRanges = _countof(descriptorTable0Ranges);
 	descriptorTable0.pDescriptorRanges = &descriptorTable0Ranges[0];
 
-	D3D12_ROOT_PARAMETER paramTab0;
-	paramTab0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	paramTab0.DescriptorTable = descriptorTable0;
-	paramTab0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	rootParameters.push_back(paramTab0);
+	D3D12_ROOT_PARAMETER paramDescriptorTable0;
+	paramDescriptorTable0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	paramDescriptorTable0.DescriptorTable = descriptorTable0;
+	paramDescriptorTable0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	rootParameters.push_back(paramDescriptorTable0);
 	mRootSignatureDWordUsed += 1;				// Descriptor table
 
 	// Check bound correctness
