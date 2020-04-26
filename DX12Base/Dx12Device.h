@@ -558,8 +558,17 @@ enum RootSignatureType
 // Static assignement of root parameters
 enum RootParameterIndex
 {
-	RootParameterIndex_CBV0				= 0,
-	RootParameterIndex_DescriptorTable0	= 1
+	RootParameterIndex_CBV0 = 0,
+	RootParameterIndex_DescriptorTable0 = 1,
+	RootParameterIndex_Count = 2
+};
+
+// Static assignement of root parameters
+enum RootParameterByteOffset
+{
+	RootParameterByteOffset_CBV0 = 0,
+	RootParameterByteOffset_DescriptorTable0 = 2 * 4,
+	RootParameterByteOffset_Total = 3 * 4
 };
 
 class RootSignature
@@ -572,6 +581,8 @@ public:
 	UINT getRootCBVCount() const { return mRootCBVCount; }
 	UINT getRootDescriptorTable0SRVCount() const { return mDescriptorTable0SRVCount; }
 	UINT getRootDescriptorTable0UAVCount() const { return mDescriptorTable0UAVCount; }
+
+	UINT getRootSignatureSizeBytes() const { return mRootSignatureDWordUsed * 4; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:

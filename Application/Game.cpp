@@ -245,7 +245,7 @@ void Game::initialise()
 	MissShader* MShader = new MissShader(L"Resources\\RaytracingShaders.hlsl", missShaderName, nullptr);
 
 	std::vector<D3D12_STATE_SUBOBJECT> StateObjects;
-	StateObjects.resize(8);
+	StateObjects.resize(10);
 
 	D3D12_EXPORT_DESC DxilExportsRGSDesc[1];
 	DxilExportsRGSDesc[0].Name = L"UniqueExport_RGS";
@@ -325,22 +325,22 @@ void Game::initialise()
 	SubObjectGlobalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 	SubObjectGlobalRootSignature.pDesc = &GlobalRootSignature;
 
-	// TODO  optionally set the local root signature: LOCAL_ROOT_SIGNATURE_SUBOBJECT
-	//D3D12_LOCAL_ROOT_SIGNATURE LocalRootSignature;
-	//LocalRootSignature.pLocalRootSignature = g_dx12Device->GetDefaultRayTracingLocalRootSignature().getRootsignature();
-	//D3D12_STATE_SUBOBJECT& SubObjectLocalRootSignature = StateObjects.at(X);
-	//SubObjectLocalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
-	//SubObjectLocalRootSignature.pDesc = &LocalRootSignature;
+	// Local root signature option: set the local root signature
+	D3D12_LOCAL_ROOT_SIGNATURE LocalRootSignature;
+	LocalRootSignature.pLocalRootSignature = g_dx12Device->GetDefaultRayTracingLocalRootSignature().getRootsignature();
+	D3D12_STATE_SUBOBJECT& SubObjectLocalRootSignature = StateObjects.at(8);
+	SubObjectLocalRootSignature.Type = D3D12_STATE_SUBOBJECT_TYPE_LOCAL_ROOT_SIGNATURE;
+	SubObjectLocalRootSignature.pDesc = &LocalRootSignature;
 
-	// TODO if a local root signature is used, we should assiciate shader with it
-	//const WCHAR* ShaderLocalRootSignatureExports[] = { L"UniqueExport_RGS", L"UniqueExport_MS", L"UniqueExport_HG" };
-	//D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION AssociationLocalRootSignatureDesc = {};
-	//AssociationLocalRootSignatureDesc.NumExports = _countof(ShaderLocalRootSignatureExports);
-	//AssociationLocalRootSignatureDesc.pExports = ShaderLocalRootSignatureExports;
-	//AssociationLocalRootSignatureDesc.pSubobjectToAssociate = &SubObjectLocalRootSignature;
-	//D3D12_STATE_SUBOBJECT& SubObjectAssociationLocalRootSignatureDesc = StateObjects.at(X);
-	//SubObjectAssociationLocalRootSignatureDesc.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
-	//SubObjectAssociationLocalRootSignatureDesc.pDesc = &AssociationLocalRootSignatureDesc;
+	// Local root signature option: we must associate shaders with it
+	const WCHAR* ShaderLocalRootSignatureExports[] = { L"UniqueExport_RGS", L"UniqueExport_MS", L"UniqueExport_HG" };
+	D3D12_SUBOBJECT_TO_EXPORTS_ASSOCIATION AssociationLocalRootSignatureDesc = {};
+	AssociationLocalRootSignatureDesc.NumExports = _countof(ShaderLocalRootSignatureExports);
+	AssociationLocalRootSignatureDesc.pExports = ShaderLocalRootSignatureExports;
+	AssociationLocalRootSignatureDesc.pSubobjectToAssociate = &SubObjectLocalRootSignature;
+	D3D12_STATE_SUBOBJECT& SubObjectAssociationLocalRootSignatureDesc = StateObjects.at(9);
+	SubObjectAssociationLocalRootSignatureDesc.Type = D3D12_STATE_SUBOBJECT_TYPE_SUBOBJECT_TO_EXPORTS_ASSOCIATION;
+	SubObjectAssociationLocalRootSignatureDesc.pDesc = &AssociationLocalRootSignatureDesc;
 
 	D3D12_STATE_OBJECT_DESC StateObjectDesc;
 	StateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
@@ -486,17 +486,18 @@ void Game::initialise()
 //	g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateObject);
 //	g_dx12Device->getFrameCommandList()->DispatchRays(&DispatchRayDesc);
 
+	const RootSignature& RtLocalRootSignature = g_dx12Device->GetDefaultRayTracingLocalRootSignature();
 	uint Offset = 0;
 
 	// Evalaute required size
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// RGS id
-	// not local root parameters
+	Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// Miss shader
-	// not local root parameters
+	Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;		// Hit group
-	// not local root parameters
+	Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
 	const uint SBTSizeBytes = Offset;
@@ -510,14 +511,27 @@ void Game::initialise()
 	SBTRGSStartOffsetInBytes = Offset;
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_RGS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES); 
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	{
+		uint LocalOffset = Offset;
+		// 0 = CB0, 2 bytes
+		// 1 = SRT0,1 byte
+		//memcpy(&SBT[Offset], SphereVertexBuffer->getSRVCPUHandle(), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		memset(&SBT[Offset],								0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
+	}
 	SBTRGSSizeInBytes = Offset - SBTRGSStartOffsetInBytes;
-	// not local root parameters
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
 	//// Miss shaders
 	SBTMissStartOffsetInBytes = Offset;
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_MS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	{
+		memset(&SBT[Offset], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
+	}
 	SBTMissSizeInBytes = Offset - SBTMissStartOffsetInBytes;
 	SBTMissStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	// not local root parameters
@@ -527,6 +541,11 @@ void Game::initialise()
 	SBTHitGStartOffsetInBytes = Offset;
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_HG"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	{
+		memset(&SBT[Offset], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
+	}
 	SBTHitGSizeInBytes = Offset - SBTHitGStartOffsetInBytes;
 	SBTHitGStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	// not local root parameters

@@ -1621,7 +1621,8 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 
 	mRootCBVCount = 1;
 	mDescriptorTable0SRVCount = 8;
-	mDescriptorTable0UAVCount = 4;
+	mDescriptorTable0UAVCount = InRootSignatureType == RootSignatureType_Local_RT ? 0 : 4;				// local RT only have SRV, no UAV in this design
+	const uint DescriptorTable0RangeCount = InRootSignatureType == RootSignatureType_Local_RT ? 1 : 2;	// Idem
 
 	// Global root signature for ray tracing will use space 1 to not conflict with other local shader.
 	// Otherwise, RT and regular root signatures have the same footprint.
@@ -1635,6 +1636,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	paramCBV0.Descriptor.RegisterSpace = RegisterSpace;
 	paramCBV0.Descriptor.ShaderRegister = 0;	// b0
 	rootParameters.push_back(paramCBV0);
+	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_CBV0);
 	mRootSignatureDWordUsed += 2;				// Root descriptor
 
 	// SRV/UAV simple descriptor table, dx11 style
@@ -1651,7 +1653,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
 	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable0;
-	descriptorTable0.NumDescriptorRanges = _countof(descriptorTable0Ranges);
+	descriptorTable0.NumDescriptorRanges = DescriptorTable0RangeCount;
 	descriptorTable0.pDescriptorRanges = &descriptorTable0Ranges[0];
 
 	D3D12_ROOT_PARAMETER paramDescriptorTable0;
@@ -1659,9 +1661,11 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	paramDescriptorTable0.DescriptorTable = descriptorTable0;
 	paramDescriptorTable0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	rootParameters.push_back(paramDescriptorTable0);
+	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_DescriptorTable0);
 	mRootSignatureDWordUsed += 1;				// Descriptor table
 
 	// Check bound correctness
+	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_Total);
 	ATLASSERT(mRootSignatureDWordUsed <= (InRootSignatureType == RootSignatureType_Global_IA ? 63u : 64u));
 
 	// Static samplers for simplicity (see StaticSamplers.hlsl)

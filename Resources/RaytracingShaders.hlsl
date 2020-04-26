@@ -9,6 +9,12 @@ cbuffer MeshConstantBuffer : register(b0, space1)
 	uint	 pad1;
 }
 
+
+
+//
+// Ray tracing global root signature parameters in space1
+//
+
 RaytracingAccelerationStructure Scene : register(t0, space1);
 RWTexture2D<float4> LuminanceRenderTarget : register(u0, space1);
 
@@ -16,6 +22,8 @@ struct RayPayload
 {
     float4 Color;
 };
+
+
 
 [shader("raygeneration")]
 void MyRaygenShader()
@@ -43,19 +51,42 @@ void MyRaygenShader()
 	// Trace
 	RayPayload Payload = { float4(0.5f, 0.5f, 0.5f, 0.0f) };
 	// RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER 
-	TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 1, 0, Ray, Payload);
+	TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, Ray, Payload);
 	
 	// Write the raytraced color to the output texture.
 	LuminanceRenderTarget[DispatchRaysIndex().xy] = Payload.Color;
 
 }
 
+
+
+//
+// Ray tracing local root signature parameters in space0
+//
+
+//Texture2D MeshTexture : register(t0, space0);
+
+struct VertexStruct
+{
+	float3 Position;
+	float3 Normal;
+	float2 UV;
+};
+StructuredBuffer<VertexStruct> VertexBuffer : register(t0, space0);
+Buffer<uint> IndexBuffer : register(t1, space0);
+
+
+
 [shader("closesthit")]
 void MyClosestHitShader(inout RayPayload Payload, in BuiltInTriangleIntersectionAttributes Attr)
 {
     float3 barycentrics = float3(1 - Attr.barycentrics.x - Attr.barycentrics.y, Attr.barycentrics.x, Attr.barycentrics.y);
-	Payload.Color = float4(barycentrics, 1);
+//	Payload.Color = float4(barycentrics, 1);
+
+	Payload.Color = float4(WorldRayOrigin() + RayTCurrent() * WorldRayDirection(), 1.0f);
 }
+
+
 
 [shader("miss")]
 void MyMissShader(inout RayPayload Payload)
