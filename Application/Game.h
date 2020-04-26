@@ -64,8 +64,8 @@ private:
 	uint SphereIndexCount;
 	uint SphereVertexCount;
 	InputLayout* SphereVertexLayout;
-	RenderBufferGeneric* SphereVertexBuffer;
-	RenderBufferGeneric* SphereIndexBuffer;
+	StructuredBuffer* SphereVertexBuffer;
+	TypedBuffer* SphereIndexBuffer;
 
 	VertexShader* MeshVertexShader;
 	PixelShader*  MeshPixelShader;

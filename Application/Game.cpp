@@ -169,8 +169,8 @@ void Game::initialise()
 		{
 			SphereVertexCount = (uint)loader.LoadedVertices.size();
 			SphereIndexCount = (uint)loader.LoadedIndices.size();
-			SphereVertexBuffer = new RenderBufferGeneric(SphereVertexCount * SphereVertexStride, (void*)loader.LoadedVertices.data());
-			SphereIndexBuffer = new RenderBufferGeneric(SphereIndexCount * sizeof(UINT), (void*)loader.LoadedIndices.data());
+			SphereVertexBuffer = new StructuredBuffer(SphereVertexCount, SphereVertexStride, (void*)loader.LoadedVertices.data());
+			SphereIndexBuffer = new TypedBuffer(SphereIndexCount, SphereIndexCount * sizeof(UINT), DXGI_FORMAT_R32_UINT, (void*)loader.LoadedIndices.data());
 		}
 		else
 		{
@@ -740,10 +740,8 @@ void Game::render()
 		SCOPED_GPU_TIMER(RasterMesh, 255, 100, 100);
 
 		SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-		const UINT StrideInByte = sizeof(float) * 8;
-		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferPosView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
-		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferNormalView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
-		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferUVView = SphereVertexBuffer->getVertexBufferView(StrideInByte);
+		const UINT SphereVertexBufferStrideInByte = sizeof(float) * 8;
+		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferView = SphereVertexBuffer->getVertexBufferView(SphereVertexBufferStrideInByte);
 		SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
 		D3D12_INDEX_BUFFER_VIEW SphereIndexBufferView = SphereIndexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
 
@@ -768,9 +766,9 @@ void Game::render()
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
 
 		// Set mesh buffers
-		commandList->IASetVertexBuffers(0, 1, &SphereVertexBufferPosView);
-		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferNormalView);
-		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferUVView);
+		commandList->IASetVertexBuffers(0, 1, &SphereVertexBufferView);
+		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferView);
+		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferView);
 		commandList->IASetIndexBuffer(&SphereIndexBufferView);
 
 		struct MeshConstantBuffer
