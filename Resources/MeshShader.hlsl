@@ -22,13 +22,14 @@ struct MeshVertexOutput
 cbuffer MeshConstantBuffer : register(b0)
 {
 	float4x4 ViewProjectionMatrix;
+	float4x4 MeshWorldMatrix;
 }
 
 MeshVertexOutput MeshVertexShader(MeshVertexInput input)
 {
 	MeshVertexOutput output;
 
-	output.SvPosition = mul(ViewProjectionMatrix, float4(input.Position, 1.0));
+	output.SvPosition = mul(ViewProjectionMatrix, mul(MeshWorldMatrix, float4(input.Position, 1.0)));
 
 	output.Normal = input.Normal;
 	output.UV = input.UV;

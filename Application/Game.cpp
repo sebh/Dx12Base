@@ -760,30 +760,54 @@ void Game::render()
 		PSODesc.mDepthTextureFormat = DepthTexture->getClearColor().Format;
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
-		// Set constants
-		struct MeshConstantBuffer
-		{
-			float4x4 ViewProjectionMatrix;
-		};
-		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
-		MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
-		MeshCB->ViewProjectionMatrix = viewProjMatrix;
-
 		// Set other raster properties
 		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
+
+		// Set mesh buffers
 		commandList->IASetVertexBuffers(0, 1, &SphereVertexBufferPosView);
 		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferNormalView);
 		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferUVView);
 		commandList->IASetIndexBuffer(&SphereIndexBufferView);
 
-		// Set constants and constant buffer
-		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+		struct MeshConstantBuffer
+		{
+			float4x4 ViewProjectionMatrix;
+			float4x4 MeshWorldMatrix;
+		};
 
-		// Set root signature data and draw
-		commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
-		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
-		commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
+		// Mesh 0
+		{
+			// Set constants
+			FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+			MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+			MeshCB->ViewProjectionMatrix = viewProjMatrix;
+			MeshCB->MeshWorldMatrix = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+
+			// Set constants and constant buffer
+			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+
+			// Set root signature data and draw
+			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
+			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
+			commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
+		}
+		// Mesh 1
+		{
+			// Set constants
+			FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+			MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+			MeshCB->ViewProjectionMatrix = viewProjMatrix;
+			MeshCB->MeshWorldMatrix = XMMatrixTranslation(10.0f, 10.0f, 10.0f);
+
+			// Set constants and constant buffer
+			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+
+			// Set root signature data and draw
+			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
+			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTable0GpuHandle());
+			commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
+		}
 	}
 
 	// Transition buffer to compute or UAV
