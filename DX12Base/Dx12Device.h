@@ -79,7 +79,7 @@ public:
 	UINT getDsvDescriptorSize() const { return mDsvDescriptorSize; }
 
 	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourcesDecriptorHeapCPU; }
-	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU; }
+	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU[mFrameIndex]; }
 
 	const DescriptorHeap* getFrameDispatchDrawCallGpuDescriptorHeap() { return mFrameDispatchDrawCallDescriptorHeapGPU[mFrameIndex]; }
 
@@ -153,7 +153,7 @@ private:
 	RootSignature*								mRtLocalRootSignature;						// Ray tracing local root signature
 
 	AllocatedResourceDecriptorHeap*				mAllocatedResourcesDecriptorHeapCPU;		// All loaded resources allocate UAV/SRV if required in this CPU heap.
-	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU;			// All dispatch and draw calls have their descriptors set in this CPU heap.
+	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU[frameBufferCount];// All dispatch and draw calls have their descriptors set in this CPU heap.
 	DescriptorHeap*								mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];// GPU version of dispatch and draw calls descriptors.
 
 	FrameConstantBuffers*						mFrameConstantBuffers[frameBufferCount];	// Descriptor heaps for constant buffers.

@@ -280,10 +280,9 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 	mAllocatedResourcesDecriptorHeapCPU = new AllocatedResourceDecriptorHeap(AllocatedResourceDescriptorCount);
 
-	mDispatchDrawCallDescriptorHeapCPU = new DispatchDrawCallCpuDescriptorHeap(FrameDispatchDrawCallResourceDescriptorCount);
-
 	for (int i = 0; i < frameBufferCount; i++)
 	{
+		mDispatchDrawCallDescriptorHeapCPU[i] = new DispatchDrawCallCpuDescriptorHeap(FrameDispatchDrawCallResourceDescriptorCount);
 		mFrameDispatchDrawCallDescriptorHeapGPU[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDispatchDrawCallResourceDescriptorCount);
 		mFrameConstantBuffers[i] = new FrameConstantBuffers(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT * 2);
 	}
@@ -365,8 +364,9 @@ void Dx12Device::internalShutdown()
 
 		resetComPtr(&mFrameTimeStampQueryHeaps[i]);
 		resetPtr(&mFrameTimeStampQueryReadBackBuffers[i]);
+
+		resetPtr(&mDispatchDrawCallDescriptorHeapCPU[i]);
 	}
-	resetPtr(&mDispatchDrawCallDescriptorHeapCPU);
 	resetPtr(&mAllocatedResourcesDecriptorHeapCPU);
 
 	// Close and release all existing COM objects
