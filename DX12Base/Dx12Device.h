@@ -563,12 +563,19 @@ enum RootParameterIndex
 	RootParameterIndex_Count = 2
 };
 
+
+// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+#define DWORD_BYTE_COUNT 4
+#define ROOTSIG_CONSTANT_DWORD_COUNT		(1*DWORD_BYTE_COUNT)
+#define ROOTSIG_DESCRIPTOR_DWORD_COUNT		(2*DWORD_BYTE_COUNT)	// restiction on what those can be: see https://docs.microsoft.com/en-us/windows/win32/direct3d12/using-descriptors-directly-in-the-root-signature
+#define ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT	(1*DWORD_BYTE_COUNT) 
+
 // Static assignement of root parameters
 enum RootParameterByteOffset
 {
-	RootParameterByteOffset_CBV0 = 0,
-	RootParameterByteOffset_DescriptorTable0 = 2 * 4,
-	RootParameterByteOffset_Total = 3 * 4
+	RootParameterByteOffset_CBV0				= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 0),
+	RootParameterByteOffset_DescriptorTable0	= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 0),
+	RootParameterByteOffset_Total				= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 1)
 };
 
 class RootSignature

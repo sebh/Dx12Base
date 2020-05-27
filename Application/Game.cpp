@@ -516,8 +516,8 @@ void Game::initialise()
 		// 0 = CB0, 2 bytes
 		// 1 = SRT0,1 byte
 		//memcpy(&SBT[Offset], SphereVertexBuffer->getSRVCPUHandle(), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		memset(&SBT[Offset],								0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
-		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0],				0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_DescriptorTable0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
 		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	}
 	SBTRGSSizeInBytes = Offset - SBTRGSStartOffsetInBytes;
@@ -528,13 +528,12 @@ void Game::initialise()
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_MS"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	{
-		memset(&SBT[Offset], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
-		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0],				0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_DescriptorTable0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
 		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	}
 	SBTMissSizeInBytes = Offset - SBTMissStartOffsetInBytes;
 	SBTMissStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-	// not local root parameters
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
 	//// Hit groups
@@ -542,17 +541,15 @@ void Game::initialise()
 	memcpy(&SBT[Offset], mRayTracingPipelineStateObjectProp->GetShaderIdentifier(L"UniqueExport_HG"), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	{
-		memset(&SBT[Offset], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
-		memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		memset(&SBT[Offset + RootParameterByteOffset_CBV0],				0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		memset(&SBT[Offset + RootParameterByteOffset_DescriptorTable0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
 		Offset += RtLocalRootSignature.getRootSignatureSizeBytes();
 	}
 	SBTHitGSizeInBytes = Offset - SBTHitGStartOffsetInBytes;
 	SBTHitGStrideInBytes = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-	// not local root parameters
 	Offset = RoundUp(Offset, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
 
 	SBTBuffer = new RenderBufferGeneric(Offset, SBT, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
-	delete [] SBT;
 
 #endif
 
@@ -870,15 +867,17 @@ void Game::render()
 		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
 		HdrTexture2->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
+		D3D12_GPU_VIRTUAL_ADDRESS SBTGpuAddress = SBTBuffer->getGPUVirtualAddress();
+
 		D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = {};
-		DispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTRGSStartOffsetInBytes;
+		DispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTGpuAddress + SBTRGSStartOffsetInBytes;
 		DispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = SBTRGSSizeInBytes;
 		
-		DispatchRayDesc.MissShaderTable.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTMissStartOffsetInBytes;
+		DispatchRayDesc.MissShaderTable.StartAddress = SBTGpuAddress + SBTMissStartOffsetInBytes;
 		DispatchRayDesc.MissShaderTable.SizeInBytes = SBTMissSizeInBytes;
 		DispatchRayDesc.MissShaderTable.StrideInBytes = SBTMissStrideInBytes;
 		
-		DispatchRayDesc.HitGroupTable.StartAddress = SBTBuffer->getGPUVirtualAddress() + SBTHitGStartOffsetInBytes;
+		DispatchRayDesc.HitGroupTable.StartAddress = SBTGpuAddress + SBTHitGStartOffsetInBytes;
 		DispatchRayDesc.HitGroupTable.SizeInBytes = SBTHitGSizeInBytes;
 		DispatchRayDesc.HitGroupTable.StrideInBytes = SBTHitGStrideInBytes;
 		

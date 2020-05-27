@@ -1606,7 +1606,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	// if ia is used, only 63 are available
 	// Descriptor tables: 1 DWORD
 	// Root constants   : 1 DWORD
-	// Root descriptors : 2 DWORD
+	// Root descriptors : 2 DWORD		// CBV, SRV, UAV, restiction on what those can be: see https://docs.microsoft.com/en-us/windows/win32/direct3d12/using-descriptors-directly-in-the-root-signature
 
 
 	// ROOT DESCRIPTORS
@@ -1636,7 +1636,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	paramCBV0.Descriptor.RegisterSpace = RegisterSpace;
 	paramCBV0.Descriptor.ShaderRegister = 0;	// b0
 	rootParameters.push_back(paramCBV0);
-	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_CBV0);
+	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_CBV0);
 	mRootSignatureDWordUsed += 2;				// Root descriptor
 
 	// SRV/UAV simple descriptor table, dx11 style
@@ -1661,11 +1661,11 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	paramDescriptorTable0.DescriptorTable = descriptorTable0;
 	paramDescriptorTable0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	rootParameters.push_back(paramDescriptorTable0);
-	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_DescriptorTable0);
+	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTable0);
 	mRootSignatureDWordUsed += 1;				// Descriptor table
 
 	// Check bound correctness
-	ATLASSERT(mRootSignatureDWordUsed * 4 == RootParameterByteOffset_Total);
+	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_Total);
 	ATLASSERT(mRootSignatureDWordUsed <= (InRootSignatureType == RootSignatureType_Global_IA ? 63u : 64u));
 
 	// Static samplers for simplicity (see StaticSamplers.hlsl)
