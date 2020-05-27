@@ -1612,7 +1612,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	// ROOT DESCRIPTORS
 	// Current DWORD layout for graphics and compute is
 	//  0 - 1 : root descriptor		constant buffer			b0 only
-	//  2 - 2 : descriptor table	SRV/UAV					t0 - t0 and u0 - u0
+	//  2 - 2 : descriptor table	SRV/UAV					t0 - t7 and u0 - u3, no UAVs for local root signature
 	//
 	//	Static samplers aside
 
