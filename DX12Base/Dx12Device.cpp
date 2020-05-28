@@ -22,7 +22,11 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
+//  - ease BLAS and TLAS creation
+//  - ease RayTracingPipelineState creation, also allow shader reload, maybe create in Game::loadShaders then?
+//  - ease SBT creation
 //  - clean up SIZE_T, UINT64, uint32, etc.
+//  - how should libvrary be dealt with? A single one?
 //  - Proper upload handling in shared pool
 
 
