@@ -819,6 +819,7 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 DispatchDrawCallCpuDescriptorHeap::DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount)
 {
+	mMaxFrameDescriptorCount = DescriptorCount;
 	mCpuDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
 }
 
@@ -844,6 +845,10 @@ void DispatchDrawCallCpuDescriptorHeap::EndRecording(const DescriptorHeap& CopyT
 
 DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::AllocateCall(const RootSignature& RootSig)
 {
+	const uint DescriptoCountToAllocate = RootSig.getRootDescriptorTable0SRVCount() + RootSig.getRootDescriptorTable0UAVCount();
+	ATLASSERT(mCpuDescriptorHeap != nullptr);
+	ATLASSERT((mFrameDescriptorCount + DescriptoCountToAllocate) <= mMaxFrameDescriptorCount);
+
 	Call NewCall;
 	NewCall.mRootSig = &RootSig;
 
@@ -853,7 +858,7 @@ DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::Alloc
 	NewCall.mGPUHandle = g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getGPUHandle();
 	NewCall.mGPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
 
-	mFrameDescriptorCount += RootSig.getRootDescriptorTable0SRVCount() + RootSig.getRootDescriptorTable0UAVCount();
+	mFrameDescriptorCount += DescriptoCountToAllocate;
 
 	return NewCall;
 }

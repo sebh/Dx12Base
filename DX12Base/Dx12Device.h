@@ -397,6 +397,7 @@ private:
 	DescriptorHeap* mCpuDescriptorHeap;
 
 	UINT mFrameDescriptorCount;
+	UINT mMaxFrameDescriptorCount;
 };
 
 
