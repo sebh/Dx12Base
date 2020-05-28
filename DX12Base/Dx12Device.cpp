@@ -1,5 +1,6 @@
 
 #include "Dx12Device.h"
+#include "Dx12RayTracing.h"
 
 #include "Strsafe.h"
 #include <iostream>
@@ -886,49 +887,6 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResour
 	Destination.ptr += (mRootSig->getRootDescriptorTable0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
-}
-
-
-
-DispatchRaysCallSBTHeapCPU::DispatchRaysCallSBTHeapCPU(UINT SizeBytes)
-{
-	mUploadHeapSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Upload);
-	mGPUSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
-	mCpuMemoryStart = nullptr;
-	mAllocatedBytes = 0;
-}
-DispatchRaysCallSBTHeapCPU::~DispatchRaysCallSBTHeapCPU()
-{
-	resetPtr(&mUploadHeapSBT);
-	resetPtr(&mGPUSBT);
-}
-
-void DispatchRaysCallSBTHeapCPU::BeginRecording(ID3D12GraphicsCommandList4& CommandList)
-{
-	// Enqueue the copy before the frame starts
-	mGPUSBT->resourceTransitionBarrier(D3D12_RESOURCE_STATE_COPY_DEST);
-	CommandList.CopyResource(mGPUSBT->getD3D12Resource(), mUploadHeapSBT->getD3D12Resource());
-	mGPUSBT->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
-	// Now map the buffer to fill it up while creating frame commands
-	mAllocatedBytes = 0;
-	mUploadHeapSBT->getD3D12Resource()->Map(0, nullptr, (void**)(&mCpuMemoryStart));
-}
-void DispatchRaysCallSBTHeapCPU::EndRecording()
-{
-	mUploadHeapSBT->getD3D12Resource()->Unmap(0, nullptr);
-}
-
-DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMemory(const UINT ByteCount)
-{
-	ATLASSERT(mCpuMemoryStart != nullptr);
-	ATLASSERT((mAllocatedBytes + ByteCount) <= mUploadHeapSBT->GetSizeInBytes());
-
-	DispatchRaysCallSBTHeapCPU::SBTMemory Result;
-	Result.ptr = mCpuMemoryStart + mAllocatedBytes;
-	Result.mGPUAddress = mGPUSBT->getGPUVirtualAddress() + mAllocatedBytes;
-	mAllocatedBytes += ByteCount;
-	return Result;
 }
 
 

@@ -838,7 +838,6 @@ void Game::render()
 			uint HitGroupShaderCount = 0;
 			{
 				memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
-				memset(&SBT[Offset + RootParameterByteOffset_DescriptorTable0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
 
 				DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
 				RtLocalRootSigDescriptors.SetSRV(0, *SphereVertexBuffer);
@@ -857,7 +856,6 @@ void Game::render()
 			Offset += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 			{
 				memset(&SBT[Offset + RootParameterByteOffset_CBV0], 0, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
-				memset(&SBT[Offset + RootParameterByteOffset_DescriptorTable0], 0, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
 
 				DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
 				RtLocalRootSigDescriptors.SetSRV(0, *SphereVertexBuffer);
