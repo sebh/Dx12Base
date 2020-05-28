@@ -37,6 +37,7 @@ class RootSignature;
 class DescriptorHeap;
 class AllocatedResourceDecriptorHeap;
 class DispatchDrawCallCpuDescriptorHeap;
+class DispatchRaysCallSBTHeapCPU;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
@@ -80,6 +81,8 @@ public:
 
 	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourcesDecriptorHeapCPU; }
 	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU[mFrameIndex]; }
+
+	DispatchRaysCallSBTHeapCPU& getDispatchRaysCallCpuSBTHeap() { return *mDispatchRaysCallSBTHeapCPU[mFrameIndex]; }
 
 	const DescriptorHeap* getFrameDispatchDrawCallGpuDescriptorHeap() { return mFrameDispatchDrawCallDescriptorHeapGPU[mFrameIndex]; }
 
@@ -153,8 +156,11 @@ private:
 	RootSignature*								mRtLocalRootSignature;						// Ray tracing local root signature
 
 	AllocatedResourceDecriptorHeap*				mAllocatedResourcesDecriptorHeapCPU;		// All loaded resources allocate UAV/SRV if required in this CPU heap.
+
 	DispatchDrawCallCpuDescriptorHeap*			mDispatchDrawCallDescriptorHeapCPU[frameBufferCount];// All dispatch and draw calls have their descriptors set in this CPU heap.
 	DescriptorHeap*								mFrameDispatchDrawCallDescriptorHeapGPU[frameBufferCount];// GPU version of dispatch and draw calls descriptors.
+
+	DispatchRaysCallSBTHeapCPU*					mDispatchRaysCallSBTHeapCPU[frameBufferCount];// All dispatch rays have SBT generated using this. No SBT caching happens today.
 
 	FrameConstantBuffers*						mFrameConstantBuffers[frameBufferCount];	// Descriptor heaps for constant buffers.
 
@@ -372,7 +378,7 @@ public:
 		friend class DispatchDrawCallCpuDescriptorHeap;
 
 		const RootSignature* mRootSig;
-		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the staging heap
+		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
 		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
 
 		UINT mUsedSRVs = 0;
@@ -391,6 +397,34 @@ private:
 	DescriptorHeap* mCpuDescriptorHeap;
 
 	UINT mFrameDescriptorCount;
+};
+
+
+class DispatchRaysCallSBTHeapCPU
+{
+public:
+	DispatchRaysCallSBTHeapCPU(UINT SizeBytes);
+	virtual ~DispatchRaysCallSBTHeapCPU();
+
+	void BeginRecording(ID3D12GraphicsCommandList4& CommandList);
+	void EndRecording();
+
+	struct SBTMemory
+	{
+		void* ptr;
+		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
+	};
+	SBTMemory AllocateSBTMemory(const UINT ByteCount);
+
+private:
+	DispatchRaysCallSBTHeapCPU();
+	DispatchRaysCallSBTHeapCPU(DispatchRaysCallSBTHeapCPU&);
+
+	RenderBufferGeneric* mUploadHeapSBT;
+	RenderBufferGeneric* mGPUSBT;
+
+	BYTE* mCpuMemoryStart;
+	UINT mAllocatedBytes;
 };
 
 

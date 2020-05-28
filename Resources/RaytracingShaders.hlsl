@@ -64,8 +64,6 @@ void MyRaygenShader()
 // Ray tracing local root signature parameters in space0
 //
 
-//Texture2D MeshTexture : register(t0, space0);
-
 struct VertexStruct
 {
 	float3 Position;
@@ -75,15 +73,25 @@ struct VertexStruct
 StructuredBuffer<VertexStruct> VertexBuffer : register(t0, space0);
 Buffer<uint> IndexBuffer : register(t1, space0);
 
+#include "StaticSamplers.hlsl"
+Texture2D MeshTexture : register(t2, space0);
 
 
 [shader("closesthit")]
 void MyClosestHitShader(inout RayPayload Payload, in BuiltInTriangleIntersectionAttributes Attr)
 {
     float3 barycentrics = float3(1 - Attr.barycentrics.x - Attr.barycentrics.y, Attr.barycentrics.x, Attr.barycentrics.y);
-//	Payload.Color = float4(barycentrics, 1);
 
-	Payload.Color = float4(WorldRayOrigin() + RayTCurrent() * WorldRayDirection(), 1.0f);
+//	Payload.Color = float4(barycentrics, 1);
+//	Payload.Color = float4(WorldRayOrigin() + RayTCurrent() * WorldRayDirection(), 1.0f);
+
+	uint vertId = 3 * PrimitiveIndex();
+	float2 uv0 = VertexBuffer[IndexBuffer[vertId] + 0].UV;
+	float2 uv1 = VertexBuffer[IndexBuffer[vertId] + 1].UV;
+	float2 uv2 = VertexBuffer[IndexBuffer[vertId] + 2].UV;
+	float2 uv = uv0 * barycentrics.x + uv1 * barycentrics.y + uv2 * barycentrics.z;
+
+	Payload.Color = float4(MeshTexture.SampleLevel(SamplerLinearClamp, uv, 0).rgb, 1.0);
 }
 
 

@@ -21,6 +21,7 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
+//  - clean up SIZE_T, UINT64, uint32, etc.
 //  - Proper upload handling in shared pool
 
 
@@ -277,6 +278,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 
 	const UINT AllocatedResourceDescriptorCount = 1024;
 	const UINT FrameDispatchDrawCallResourceDescriptorCount = 1024;
+	const UINT FrameSBTSizeBytes = 4096;
 
 	mAllocatedResourcesDecriptorHeapCPU = new AllocatedResourceDecriptorHeap(AllocatedResourceDescriptorCount);
 
@@ -285,6 +287,8 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mDispatchDrawCallDescriptorHeapCPU[i] = new DispatchDrawCallCpuDescriptorHeap(FrameDispatchDrawCallResourceDescriptorCount);
 		mFrameDispatchDrawCallDescriptorHeapGPU[i] = new DescriptorHeap(true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, FrameDispatchDrawCallResourceDescriptorCount);
 		mFrameConstantBuffers[i] = new FrameConstantBuffers(D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT * 2);
+
+		mDispatchRaysCallSBTHeapCPU[i] = new DispatchRaysCallSBTHeapCPU(FrameSBTSizeBytes);
 	}
 
 	// Now allocate data used for GPU performance tracking
@@ -366,6 +370,8 @@ void Dx12Device::internalShutdown()
 		resetPtr(&mFrameTimeStampQueryReadBackBuffers[i]);
 
 		resetPtr(&mDispatchDrawCallDescriptorHeapCPU[i]);
+
+		resetPtr(&mDispatchRaysCallSBTHeapCPU[i]);
 	}
 	resetPtr(&mAllocatedResourcesDecriptorHeapCPU);
 
@@ -431,6 +437,9 @@ void Dx12Device::beginFrame()
 	// Start the recodring of draw/dispatch call resource table.
 	getDispatchDrawCallCpuDescriptorHeap().BeginRecording();
 
+	// Begin the recording of SBT and enqueue a copy command to upload SBT to fast GPU memory from upload heap.
+	getDispatchRaysCallCpuSBTHeap().BeginRecording(*mCommandList[0]);
+
 	// Start the constant buffer creation process, map memory to write constant
 	getFrameConstantBuffers().BeginRecording();
 
@@ -446,8 +455,12 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 
 	mCommandList[0]->ResolveQueryData(mFrameTimeStampQueryHeaps[mFrameIndex], D3D12_QUERY_TYPE_TIMESTAMP, 0, 256 * 2, mFrameTimeStampQueryReadBackBuffers[mFrameIndex]->getD3D12Resource(), 0);
 
+	// Stop recoring SBT
+	getDispatchRaysCallCpuSBTHeap().EndRecording();
+
 	// Close the command now that we are done with this frame
-	mCommandList[0]->Close();
+	hr = mCommandList[0]->Close();
+	ATLASSERT(hr == S_OK);
 
 	// Unmap constant upload buffer.
 	getFrameConstantBuffers().EndRecording();
@@ -868,6 +881,49 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResour
 	Destination.ptr += (mRootSig->getRootDescriptorTable0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
+}
+
+
+
+DispatchRaysCallSBTHeapCPU::DispatchRaysCallSBTHeapCPU(UINT SizeBytes)
+{
+	mUploadHeapSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Upload);
+	mGPUSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	mCpuMemoryStart = nullptr;
+	mAllocatedBytes = 0;
+}
+DispatchRaysCallSBTHeapCPU::~DispatchRaysCallSBTHeapCPU()
+{
+	resetPtr(&mUploadHeapSBT);
+	resetPtr(&mGPUSBT);
+}
+
+void DispatchRaysCallSBTHeapCPU::BeginRecording(ID3D12GraphicsCommandList4& CommandList)
+{
+	// Enqueue the copy before the frame starts
+	mGPUSBT->resourceTransitionBarrier(D3D12_RESOURCE_STATE_COPY_DEST);
+	CommandList.CopyResource(mGPUSBT->getD3D12Resource(), mUploadHeapSBT->getD3D12Resource());
+	mGPUSBT->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+	// Now map the buffer to fill it up while creating frame commands
+	mAllocatedBytes = 0;
+	mUploadHeapSBT->getD3D12Resource()->Map(0, nullptr, (void**)(&mCpuMemoryStart));
+}
+void DispatchRaysCallSBTHeapCPU::EndRecording()
+{
+	mUploadHeapSBT->getD3D12Resource()->Unmap(0, nullptr);
+}
+
+DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMemory(const UINT ByteCount)
+{
+	ATLASSERT(mCpuMemoryStart != nullptr);
+	ATLASSERT((mAllocatedBytes + ByteCount) <= mUploadHeapSBT->GetSizeInBytes());
+
+	DispatchRaysCallSBTHeapCPU::SBTMemory Result;
+	Result.ptr = mCpuMemoryStart + mAllocatedBytes;
+	Result.mGPUAddress = mGPUSBT->getGPUVirtualAddress() + mAllocatedBytes;
+	mAllocatedBytes += ByteCount;
+	return Result;
 }
 
 
