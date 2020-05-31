@@ -88,8 +88,9 @@ struct RayTracingPipelineStateShaderDesc
 	const TCHAR* ShaderEntryName;
 };
 
-struct RayTracingPipelineState
+class RayTracingPipelineState
 {
+public:
 	RayTracingPipelineState();
 	virtual ~RayTracingPipelineState();
 
