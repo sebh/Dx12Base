@@ -23,15 +23,15 @@ public:
 	StaticBottomLevelAccelerationStructureBuffer(D3D12_RAYTRACING_GEOMETRY_DESC* Meshes, uint MeshCount);
 	virtual ~StaticBottomLevelAccelerationStructureBuffer();
 
-	AccelerationStructureBuffer& GetBuffer() { return *BlasResult; }
-	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return BlasResult->getGPUVirtualAddress(); }
+	AccelerationStructureBuffer& GetBuffer() { return *mBlasResult; }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return mBlasResult->getGPUVirtualAddress(); }
 
 private:
 	StaticBottomLevelAccelerationStructureBuffer();
 	StaticBottomLevelAccelerationStructureBuffer(StaticBottomLevelAccelerationStructureBuffer&);
 
-	RenderBufferGeneric*			BlasScratch;
-	AccelerationStructureBuffer*	BlasResult;
+	RenderBufferGeneric*			mBlasScratch;
+	AccelerationStructureBuffer*	mBlasResult;
 };
 
 class StaticTopLevelAccelerationStructureBuffer
@@ -40,16 +40,17 @@ public:
 	StaticTopLevelAccelerationStructureBuffer(D3D12_RAYTRACING_INSTANCE_DESC* Instances, uint InstanceCount);
 	virtual ~StaticTopLevelAccelerationStructureBuffer();
 
-	AccelerationStructureBuffer& GetBuffer() { return *TlasResult; }
-	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return TlasResult->getGPUVirtualAddress(); }
+	AccelerationStructureBuffer& GetBuffer() { return *mTlasResult; }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return mTlasResult->getGPUVirtualAddress(); }
 
 private:
 	StaticTopLevelAccelerationStructureBuffer();
 	StaticTopLevelAccelerationStructureBuffer(StaticTopLevelAccelerationStructureBuffer&);
 
-	RenderBufferGeneric*			TlasScratch;
-	AccelerationStructureBuffer*	TlasResult;
-	RenderBufferGeneric*			TlasInstanceBuffer;
+	RenderBufferGeneric*			mTlasScratch;
+	AccelerationStructureBuffer*	mTlasResult;
+	RenderBufferGeneric*			mTlasInstanceBuffer;
+	uint							mInstanceCount;
 };
 
 
@@ -84,8 +85,8 @@ public:
 
 struct RayTracingPipelineStateShaderDesc
 {
-	const TCHAR* ShaderFilepath;
-	const TCHAR* ShaderEntryName;
+	const TCHAR* mShaderFilepath;
+	const TCHAR* mShaderEntryName;
 };
 
 class RayTracingPipelineState
@@ -135,7 +136,7 @@ private:
 	RenderBufferGeneric* mGPUSBT;
 
 	BYTE* mCpuMemoryStart;
-	UINT mAllocatedBytes;
+	UINT  mAllocatedBytes;
 };
 
 

@@ -45,63 +45,64 @@ StaticBottomLevelAccelerationStructureBuffer::StaticBottomLevelAccelerationStruc
 	// Get the memory requirements to build the BLAS.
 	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
 	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
-	BlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
-	BlasScratch->setDebugName(L"blasScratch");
-	BlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	BlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
-	BlasResult->setDebugName(L"blasResult");
+	mBlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	mBlasScratch->setDebugName(L"blasScratch");
+	mBlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	mBlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
+	mBlasResult->setDebugName(L"blasResult");
 
 	// Create the bottom-level acceleration structure
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
 	desc.Inputs = ASInputs;
-	desc.ScratchAccelerationStructureData = BlasScratch->getGPUVirtualAddress();
-	desc.DestAccelerationStructureData = BlasResult->getGPUVirtualAddress();
+	desc.ScratchAccelerationStructureData = mBlasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = mBlasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
-	BlasResult->resourceUAVBarrier();
+	mBlasResult->resourceUAVBarrier();
 }
 
 StaticBottomLevelAccelerationStructureBuffer::~StaticBottomLevelAccelerationStructureBuffer()
 {
-	resetPtr(&BlasScratch);
-	resetPtr(&BlasResult);
+	resetPtr(&mBlasScratch);
+	resetPtr(&mBlasResult);
 }
 
 
 
 StaticTopLevelAccelerationStructureBuffer::StaticTopLevelAccelerationStructureBuffer(D3D12_RAYTRACING_INSTANCE_DESC* Instances, uint InstanceCount)
 {
-	TlasInstanceBuffer = new RenderBufferGeneric(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * InstanceCount, Instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+	mInstanceCount = InstanceCount;
+	mTlasInstanceBuffer = new RenderBufferGeneric(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * InstanceCount, Instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
 
 	static D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
 	TSInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 	TSInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	TSInputs.InstanceDescs = TlasInstanceBuffer->getGPUVirtualAddress();
+	TSInputs.InstanceDescs = mTlasInstanceBuffer->getGPUVirtualAddress();
 	TSInputs.NumDescs = InstanceCount;
 	TSInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
 
 	// Get the memory requirements to build the TLAS.
 	static D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
 	g_dx12Device->getDevice()->GetRaytracingAccelerationStructurePrebuildInfo(&TSInputs, &ASBuildInfo);
-	TlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
-	TlasScratch->setDebugName(L"tlasScratch");
-	TlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	TlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
-	TlasResult->setDebugName(L"tlasResult");
+	mTlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	mTlasScratch->setDebugName(L"tlasScratch");
+	mTlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	mTlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
+	mTlasResult->setDebugName(L"tlasResult");
 
 	// Create the top-level acceleration structure
 	static D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
 	desc.Inputs = TSInputs;
-	desc.ScratchAccelerationStructureData = TlasScratch->getGPUVirtualAddress();
-	desc.DestAccelerationStructureData = TlasResult->getGPUVirtualAddress();
+	desc.ScratchAccelerationStructureData = mTlasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = mTlasResult->getGPUVirtualAddress();
 	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
-	TlasResult->resourceUAVBarrier();
+	mTlasResult->resourceUAVBarrier();
 }
 
 StaticTopLevelAccelerationStructureBuffer::~StaticTopLevelAccelerationStructureBuffer()
 {
-	resetPtr(&TlasScratch);
-	resetPtr(&TlasResult);
-	resetPtr(&TlasInstanceBuffer);
+	resetPtr(&mTlasScratch);
+	resetPtr(&mTlasResult);
+	resetPtr(&mTlasInstanceBuffer);
 }
 
 
@@ -180,16 +181,16 @@ void RayTracingPipelineState::CreateSimpleRTState(RayTracingPipelineStateShaderD
 	const TCHAR* UniqueClosestHitShaderName = L"UniqueExport_CHS";
 	const TCHAR* UniqueMissShaderName		= L"UniqueExport_MS";
 
-	mRayGenShader		= new RayGenerationShader(RayGenShaderDesc.ShaderFilepath, RayGenShaderDesc.ShaderEntryName, nullptr);
-	mClosestHitShader	= new ClosestHitShader(ClosestHitShaderDesc.ShaderFilepath, ClosestHitShaderDesc.ShaderEntryName, nullptr);
-	mMissShader			= new MissShader(MissShaderDesc.ShaderFilepath, MissShaderDesc.ShaderEntryName, nullptr);
+	mRayGenShader		= new RayGenerationShader(RayGenShaderDesc.mShaderFilepath, RayGenShaderDesc.mShaderEntryName, nullptr);
+	mClosestHitShader	= new ClosestHitShader(ClosestHitShaderDesc.mShaderFilepath, ClosestHitShaderDesc.mShaderEntryName, nullptr);
+	mMissShader			= new MissShader(MissShaderDesc.mShaderFilepath, MissShaderDesc.mShaderEntryName, nullptr);
 
 	std::vector<D3D12_STATE_SUBOBJECT> StateObjects;
 	StateObjects.resize(10);
 
 	D3D12_EXPORT_DESC DxilExportsRGSDesc[1];
 	DxilExportsRGSDesc[0].Name = UniqueRayGenShaderName;
-	DxilExportsRGSDesc[0].ExportToRename = RayGenShaderDesc.ShaderEntryName;
+	DxilExportsRGSDesc[0].ExportToRename = RayGenShaderDesc.mShaderEntryName;
 	DxilExportsRGSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
 	D3D12_DXIL_LIBRARY_DESC LibraryRDGDesc;
 	LibraryRDGDesc.NumExports = 1;
@@ -202,7 +203,7 @@ void RayTracingPipelineState::CreateSimpleRTState(RayTracingPipelineStateShaderD
 
 	D3D12_EXPORT_DESC DxilExportsCHSDesc[1];
 	DxilExportsCHSDesc[0].Name = UniqueClosestHitShaderName;
-	DxilExportsCHSDesc[0].ExportToRename = ClosestHitShaderDesc.ShaderEntryName;
+	DxilExportsCHSDesc[0].ExportToRename = ClosestHitShaderDesc.mShaderEntryName;
 	DxilExportsCHSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
 	D3D12_DXIL_LIBRARY_DESC LibraryCHSDesc;
 	LibraryCHSDesc.NumExports = 1;
@@ -215,7 +216,7 @@ void RayTracingPipelineState::CreateSimpleRTState(RayTracingPipelineStateShaderD
 
 	D3D12_EXPORT_DESC DxilExportsMSDesc[1];
 	DxilExportsMSDesc[0].Name = UniqueMissShaderName;
-	DxilExportsMSDesc[0].ExportToRename = MissShaderDesc.ShaderEntryName;
+	DxilExportsMSDesc[0].ExportToRename = MissShaderDesc.mShaderEntryName;
 	DxilExportsMSDesc[0].Flags = D3D12_EXPORT_FLAG_NONE;
 	D3D12_DXIL_LIBRARY_DESC LibraryMSDesc;
 	LibraryMSDesc.NumExports = 1;
