@@ -84,48 +84,39 @@ public:
 
 
 
-class DispatchDrawCallCpuDescriptorHeap
+struct RayTracingPipelineState
+{
+	ID3D12StateObject*				mRayTracingPipelineStateObject;			// Ray tracing pipeline
+	ID3D12StateObjectProperties*	mRayTracingPipelineStateObjectProp;		// Ray tracing pipeline properties intereface
+};
+
+
+
+class DispatchRaysCallSBTHeapCPU
 {
 public:
-	DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount);
-	virtual ~DispatchDrawCallCpuDescriptorHeap();
+	DispatchRaysCallSBTHeapCPU(UINT SizeBytes);
+	virtual ~DispatchRaysCallSBTHeapCPU();
 
-	void BeginRecording();
-	void EndRecording(const DescriptorHeap& CopyToDescriptoHeap);
+	void BeginRecording(ID3D12GraphicsCommandList4& CommandList);
+	void EndRecording();
 
-	struct Call
+	struct SBTMemory
 	{
-		Call();
-
-		void SetSRV(UINT Register, RenderResource& Resource);
-		void SetUAV(UINT Register, RenderResource& Resource);
-
-		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTable0GpuHandle() { return mGPUHandle; }
-
-	private:
-		friend class DispatchDrawCallCpuDescriptorHeap;
-
-		const RootSignature* mRootSig;
-		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
-		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
-
-		UINT mUsedSRVs = 0;
-		UINT mUsedUAVs = 0;
-
-		UINT mSRVOffset = 0;
-		UINT mUAVOffset = 0;
+		void* ptr;
+		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
 	};
-
-	Call AllocateCall(const RootSignature& RootSig);
+	SBTMemory AllocateSBTMemory(const UINT ByteCount);
 
 private:
-	DispatchDrawCallCpuDescriptorHeap();
-	DispatchDrawCallCpuDescriptorHeap(DispatchDrawCallCpuDescriptorHeap&);
+	DispatchRaysCallSBTHeapCPU();
+	DispatchRaysCallSBTHeapCPU(DispatchRaysCallSBTHeapCPU&);
 
-	DescriptorHeap* mCpuDescriptorHeap;
+	RenderBufferGeneric* mUploadHeapSBT;
+	RenderBufferGeneric* mGPUSBT;
 
-	UINT mFrameDescriptorCount;
-	UINT mMaxFrameDescriptorCount;
+	BYTE* mCpuMemoryStart;
+	UINT mAllocatedBytes;
 };
 
 

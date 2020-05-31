@@ -356,31 +356,49 @@ private:
 };
 
 
-class DispatchRaysCallSBTHeapCPU
+
+class DispatchDrawCallCpuDescriptorHeap
 {
 public:
-	DispatchRaysCallSBTHeapCPU(UINT SizeBytes);
-	virtual ~DispatchRaysCallSBTHeapCPU();
+	DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount);
+	virtual ~DispatchDrawCallCpuDescriptorHeap();
 
-	void BeginRecording(ID3D12GraphicsCommandList4& CommandList);
-	void EndRecording();
+	void BeginRecording();
+	void EndRecording(const DescriptorHeap& CopyToDescriptoHeap);
 
-	struct SBTMemory
+	struct Call
 	{
-		void* ptr;
-		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
+		Call();
+
+		void SetSRV(UINT Register, RenderResource& Resource);
+		void SetUAV(UINT Register, RenderResource& Resource);
+
+		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTable0GpuHandle() { return mGPUHandle; }
+
+	private:
+		friend class DispatchDrawCallCpuDescriptorHeap;
+
+		const RootSignature* mRootSig;
+		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
+		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
+
+		UINT mUsedSRVs = 0;
+		UINT mUsedUAVs = 0;
+
+		UINT mSRVOffset = 0;
+		UINT mUAVOffset = 0;
 	};
-	SBTMemory AllocateSBTMemory(const UINT ByteCount);
+
+	Call AllocateCall(const RootSignature& RootSig);
 
 private:
-	DispatchRaysCallSBTHeapCPU();
-	DispatchRaysCallSBTHeapCPU(DispatchRaysCallSBTHeapCPU&);
+	DispatchDrawCallCpuDescriptorHeap();
+	DispatchDrawCallCpuDescriptorHeap(DispatchDrawCallCpuDescriptorHeap&);
 
-	RenderBufferGeneric* mUploadHeapSBT;
-	RenderBufferGeneric* mGPUSBT;
+	DescriptorHeap* mCpuDescriptorHeap;
 
-	BYTE* mCpuMemoryStart;
-	UINT mAllocatedBytes;
+	UINT mFrameDescriptorCount;
+	UINT mMaxFrameDescriptorCount;
 };
 
 
