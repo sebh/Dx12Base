@@ -73,6 +73,10 @@ private:
 	StaticBottomLevelAccelerationStructureBuffer* SphereBLAS;
 	StaticTopLevelAccelerationStructureBuffer* SceneTLAS;
 
+	RayTracingPipelineState* mRayTracingPipelineState;
+	//ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
+	//ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp;
+
 	TypedBuffer* UavBuffer;
 
 	VertexShader* vertexShader;

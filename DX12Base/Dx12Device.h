@@ -41,6 +41,7 @@ class DispatchRaysCallSBTHeapCPU;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
+class RayTracingPipelineState;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 static const int GPUTimerMaxCount = 256;
@@ -106,6 +107,8 @@ public:
 		UINT64		mLastValidTimeStampTickPerSeconds;
 	};
 	GPUTimersReport GetGPUTimerReport();
+
+	void AppendToGarbageCollector(RayTracingPipelineState* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStates.push_back(ToBeRemoved); }
 
 private:
 	Dx12Device();
@@ -178,6 +181,13 @@ private:
 	UINT64										mLastValidTimeStamps[GPUTimerMaxCount*2];
 	GPUTimer									mLastValidGPUTimers[GPUTimerMaxCount];
 	UINT64										mLastValidTimeStampTickPerSeconds;
+
+	// This is in fact a dumb garbage collector since the application must register the garbage to be deleted.
+	struct FrameGarbageCollector
+	{
+		std::vector<RayTracingPipelineState*>	mRayTracingPipelineStates;
+	};
+	FrameGarbageCollector mFrameGarbageCollector[frameBufferCount];
 };
 
 extern Dx12Device* g_dx12Device;

@@ -22,10 +22,9 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - ease RayTracingPipelineState creation, also allow shader reload, maybe create in Game::loadShaders then?
-//  - ease SBT creation
-//  - clean up SIZE_T, UINT64, uint32, etc.
-//  - how should libvrary be dealt with? A single one?
+//  - Ease SBT creation
+//  - Clean up SIZE_T, UINT64, uint32, etc.
+//  - How should libvrary be dealt with? A single one?
 //  - Proper upload handling in shared pool
 
 
@@ -531,6 +530,17 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 
 	// increment fenceValue for next frame
 	mFrameFenceValue[mFrameIndex]++;
+
+	// Garbage collector
+	{
+		FrameGarbageCollector* FGC = &mFrameGarbageCollector[mFrameIndex];
+
+		for (auto& ToDelete : FGC->mRayTracingPipelineStates)
+		{
+			delete ToDelete;
+		}
+		FGC->mRayTracingPipelineStates.clear();
+	}
 }
 
 

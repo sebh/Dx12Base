@@ -82,12 +82,30 @@ public:
 	virtual ~MissShader();
 };
 
-
+struct RayTracingPipelineStateShaderDesc
+{
+	const TCHAR* ShaderFilepath;
+	const TCHAR* ShaderEntryName;
+};
 
 struct RayTracingPipelineState
 {
+	RayTracingPipelineState();
+	virtual ~RayTracingPipelineState();
+
+	// Create a simple RayGen, CLosestHit and Miss shader trio.
+	void CreateSimpleRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc);
+
 	ID3D12StateObject*				mRayTracingPipelineStateObject;			// Ray tracing pipeline
 	ID3D12StateObjectProperties*	mRayTracingPipelineStateObjectProp;		// Ray tracing pipeline properties intereface
+
+	// SimpleRTState
+	RayGenerationShader*			mRayGenShader;
+	ClosestHitShader*				mClosestHitShader;
+	MissShader*						mMissShader;
+	void*							mRayGenShaderIdentifier;
+	void*							mHitGroupShaderIdentifier;
+	void*							mMissShaderIdentifier;
 };
 
 
