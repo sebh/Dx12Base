@@ -23,7 +23,8 @@ public:
 	StaticBottomLevelAccelerationStructureBuffer(D3D12_RAYTRACING_GEOMETRY_DESC* Meshes, uint MeshCount);
 	virtual ~StaticBottomLevelAccelerationStructureBuffer();
 
-	AccelerationStructureBuffer& GetAccelerationStructureBuffer() { return *BlasResult; }
+	AccelerationStructureBuffer& GetBuffer() { return *BlasResult; }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return BlasResult->getGPUVirtualAddress(); }
 
 private:
 	StaticBottomLevelAccelerationStructureBuffer();
@@ -39,7 +40,8 @@ public:
 	StaticTopLevelAccelerationStructureBuffer(D3D12_RAYTRACING_INSTANCE_DESC* Instances, uint InstanceCount);
 	virtual ~StaticTopLevelAccelerationStructureBuffer();
 
-	AccelerationStructureBuffer& GetAccelerationStructureBuffer() { return *TlasResult; }
+	AccelerationStructureBuffer& GetBuffer() { return *TlasResult; }
+	D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress() { return TlasResult->getGPUVirtualAddress(); }
 
 private:
 	StaticTopLevelAccelerationStructureBuffer();

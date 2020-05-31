@@ -371,7 +371,7 @@ void Game::initialise()
 		instances[0].InstanceContributionToHitGroupIndex = 0;
 		instances[0].InstanceMask = 0xFF;
 		instances[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		instances[0].AccelerationStructure = SphereBLAS->GetAccelerationStructureBuffer().getGPUVirtualAddress(); // BlasResult->getGPUVirtualAddress();
+		instances[0].AccelerationStructure = SphereBLAS->GetGPUVirtualAddress();
 		const XMMATRIX Identity = XMMatrixIdentity();
 		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[0].Transform, Identity);
 	}
@@ -380,7 +380,7 @@ void Game::initialise()
 		instances[1].InstanceContributionToHitGroupIndex = 1;
 		instances[1].InstanceMask = 0xFF;
 		instances[1].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		instances[1].AccelerationStructure = SphereBLAS->GetAccelerationStructureBuffer().getGPUVirtualAddress(); //BlasResult->getGPUVirtualAddress();
+		instances[1].AccelerationStructure = SphereBLAS->GetGPUVirtualAddress();
 		const XMMATRIX Transform = XMMatrixTranslation(10.0f, 10.0f, 10.0f);
 		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[1].Transform, Transform);
 	}
@@ -843,7 +843,7 @@ void Game::render()
 
 		// Resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
-		CallDescriptors.SetSRV(0, SceneTLAS->GetAccelerationStructureBuffer());
+		CallDescriptors.SetSRV(0, SceneTLAS->GetBuffer());
 		CallDescriptors.SetUAV(0, *HdrTexture2);
 
 		// Constants
