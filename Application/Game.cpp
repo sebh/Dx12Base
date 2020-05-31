@@ -11,6 +11,7 @@
 ID3D12StateObject* mRayTracingPipelineStateObject; // RayTracingPipeline
 ID3D12StateObjectProperties* mRayTracingPipelineStateObjectProp;
 
+
 RenderBufferGeneric* blasScratch;
 AccelerationStructureBuffer* blasResult;
 RenderBufferGeneric* tlasScratch;
@@ -350,8 +351,8 @@ void Game::initialise()
 	SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-	//
-	D3D12_RAYTRACING_GEOMETRY_DESC geometry;
+	// Create the sphere BLAS
+	static D3D12_RAYTRACING_GEOMETRY_DESC geometry;
 	geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 	geometry.Triangles.VertexBuffer.StartAddress = SphereVertexBuffer->getGPUVirtualAddress();
 	geometry.Triangles.VertexBuffer.StrideInBytes = SphereVertexStride;
@@ -362,40 +363,15 @@ void Game::initialise()
 	geometry.Triangles.IndexCount = SphereIndexCount; 
 	geometry.Triangles.Transform3x4 = 0; 
 	geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+	SphereBLAS = new StaticBottomLevelAccelerationStructureBuffer(&geometry, 1);
 
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS ASInputs = {}; 
-	ASInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL; 
-	ASInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY; 
-	ASInputs.pGeometryDescs = &geometry; 
-	ASInputs.NumDescs = 1;
-	ASInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-	// Get the memory requirements to build the BLAS.
-	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
-	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
-
-
-	blasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
-	blasScratch->setDebugName(L"blasScratch");
-	blasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	blasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
-	blasResult->setDebugName(L"blasResult");
-
-	// Create the bottom-level acceleration structure
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
-	desc.Inputs = ASInputs;
-	desc.ScratchAccelerationStructureData = blasScratch->getGPUVirtualAddress();
-	desc.DestAccelerationStructureData = blasResult->getGPUVirtualAddress();
-	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
-	blasResult->resourceUAVBarrier();
-
-	// Create the top-level acceleration structure
 	D3D12_RAYTRACING_INSTANCE_DESC instances[2];
 	{
 		instances[0].InstanceID = 0;
 		instances[0].InstanceContributionToHitGroupIndex = 0;
 		instances[0].InstanceMask = 0xFF;
 		instances[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		instances[0].AccelerationStructure = blasResult->getGPUVirtualAddress();
+		instances[0].AccelerationStructure = SphereBLAS->GetAccelerationStructureBuffer().getGPUVirtualAddress(); // BlasResult->getGPUVirtualAddress();
 		const XMMATRIX Identity = XMMatrixIdentity();
 		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[0].Transform, Identity);
 	}
@@ -404,37 +380,11 @@ void Game::initialise()
 		instances[1].InstanceContributionToHitGroupIndex = 1;
 		instances[1].InstanceMask = 0xFF;
 		instances[1].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		instances[1].AccelerationStructure = blasResult->getGPUVirtualAddress();
+		instances[1].AccelerationStructure = SphereBLAS->GetAccelerationStructureBuffer().getGPUVirtualAddress(); //BlasResult->getGPUVirtualAddress();
 		const XMMATRIX Transform = XMMatrixTranslation(10.0f, 10.0f, 10.0f);
 		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[1].Transform, Transform);
 	}
-
-
-	tlasInstanceBuffer = new RenderBufferGeneric(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 2, &instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
-
-
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
-	TSInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
-	TSInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	TSInputs.InstanceDescs = tlasInstanceBuffer->getGPUVirtualAddress();
-	TSInputs.NumDescs = _countof(instances);
-	TSInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-	dev->GetRaytracingAccelerationStructurePrebuildInfo(&TSInputs, &ASBuildInfo);
-
-
-
-	tlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
-	tlasScratch->setDebugName(L"tlasScratch");
-	tlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	tlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
-	tlasResult->setDebugName(L"tlasResult");
-
-
-	desc.Inputs = TSInputs;
-	desc.ScratchAccelerationStructureData = tlasScratch->getGPUVirtualAddress();
-	desc.DestAccelerationStructureData = tlasResult->getGPUVirtualAddress();
-	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
-	tlasResult->resourceUAVBarrier();
+	SceneTLAS = new StaticTopLevelAccelerationStructureBuffer(instances, 2);
 #endif
 
 }
@@ -445,13 +395,10 @@ void Game::shutdown()
 
 	// TODO clean up
 	{
-		delete blasScratch;
-		delete blasResult;
 		resetComPtr(&mRayTracingPipelineStateObjectProp);
 		resetComPtr(&mRayTracingPipelineStateObject);
-		delete tlasScratch;
-		delete tlasResult;
-		delete tlasInstanceBuffer;
+		resetPtr(&SphereBLAS);
+		resetPtr(&SceneTLAS);
 	}
 
 
@@ -896,7 +843,7 @@ void Game::render()
 
 		// Resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
-		CallDescriptors.SetSRV(0, *tlasResult);
+		CallDescriptors.SetSRV(0, SceneTLAS->GetAccelerationStructureBuffer());
 		CallDescriptors.SetUAV(0, *HdrTexture2);
 
 		// Constants

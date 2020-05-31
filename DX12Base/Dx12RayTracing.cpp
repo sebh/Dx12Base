@@ -31,6 +31,79 @@ AccelerationStructureBuffer::~AccelerationStructureBuffer()
 
 
 
+StaticBottomLevelAccelerationStructureBuffer::StaticBottomLevelAccelerationStructureBuffer(D3D12_RAYTRACING_GEOMETRY_DESC* Meshes, uint MeshCount)
+{
+	ID3D12Device5* dev = g_dx12Device->getDevice();
+
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS ASInputs = {};
+	ASInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+	ASInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	ASInputs.pGeometryDescs = Meshes;
+	ASInputs.NumDescs = MeshCount;
+	ASInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+
+	// Get the memory requirements to build the BLAS.
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
+	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
+	BlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	BlasScratch->setDebugName(L"blasScratch");
+	BlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	BlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
+	BlasResult->setDebugName(L"blasResult");
+
+	// Create the bottom-level acceleration structure
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
+	desc.Inputs = ASInputs;
+	desc.ScratchAccelerationStructureData = BlasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = BlasResult->getGPUVirtualAddress();
+	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	BlasResult->resourceUAVBarrier();
+}
+
+StaticBottomLevelAccelerationStructureBuffer::~StaticBottomLevelAccelerationStructureBuffer()
+{
+	resetPtr(&BlasScratch);
+	resetPtr(&BlasResult);
+}
+
+
+
+StaticTopLevelAccelerationStructureBuffer::StaticTopLevelAccelerationStructureBuffer(D3D12_RAYTRACING_INSTANCE_DESC* Instances, uint InstanceCount)
+{
+	TlasInstanceBuffer = new RenderBufferGeneric(sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * InstanceCount, Instances, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
+
+	static D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS TSInputs = {};
+	TSInputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+	TSInputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	TSInputs.InstanceDescs = TlasInstanceBuffer->getGPUVirtualAddress();
+	TSInputs.NumDescs = InstanceCount;
+	TSInputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+
+	// Get the memory requirements to build the TLAS.
+	static D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
+	g_dx12Device->getDevice()->GetRaytracingAccelerationStructurePrebuildInfo(&TSInputs, &ASBuildInfo);
+	TlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	TlasScratch->setDebugName(L"tlasScratch");
+	TlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	TlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
+	TlasResult->setDebugName(L"tlasResult");
+
+	// Create the top-level acceleration structure
+	static D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC desc = {};
+	desc.Inputs = TSInputs;
+	desc.ScratchAccelerationStructureData = TlasScratch->getGPUVirtualAddress();
+	desc.DestAccelerationStructureData = TlasResult->getGPUVirtualAddress();
+	g_dx12Device->getFrameCommandList()->BuildRaytracingAccelerationStructure(&desc, 0, nullptr);
+	TlasResult->resourceUAVBarrier();
+}
+
+StaticTopLevelAccelerationStructureBuffer::~StaticTopLevelAccelerationStructureBuffer()
+{
+	resetPtr(&TlasScratch);
+	resetPtr(&TlasResult);
+	resetPtr(&TlasInstanceBuffer);
+}
+
 
 
 RayGenerationShader::RayGenerationShader(const TCHAR* filename, const TCHAR* entryFunction, const Macros* macros)

@@ -17,6 +17,41 @@ private:
 
 
 
+class StaticBottomLevelAccelerationStructureBuffer
+{
+public:
+	StaticBottomLevelAccelerationStructureBuffer(D3D12_RAYTRACING_GEOMETRY_DESC* Meshes, uint MeshCount);
+	virtual ~StaticBottomLevelAccelerationStructureBuffer();
+
+	AccelerationStructureBuffer& GetAccelerationStructureBuffer() { return *BlasResult; }
+
+private:
+	StaticBottomLevelAccelerationStructureBuffer();
+	StaticBottomLevelAccelerationStructureBuffer(StaticBottomLevelAccelerationStructureBuffer&);
+
+	RenderBufferGeneric*			BlasScratch;
+	AccelerationStructureBuffer*	BlasResult;
+};
+
+class StaticTopLevelAccelerationStructureBuffer
+{
+public:
+	StaticTopLevelAccelerationStructureBuffer(D3D12_RAYTRACING_INSTANCE_DESC* Instances, uint InstanceCount);
+	virtual ~StaticTopLevelAccelerationStructureBuffer();
+
+	AccelerationStructureBuffer& GetAccelerationStructureBuffer() { return *TlasResult; }
+
+private:
+	StaticTopLevelAccelerationStructureBuffer();
+	StaticTopLevelAccelerationStructureBuffer(StaticTopLevelAccelerationStructureBuffer&);
+
+	RenderBufferGeneric*			TlasScratch;
+	AccelerationStructureBuffer*	TlasResult;
+	RenderBufferGeneric*			TlasInstanceBuffer;
+};
+
+
+
 class RayGenerationShader : public ShaderBase
 {
 public:

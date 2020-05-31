@@ -70,6 +70,9 @@ private:
 	VertexShader* MeshVertexShader;
 	PixelShader*  MeshPixelShader;
 
+	StaticBottomLevelAccelerationStructureBuffer* SphereBLAS;
+	StaticTopLevelAccelerationStructureBuffer* SceneTLAS;
+
 	TypedBuffer* UavBuffer;
 
 	VertexShader* vertexShader;
