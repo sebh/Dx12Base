@@ -41,7 +41,7 @@ class DispatchRaysCallSBTHeapCPU;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
-class RayTracingPipelineState;
+class RayTracingPipelineStateSimple;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 static const int GPUTimerMaxCount = 256;
@@ -108,7 +108,7 @@ public:
 	};
 	GPUTimersReport GetGPUTimerReport();
 
-	void AppendToGarbageCollector(RayTracingPipelineState* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStates.push_back(ToBeRemoved); }
+	void AppendToGarbageCollector(RayTracingPipelineStateSimple* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateSimple.push_back(ToBeRemoved); }
 
 private:
 	Dx12Device();
@@ -185,7 +185,7 @@ private:
 	// This is in fact a dumb garbage collector since the application must register the garbage to be deleted.
 	struct FrameGarbageCollector
 	{
-		std::vector<RayTracingPipelineState*>	mRayTracingPipelineStates;
+		std::vector<RayTracingPipelineStateSimple*>	mRayTracingPipelineStateSimple;
 	};
 	FrameGarbageCollector mFrameGarbageCollector[frameBufferCount];
 };
@@ -383,7 +383,7 @@ public:
 		void SetSRV(UINT Register, RenderResource& Resource);
 		void SetUAV(UINT Register, RenderResource& Resource);
 
-		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTable0GpuHandle() { return mGPUHandle; }
+		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTableGpuHandle() { return mGPUHandle; }
 
 	private:
 		friend class DispatchDrawCallCpuDescriptorHeap;

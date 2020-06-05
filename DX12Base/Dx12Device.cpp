@@ -535,11 +535,11 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 	{
 		FrameGarbageCollector* FGC = &mFrameGarbageCollector[mFrameIndex];
 
-		for (auto& ToDelete : FGC->mRayTracingPipelineStates)
+		for (auto& ToDelete : FGC->mRayTracingPipelineStateSimple)
 		{
 			delete ToDelete;
 		}
-		FGC->mRayTracingPipelineStates.clear();
+		FGC->mRayTracingPipelineStateSimple.clear();
 	}
 }
 

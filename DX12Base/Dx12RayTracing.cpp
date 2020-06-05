@@ -143,7 +143,7 @@ MissShader::~MissShader() { }
 
 
 
-RayTracingPipelineState::RayTracingPipelineState()
+RayTracingPipelineStateSimple::RayTracingPipelineStateSimple()
 {
 	mRayTracingPipelineStateObject = nullptr;
 	mRayTracingPipelineStateObjectProp = nullptr;
@@ -156,7 +156,7 @@ RayTracingPipelineState::RayTracingPipelineState()
 	mMissShaderIdentifier = nullptr;
 }
 
-RayTracingPipelineState::~RayTracingPipelineState()
+RayTracingPipelineStateSimple::~RayTracingPipelineStateSimple()
 {
 	resetComPtr(&mRayTracingPipelineStateObject);
 	resetComPtr(&mRayTracingPipelineStateObjectProp);
@@ -166,8 +166,10 @@ RayTracingPipelineState::~RayTracingPipelineState()
 	resetPtr(&mMissShader);
 }
 
-void RayTracingPipelineState::CreateSimpleRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc)
+void RayTracingPipelineStateSimple::CreateSimpleRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc)
 {
+	ATLASSERT(mRayTracingPipelineStateObject == nullptr); // IS someone trying to create the state when it has laready been?
+
 	ID3D12Device5* dev = g_dx12Device->getDevice();
 
 	// All sub object types https://docs.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_state_subobject_type
@@ -344,5 +346,114 @@ DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMem
 	Result.mGPUAddress = mGPUSBT->getGPUVirtualAddress() + mAllocatedBytes;
 	mAllocatedBytes += ByteCount;
 	return Result;
+}
+
+DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS)
+{
+	DispatchRaysCallSBTHeapCPU::SimpleSBTMemory Result;
+	Result.mRtLocalRootSignature = &RtLocalRootSignature;
+	Result.mHitGroupCount = HitGroupCount;
+
+	////////// Create the ShaderBindingTable
+	// Each entry must be aligned to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
+	// Each shader table (RG, M, HG) must be aligned on D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT
+	// Local root signature are limited to D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE - D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES => 4096-32 = 4064
+	//		D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
+	//		D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT
+	//		D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES
+
+	ATLASSERT(RtLocalRootSignature.getRootSignatureSizeBytes() < (D3D12_RAYTRACING_MAX_SHADER_RECORD_STRIDE - D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES));
+
+	// Evaluate required size...
+	uint SBTByteCount = 0;
+
+	Result.SBTRGSStartOffsetInBytes = 0;
+	Result.SBTRGSSizeInBytes = 0;
+	Result.SBTMissStartOffsetInBytes = 0;
+	Result.SBTMissSizeInBytes = 0;
+	Result.SBTMissStrideInBytes = 0;
+	Result.SBTHitGStartOffsetInBytes = 0;
+	Result.SBTHitGSizeInBytes = 0;
+	Result.SBTHitGStrideInBytes = 0;
+
+	// RGS
+	Result.SBTRGSStartOffsetInBytes = 0;
+	SBTByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	SBTByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
+	SBTByteCount = RoundUp(SBTByteCount, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+	Result.SBTRGSSizeInBytes = SBTByteCount - Result.SBTRGSStartOffsetInBytes;
+
+	// Miss shader
+	const uint MissShaderCount = 1;
+	Result.SBTMissStartOffsetInBytes = SBTByteCount;
+	SBTByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	SBTByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
+	SBTByteCount = RoundUp(SBTByteCount, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
+	Result.SBTMissSizeInBytes = SBTByteCount - Result.SBTMissStartOffsetInBytes;
+	Result.SBTMissStrideInBytes = Result.SBTMissSizeInBytes / MissShaderCount;
+
+	// Hit group
+	uint HitGroupByteCount = 0;
+	HitGroupByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	HitGroupByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
+	HitGroupByteCount = RoundUp(HitGroupByteCount, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
+	Result.SBTHitGStartOffsetInBytes = SBTByteCount;
+	SBTByteCount += HitGroupByteCount * HitGroupCount;
+	Result.SBTHitGSizeInBytes	= SBTByteCount - Result.SBTHitGStartOffsetInBytes;
+	Result.SBTHitGStrideInBytes = HitGroupByteCount;
+
+	// ... and allocate SBT memory
+	Result.mSBTMemory			= AllocateSBTMemory(SBTByteCount);
+	Result.mHitGroupByteCount	= HitGroupByteCount;
+	Result.mSBTByteCount		= SBTByteCount;
+
+	// Initialise the SBT with shader identifiers.
+	BYTE* SBT = (BYTE*)Result.mSBTMemory.ptr;
+	memset(SBT, 0, Result.mSBTByteCount);	// Should not be necessary?
+	memcpy(&SBT[Result.SBTRGSStartOffsetInBytes],  RTPS.mRayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	memcpy(&SBT[Result.SBTMissStartOffsetInBytes], RTPS.mMissShaderIdentifier,   D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	for (int i = 0; i < HitGroupCount; ++i)
+	{
+		memcpy(&SBT[Result.SBTHitGStartOffsetInBytes + i * Result.SBTHitGStrideInBytes], RTPS.mHitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	}
+
+	// Setup the RayDispatchDesc
+	D3D12_GPU_VIRTUAL_ADDRESS SBTGpuAddress = Result.mSBTMemory.mGPUAddress;
+
+	Result.mDispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTGpuAddress + Result.SBTRGSStartOffsetInBytes;
+	Result.mDispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = Result.SBTRGSSizeInBytes;
+
+	Result.mDispatchRayDesc.MissShaderTable.StartAddress = SBTGpuAddress + Result.SBTMissStartOffsetInBytes;
+	Result.mDispatchRayDesc.MissShaderTable.SizeInBytes = Result.SBTMissSizeInBytes;
+	Result.mDispatchRayDesc.MissShaderTable.StrideInBytes = Result.SBTMissStrideInBytes;
+
+	Result.mDispatchRayDesc.HitGroupTable.StartAddress = SBTGpuAddress + Result.SBTHitGStartOffsetInBytes;
+	Result.mDispatchRayDesc.HitGroupTable.SizeInBytes = Result.SBTHitGSizeInBytes;
+	Result.mDispatchRayDesc.HitGroupTable.StrideInBytes = Result.SBTHitGStrideInBytes;
+
+	Result.mDispatchRayDesc.CallableShaderTable.SizeInBytes = 0;
+	Result.mDispatchRayDesc.CallableShaderTable.StartAddress= 0;
+	Result.mDispatchRayDesc.CallableShaderTable.StrideInBytes= 0;
+
+	return Result;
+}
+
+
+void DispatchRaysCallSBTHeapCPU::SimpleSBTMemory::setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* ParamBytes)
+{
+	BYTE* SBT = (BYTE*)mSBTMemory.ptr;
+	SBT += SBTHitGStartOffsetInBytes + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + HitGroupIndex * SBTHitGStrideInBytes;
+
+	switch (Param)
+	{
+	case RootParameterByteOffset_CBV0:
+		memcpy(SBT + RootParameterByteOffset_CBV0,				ParamBytes, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
+		break;
+	case RootParameterByteOffset_DescriptorTable0:
+		memcpy(SBT + RootParameterByteOffset_DescriptorTable0,	ParamBytes, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		break;
+	default:
+		ATLASSERT(false); // unknown parameter
+	}
 }
 

@@ -89,11 +89,11 @@ struct RayTracingPipelineStateShaderDesc
 	const TCHAR* mShaderEntryName;
 };
 
-class RayTracingPipelineState
+class RayTracingPipelineStateSimple
 {
 public:
-	RayTracingPipelineState();
-	virtual ~RayTracingPipelineState();
+	RayTracingPipelineStateSimple();
+	virtual ~RayTracingPipelineStateSimple();
 
 	// Create a simple RayGen, CLosestHit and Miss shader trio.
 	void CreateSimpleRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc);
@@ -127,6 +127,32 @@ public:
 		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
 	};
 	SBTMemory AllocateSBTMemory(const UINT ByteCount);
+
+
+	struct SimpleSBTMemory
+	{
+		const RootSignature* mRtLocalRootSignature;
+
+		uint mHitGroupCount;
+		uint mHitGroupByteCount;
+
+		uint mSBTByteCount;
+		SBTMemory mSBTMemory;
+
+		uint SBTRGSStartOffsetInBytes;
+		uint SBTRGSSizeInBytes;
+		uint SBTMissStartOffsetInBytes;
+		uint SBTMissSizeInBytes;
+		uint SBTMissStrideInBytes ;
+		uint SBTHitGStartOffsetInBytes;
+		uint SBTHitGSizeInBytes;
+		uint SBTHitGStrideInBytes;
+
+		D3D12_DISPATCH_RAYS_DESC mDispatchRayDesc;
+
+		void setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* PTR);
+	};
+	SimpleSBTMemory AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS);
 
 private:
 	DispatchRaysCallSBTHeapCPU();
