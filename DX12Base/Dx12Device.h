@@ -1,4 +1,4 @@
-#pragma once
+#pragma once 
 
 #define DX_DEBUG_EVENT 1
 #define DX_DEBUG_RESOURCE_NAME 1
@@ -415,7 +415,7 @@ private:
 class FrameConstantBuffers
 {
 public:
-	FrameConstantBuffers(UINT SizeByte);
+	FrameConstantBuffers(uint64 SizeByte);
 	virtual ~FrameConstantBuffers();
 
 	void BeginRecording();
@@ -434,7 +434,7 @@ public:
 		void* mCpuMemory;
 	};
 
-	FrameConstantBuffer AllocateFrameConstantBuffer(UINT SizeByte);
+	FrameConstantBuffer AllocateFrameConstantBuffer(uint64 SizeByte);
 
 private:
 	FrameConstantBuffers();
@@ -442,8 +442,8 @@ private:
 
 	ID3D12Resource* mConstantBufferUploadHeap;
 
-	UINT mFrameByteCount;
-	UINT mFrameUsedBytes;
+	uint64 mFrameByteCount;
+	uint64 mFrameUsedBytes;
 	D3D12_GPU_VIRTUAL_ADDRESS mGpuVirtualAddressStart;
 	BYTE* mCpuMemoryStart;
 };
@@ -496,13 +496,13 @@ D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 class RenderBufferGeneric : public RenderResource
 {
 public:
-	RenderBufferGeneric(UINT TotalSizeInBytes, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
+	RenderBufferGeneric(uint64 TotalSizeInBytes, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~RenderBufferGeneric();
 
 	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
 	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }
-	UINT GetSizeInBytes() { return mSizeInBytes; }
+	uint64 GetSizeInBytes() { return mSizeInBytes; }
 
 protected:
 	void Upload(void* InitData);
@@ -510,7 +510,7 @@ private:
 	RenderBufferGeneric();
 	RenderBufferGeneric(RenderBufferGeneric&);
 	ID3D12Resource* mUploadHeap;
-	UINT mSizeInBytes;
+	uint64 mSizeInBytes;
 };
 
 class TypedBuffer : public RenderBufferGeneric
@@ -530,7 +530,7 @@ public:
 class ByteAddressBuffer: public RenderBufferGeneric
 {
 public:
-	ByteAddressBuffer(UINT TotalSizeInBytes, void* initData = nullptr,
+	ByteAddressBuffer(uint64 TotalSizeInBytes, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~ByteAddressBuffer() {}
 };

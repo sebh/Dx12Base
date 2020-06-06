@@ -1,4 +1,4 @@
-#pragma once
+#pragma once 
 
 #include "Dx12Device.h"
 
@@ -7,7 +7,7 @@
 class AccelerationStructureBuffer : public RenderBufferGeneric
 {
 public:
-	AccelerationStructureBuffer(UINT TotalSizeInBytes);
+	AccelerationStructureBuffer(uint64 TotalSizeInBytes);
 	virtual ~AccelerationStructureBuffer();
 
 private:

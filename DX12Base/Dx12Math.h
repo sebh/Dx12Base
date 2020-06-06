@@ -11,10 +11,11 @@ typedef unsigned char u8;
 typedef unsigned int uint;
 typedef int          sint;
 
+typedef UINT64 uint64;
+typedef INT64  sint64;
+
 typedef short word;
 typedef uint dword;
-
-
 
 typedef XMMATRIX float4x4;
 typedef XMVECTOR float4;
@@ -57,6 +58,12 @@ inline float RadToDeg(float rad)
 inline uint RoundUp(uint Value, uint Alignement)
 {
 	uint Var = Value + Alignement - 1;
+	return Alignement * (Var / Alignement);
+}
+
+inline uint64 RoundUp(uint64 Value, uint64 Alignement)
+{
+	uint64 Var = Value + Alignement - 1;
 	return Alignement * (Var / Alignement);
 }
 

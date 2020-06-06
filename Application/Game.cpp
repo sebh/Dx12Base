@@ -571,12 +571,12 @@ void Game::render()
 		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
 		HdrTexture2->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-		// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader)
+		// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
 		DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateSimpleSBT(
 			g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineState);
 
 		// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:
-		// For the first hit group shader
+		// For the first hit group shader,
 		DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors0 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
 		RtLocalRootSigDescriptors0.SetSRV(0, *SphereVertexBuffer);
 		RtLocalRootSigDescriptors0.SetSRV(1, *SphereIndexBuffer);
@@ -591,15 +591,15 @@ void Game::render()
 
 		// Create the dispatch desc from the RayTracing.
 		D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = SBTMem.mDispatchRayDesc;
-		DispatchRayDesc.Width = HdrTexture2->getD3D12Resource()->GetDesc().Width;
-		DispatchRayDesc.Height = HdrTexture2->getD3D12Resource()->GetDesc().Height;
+		DispatchRayDesc.Width = (uint) HdrTexture2->getD3D12Resource()->GetDesc().Width;
+		DispatchRayDesc.Height = (uint)HdrTexture2->getD3D12Resource()->GetDesc().Height;
 		DispatchRayDesc.Depth = 1;
 
-		// Set the global root signature and the ray tracing state pipeline
+		// Set the global root signature and the ray tracing state pipeline.
 		g_dx12Device->getFrameCommandList()->SetComputeRootSignature(g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature());
 		g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineState->mRayTracingPipelineStateObject);
 
-		// Create the global resources and constant buffer parameters
+		// Create the global resources and constant buffer parameters.
 		// Resources
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingGlobalRootSignature());
 		CallDescriptors.SetSRV(0, SceneTLAS->GetBuffer());

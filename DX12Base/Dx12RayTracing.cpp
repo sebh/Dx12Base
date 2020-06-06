@@ -5,7 +5,7 @@
 
 
 
-AccelerationStructureBuffer::AccelerationStructureBuffer(UINT TotalSizeInBytes)
+AccelerationStructureBuffer::AccelerationStructureBuffer(uint64 TotalSizeInBytes)
 	: RenderBufferGeneric(TotalSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_AccelerationStructure)
 {
 	ID3D12Device* dev = g_dx12Device->getDevice();
@@ -45,10 +45,10 @@ StaticBottomLevelAccelerationStructureBuffer::StaticBottomLevelAccelerationStruc
 	// Get the memory requirements to build the BLAS.
 	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO ASBuildInfo = {};
 	dev->GetRaytracingAccelerationStructurePrebuildInfo(&ASInputs, &ASBuildInfo);
-	mBlasScratch = new RenderBufferGeneric(ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
+	mBlasScratch = new RenderBufferGeneric((uint)ASBuildInfo.ScratchDataSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_Default);
 	mBlasScratch->setDebugName(L"blasScratch");
 	mBlasScratch->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-	mBlasResult = new AccelerationStructureBuffer(ASBuildInfo.ResultDataMaxSizeInBytes);
+	mBlasResult = new AccelerationStructureBuffer((uint)ASBuildInfo.ResultDataMaxSizeInBytes);
 	mBlasResult->setDebugName(L"blasResult");
 
 	// Create the bottom-level acceleration structure

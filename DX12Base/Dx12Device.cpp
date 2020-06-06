@@ -22,9 +22,7 @@
 // resource uploading https://msdn.microsoft.com/en-us/library/windows/desktop/mt426646(v=vs.85).aspx
 
 // TODO: 
-//  - Ease SBT creation
-//  - Clean up SIZE_T, UINT64, uint32, etc.
-//  - How should libvrary be dealt with? A single one?
+//  - How should library be dealt with? A single one?
 //  - Proper upload handling in shared pool
 
 
@@ -904,7 +902,7 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResour
 
 
 
-FrameConstantBuffers::FrameConstantBuffers(UINT SizeByte)
+FrameConstantBuffers::FrameConstantBuffers(uint64 SizeByte)
 	: mFrameByteCount(RoundUp(SizeByte, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT))
 {
 	D3D12_RESOURCE_DESC resourceDesc;
@@ -950,11 +948,11 @@ void FrameConstantBuffers::EndRecording()
 	mConstantBufferUploadHeap->Unmap(0, nullptr);
 }
 
-FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameConstantBuffer(UINT SizeByte)
+FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameConstantBuffer(uint64 SizeByte)
 {
 	FrameConstantBuffer NewConstantBuffer;
 
-	UINT SizeByteAligned = RoundUp(SizeByte, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	UINT64 SizeByteAligned = RoundUp(SizeByte, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	ATLASSERT(mFrameUsedBytes + SizeByteAligned <= mFrameByteCount);
 
 	NewConstantBuffer.mCpuMemory = mCpuMemoryStart + mFrameUsedBytes;
@@ -1039,7 +1037,7 @@ static void GetHeapDescAndState(RenderBufferType Type, void* InitData, D3D12_HEA
 
 
 
-RenderBufferGeneric::RenderBufferGeneric(UINT TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+RenderBufferGeneric::RenderBufferGeneric(uint64 TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: mSizeInBytes(TotalSizeInByte)
 	, mUploadHeap(nullptr)
 {
@@ -1079,14 +1077,14 @@ D3D12_VERTEX_BUFFER_VIEW RenderBufferGeneric::getVertexBufferView(UINT strideInB
 	D3D12_VERTEX_BUFFER_VIEW view;
 	view.BufferLocation = getGPUVirtualAddress();
 	view.StrideInBytes = strideInByte;
-	view.SizeInBytes = mSizeInBytes;
+	view.SizeInBytes = (uint)mSizeInBytes;
 	return view;
 }
 D3D12_INDEX_BUFFER_VIEW RenderBufferGeneric::getIndexBufferView(DXGI_FORMAT format)
 {
 	D3D12_INDEX_BUFFER_VIEW view;
 	view.BufferLocation = getGPUVirtualAddress();
-	view.SizeInBytes = mSizeInBytes;
+	view.SizeInBytes =(uint) (uint)mSizeInBytes;
 	view.Format = format;
 	return view;
 }
@@ -1212,7 +1210,7 @@ StructuredBuffer::StructuredBuffer(
 	}
 }
 
-ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+ByteAddressBuffer::ByteAddressBuffer(uint64 TotalSizeInByte, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: RenderBufferGeneric(RoundUp(TotalSizeInByte, 4), initData, flags, Type)
 {
 	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
@@ -1220,7 +1218,7 @@ ByteAddressBuffer::ByteAddressBuffer(UINT TotalSizeInByte, void* initData, D3D12
 
 	// For raw resources, SRV and UAV must use R32_TYPELESS 
 	DXGI_FORMAT Format = DXGI_FORMAT_R32_TYPELESS;
-	const uint NumElements = GetSizeInBytes() / 4;
+	const uint NumElements = uint(GetSizeInBytes()) / 4u;
 
 	AllocatedResourceDecriptorHeap& ResDescHeap = g_dx12Device->getAllocatedResourceDecriptorHeap();
 
