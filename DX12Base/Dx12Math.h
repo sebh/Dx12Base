@@ -7,6 +7,7 @@ using namespace DirectX;
 
 typedef signed   char s8;
 typedef unsigned char u8;
+//typedef unsigned char byte;
 
 typedef unsigned int uint;
 typedef int          sint;

@@ -288,7 +288,7 @@ void RayTracingPipelineStateSimple::CreateSimpleRTState(RayTracingPipelineStateS
 	D3D12_STATE_OBJECT_DESC StateObjectDesc;
 	StateObjectDesc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
 	StateObjectDesc.pSubobjects = StateObjects.data();
-	StateObjectDesc.NumSubobjects = (UINT)StateObjects.size();
+	StateObjectDesc.NumSubobjects = (uint)StateObjects.size();
 	dev->CreateStateObject(&StateObjectDesc, IID_PPV_ARGS(&mRayTracingPipelineStateObject));
 	// TODO mRayTracingPipelineStateObject->setDebugName(L"TriangleVertexBuffer");
 
@@ -307,7 +307,7 @@ void RayTracingPipelineStateSimple::CreateSimpleRTState(RayTracingPipelineStateS
 
 
 
-DispatchRaysCallSBTHeapCPU::DispatchRaysCallSBTHeapCPU(UINT SizeBytes)
+DispatchRaysCallSBTHeapCPU::DispatchRaysCallSBTHeapCPU(uint SizeBytes)
 {
 	mUploadHeapSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Upload);
 	mGPUSBT = new RenderBufferGeneric(SizeBytes, nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Default);
@@ -336,7 +336,7 @@ void DispatchRaysCallSBTHeapCPU::EndRecording()
 	mUploadHeapSBT->getD3D12Resource()->Unmap(0, nullptr);
 }
 
-DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMemory(const UINT ByteCount)
+DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMemory(const uint ByteCount)
 {
 	ATLASSERT(mCpuMemoryStart != nullptr);
 	ATLASSERT((mAllocatedBytes + ByteCount) <= mUploadHeapSBT->GetSizeInBytes());
@@ -408,11 +408,11 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 	Result.mSBTByteCount		= SBTByteCount;
 
 	// Initialise the SBT with shader identifiers.
-	BYTE* SBT = (BYTE*)Result.mSBTMemory.ptr;
+	byte* SBT = (byte*)Result.mSBTMemory.ptr;
 	memset(SBT, 0, Result.mSBTByteCount);	// Should not be necessary?
 	memcpy(&SBT[Result.SBTRGSStartOffsetInBytes],  RTPS.mRayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	memcpy(&SBT[Result.SBTMissStartOffsetInBytes], RTPS.mMissShaderIdentifier,   D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-	for (int i = 0; i < HitGroupCount; ++i)
+	for (uint i = 0; i < HitGroupCount; ++i)
 	{
 		memcpy(&SBT[Result.SBTHitGStartOffsetInBytes + i * Result.SBTHitGStrideInBytes], RTPS.mHitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	}
@@ -441,7 +441,7 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 
 void DispatchRaysCallSBTHeapCPU::SimpleSBTMemory::setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* ParamBytes)
 {
-	BYTE* SBT = (BYTE*)mSBTMemory.ptr;
+	byte* SBT = (byte*)mSBTMemory.ptr;
 	SBT += SBTHitGStartOffsetInBytes + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + HitGroupIndex * SBTHitGStrideInBytes;
 
 	switch (Param)

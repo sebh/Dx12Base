@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #define DX_DEBUG_EVENT 1
 #define DX_DEBUG_RESOURCE_NAME 1
@@ -75,10 +75,10 @@ public:
 	const RootSignature& GetDefaultRayTracingGlobalRootSignature() const { return *mRtGlobalRootSignature; }
 	const RootSignature& GetDefaultRayTracingLocalRootSignature() const { return *mRtLocalRootSignature; }
 
-	UINT getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
-	UINT getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
-	UINT getRtvDescriptorSize() const { return mRtvDescriptorSize; }
-	UINT getDsvDescriptorSize() const { return mDsvDescriptorSize; }
+	uint getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
+	uint getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
+	uint getRtvDescriptorSize() const { return mRtvDescriptorSize; }
+	uint getDsvDescriptorSize() const { return mDsvDescriptorSize; }
 
 	AllocatedResourceDecriptorHeap& getAllocatedResourceDecriptorHeap() { return *mAllocatedResourcesDecriptorHeapCPU; }
 	DispatchDrawCallCpuDescriptorHeap& getDispatchDrawCallCpuDescriptorHeap() { return *mDispatchDrawCallDescriptorHeapCPU[mFrameIndex]; }
@@ -92,19 +92,19 @@ public:
 	struct GPUTimer
 	{
 		LPCWSTR	mEventName;
-		UINT	mQueryIndexStart;
-		UINT	mQueryIndexEnd;
-		UINT	mLevel;
-		UINT	mRGBA;
+		uint	mQueryIndexStart;
+		uint	mQueryIndexEnd;
+		uint	mLevel;
+		uint	mRGBA;
 	};
-	void StartGPUTimer(LPCWSTR Name, UINT RGBA);
+	void StartGPUTimer(LPCWSTR Name, uint RGBA);
 	void EndGPUTimer(LPCWSTR Name);
 	struct GPUTimersReport
 	{
-		UINT		mLastValidGPUTimerSlotCount;
+		uint		mLastValidGPUTimerSlotCount;
 		GPUTimer*	mLastValidGPUTimers;
-		UINT64*		mLastValidTimeStamps;
-		UINT64		mLastValidTimeStampTickPerSeconds;
+		uint64*		mLastValidTimeStamps;
+		uint64		mLastValidTimeStampTickPerSeconds;
 	};
 	GPUTimersReport GetGPUTimerReport();
 
@@ -116,7 +116,7 @@ private:
 	//Dx12Device(const Dx12Device&);
 	~Dx12Device();
 
-	void EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags);
+	void EnableShaderBasedValidationIfNeeded(uint& dxgiFactoryFlags);
 
 	void internalInitialise(const HWND& hWnd);
 	void internalShutdown();
@@ -136,7 +136,7 @@ private:
 
 	ID3D12Fence*								mFrameFence[frameBufferCount];				// locked while commandlist is being executed by the gpu.
 	HANDLE										mFrameFenceEvent;							// a handle to an event when our fence is unlocked by the gpu
-	UINT64										mFrameFenceValue[frameBufferCount];			// Incremented each frame. each fence will have its own value
+	uint64										mFrameFenceValue[frameBufferCount];			// Incremented each frame. each fence will have its own value
 
 
 	IDxcLibrary*								mDxcLibrary;
@@ -148,10 +148,10 @@ private:
 	IDXGIAdapter3*								mAdapter;									// Current device adapter
 	DXGI_ADAPTER_DESC2							mAdapterDesc;								// Adapter information
 	DXGI_QUERY_VIDEO_MEMORY_INFO				mVideoMemInfo;								// Last sampled video memory usage (allocations, etc)
-	UINT										mCbSrvUavDescriptorSize;					// CBV SRV UAV descriptor size for the selected GPU device
-	UINT										mSamplerDescriptorSize;						// Sampler descriptor size for the selected GPU device
-	UINT										mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
-	UINT										mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
+	uint										mCbSrvUavDescriptorSize;					// CBV SRV UAV descriptor size for the selected GPU device
+	uint										mSamplerDescriptorSize;						// Sampler descriptor size for the selected GPU device
+	uint										mRtvDescriptorSize;							// RTV descriptor size for the selected GPU device
+	uint										mDsvDescriptorSize;							// DSV descriptor size for the selected GPU device
 
 	RootSignature*								mGfxRootSignature;							// Graphics default root signature
 	RootSignature*								mCptRootSignature;							// Compute default root signature
@@ -170,17 +170,17 @@ private:
 	// Data used for GPU performance tracking
 	ID3D12QueryHeap*							mFrameTimeStampQueryHeaps[frameBufferCount];// Heaps storing time stamp query results
 	RenderBufferGeneric*						mFrameTimeStampQueryReadBackBuffers[frameBufferCount];// Time stamp readback heap 
-	UINT										mFrameTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
-	UINT										mFrameGPUTimerSlotCount[frameBufferCount];	// Timer allocation count. Only count, not start/end timer count (due to level hierarchy)
-	UINT										mFrameGPUTimerLevel[frameBufferCount];		// Time stamp query count.
+	uint										mFrameTimeStampCount[frameBufferCount];		// Time stamp count, allocate in the query heap
+	uint										mFrameGPUTimerSlotCount[frameBufferCount];	// Timer allocation count. Only count, not start/end timer count (due to level hierarchy)
+	uint										mFrameGPUTimerLevel[frameBufferCount];		// Time stamp query count.
 	GPUTimer									mFrameGPUTimers[frameBufferCount][GPUTimerMaxCount];// GPUtimer for each frame
-	UINT										mGPUTimersReadBackFrameId;					// The last read back frame id
+	uint										mGPUTimersReadBackFrameId;					// The last read back frame id
 	// And the last valid timer state captured read to be displayed
-	UINT										mLastValidGPUTimerCount;
-	UINT										mLastValidTimeStampCount;
-	UINT64										mLastValidTimeStamps[GPUTimerMaxCount*2];
+	uint										mLastValidGPUTimerCount;
+	uint										mLastValidTimeStampCount;
+	uint64										mLastValidTimeStamps[GPUTimerMaxCount*2];
 	GPUTimer									mLastValidGPUTimers[GPUTimerMaxCount];
-	UINT64										mLastValidTimeStampTickPerSeconds;
+	uint64										mLastValidTimeStampTickPerSeconds;
 
 	// This is in fact a dumb garbage collector since the application must register the garbage to be deleted.
 	struct FrameGarbageCollector
@@ -248,7 +248,7 @@ public:
 	InputLayout();
 	~InputLayout();
 
-	void appendSimpleVertexDataToInputLayout(const char* semanticName, UINT semanticIndex, DXGI_FORMAT format);
+	void appendSimpleVertexDataToInputLayout(const char* semanticName, uint semanticIndex, DXGI_FORMAT format);
 
 	const D3D12_INPUT_LAYOUT_DESC* getLayoutDesc() const { return &mInputLayout; }
 
@@ -325,20 +325,20 @@ public:
 class DescriptorHeap
 {
 public:
-	DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, UINT DescriptorCount);
+	DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, uint DescriptorCount);
 	virtual ~DescriptorHeap();
 
 	ID3D12DescriptorHeap* getHeap() const { return mDescriptorHeap; }
 	D3D12_CPU_DESCRIPTOR_HANDLE getCPUHandle() const { return mDescriptorHeap->GetCPUDescriptorHandleForHeapStart(); }
 	D3D12_GPU_DESCRIPTOR_HANDLE getGPUHandle() const { return mDescriptorHeap->GetGPUDescriptorHandleForHeapStart(); }
 
-	UINT GetDescriptorCount() const { return mDescriptorCount; }
+	uint GetDescriptorCount() const { return mDescriptorCount; }
 
 private:
 	DescriptorHeap();
 	DescriptorHeap(DescriptorHeap&);
 
-	UINT mDescriptorCount;
+	uint mDescriptorCount;
 	ID3D12DescriptorHeap* mDescriptorHeap;
 };
 
@@ -349,10 +349,10 @@ private:
 class AllocatedResourceDecriptorHeap
 {
 public:
-	AllocatedResourceDecriptorHeap(UINT DescriptorCount);
+	AllocatedResourceDecriptorHeap(uint DescriptorCount);
 	virtual ~AllocatedResourceDecriptorHeap();
 
-	UINT GetAllocatedDescriptorCount() const { return mAllocatedDescriptorCount; }
+	uint GetAllocatedDescriptorCount() const { return mAllocatedDescriptorCount; }
 	const ID3D12DescriptorHeap* getHeap() const { return mDescriptorHeap->getHeap(); }
 
 	void AllocateResourceDecriptors(D3D12_CPU_DESCRIPTOR_HANDLE* CPUHandle, D3D12_GPU_DESCRIPTOR_HANDLE* GPUHandle);
@@ -361,7 +361,7 @@ private:
 	AllocatedResourceDecriptorHeap();
 	AllocatedResourceDecriptorHeap(AllocatedResourceDecriptorHeap&);
 
-	UINT mAllocatedDescriptorCount;
+	uint mAllocatedDescriptorCount;
 	DescriptorHeap* mDescriptorHeap;
 };
 
@@ -370,7 +370,7 @@ private:
 class DispatchDrawCallCpuDescriptorHeap
 {
 public:
-	DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount);
+	DispatchDrawCallCpuDescriptorHeap(uint DescriptorCount);
 	virtual ~DispatchDrawCallCpuDescriptorHeap();
 
 	void BeginRecording();
@@ -380,8 +380,8 @@ public:
 	{
 		Call();
 
-		void SetSRV(UINT Register, RenderResource& Resource);
-		void SetUAV(UINT Register, RenderResource& Resource);
+		void SetSRV(uint Register, RenderResource& Resource);
+		void SetUAV(uint Register, RenderResource& Resource);
 
 		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTableGpuHandle() { return mGPUHandle; }
 
@@ -392,11 +392,11 @@ public:
 		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
 		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
 
-		UINT mUsedSRVs = 0;
-		UINT mUsedUAVs = 0;
+		uint mUsedSRVs = 0;
+		uint mUsedUAVs = 0;
 
-		UINT mSRVOffset = 0;
-		UINT mUAVOffset = 0;
+		uint mSRVOffset = 0;
+		uint mUAVOffset = 0;
 	};
 
 	Call AllocateCall(const RootSignature& RootSig);
@@ -407,8 +407,8 @@ private:
 
 	DescriptorHeap* mCpuDescriptorHeap;
 
-	UINT mFrameDescriptorCount;
-	UINT mMaxFrameDescriptorCount;
+	uint mFrameDescriptorCount;
+	uint mMaxFrameDescriptorCount;
 };
 
 
@@ -423,7 +423,7 @@ public:
 
 	struct FrameConstantBuffer
 	{
-		FrameConstantBuffer() {}
+		FrameConstantBuffer() : mCpuMemory(nullptr) {}
 
 		D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() const { return mGpuVirtualAddress; }
 		void* getCPUMemory() const { return mCpuMemory; }
@@ -445,7 +445,7 @@ private:
 	uint64 mFrameByteCount;
 	uint64 mFrameUsedBytes;
 	D3D12_GPU_VIRTUAL_ADDRESS mGpuVirtualAddressStart;
-	BYTE* mCpuMemoryStart;
+	byte* mCpuMemoryStart;
 };
 
 
@@ -499,7 +499,7 @@ public:
 	RenderBufferGeneric(uint64 TotalSizeInBytes, void* initData = nullptr, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~RenderBufferGeneric();
 
-	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(UINT strideInByte);
+	D3D12_VERTEX_BUFFER_VIEW getVertexBufferView(uint strideInByte);
 	D3D12_INDEX_BUFFER_VIEW getIndexBufferView(DXGI_FORMAT format);
 	D3D12_GPU_VIRTUAL_ADDRESS getGPUVirtualAddress() { return mResource->GetGPUVirtualAddress(); }
 	uint64 GetSizeInBytes() { return mSizeInBytes; }
@@ -516,14 +516,14 @@ private:
 class TypedBuffer : public RenderBufferGeneric
 {
 public:
-	TypedBuffer(UINT NumElement, UINT TotalSizeInBytes, DXGI_FORMAT ViewFormat = DXGI_FORMAT_UNKNOWN, void* initData = nullptr,
+	TypedBuffer(uint NumElement, uint TotalSizeInBytes, DXGI_FORMAT ViewFormat = DXGI_FORMAT_UNKNOWN, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~TypedBuffer() {}
 };
 class StructuredBuffer : public RenderBufferGeneric
 {
 public:
-	StructuredBuffer(UINT NumElement, UINT StructureByteStride, void* initData = nullptr,
+	StructuredBuffer(uint NumElement, uint StructureByteStride, void* initData = nullptr,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE, RenderBufferType Type = RenderBufferType_Default);
 	virtual ~StructuredBuffer() {}
 };
@@ -603,23 +603,23 @@ public:
 	~RootSignature();
 	ID3D12RootSignature* getRootsignature() const { return mRootSignature; }
 
-	UINT getRootCBVCount() const { return mRootCBVCount; }
-	UINT getRootDescriptorTable0SRVCount() const { return mDescriptorTable0SRVCount; }
-	UINT getRootDescriptorTable0UAVCount() const { return mDescriptorTable0UAVCount; }
+	uint getRootCBVCount() const { return mRootCBVCount; }
+	uint getRootDescriptorTable0SRVCount() const { return mDescriptorTable0SRVCount; }
+	uint getRootDescriptorTable0UAVCount() const { return mDescriptorTable0UAVCount; }
 
-	UINT getRootSignatureSizeBytes() const { return mRootSignatureDWordUsed * 4; }
+	uint getRootSignatureSizeBytes() const { return mRootSignatureDWordUsed * 4; }
 
 	void setDebugName(LPCWSTR debugName) { setDxDebugName(mRootSignature, debugName); }
 private:
 	RootSignature();
 	RootSignature(RootSignature&);
 
-	UINT mRootCBVCount;
-	UINT mDescriptorTable0SRVCount;
-	UINT mDescriptorTable0UAVCount;
+	uint mRootCBVCount;
+	uint mDescriptorTable0SRVCount;
+	uint mDescriptorTable0UAVCount;
 
 	ID3D12RootSignature* mRootSignature;
-	UINT mRootSignatureDWordUsed;
+	uint mRootSignatureDWordUsed;
 };
 
 
@@ -694,7 +694,7 @@ private:
 
 struct ScopedGpuTimer
 {
-	ScopedGpuTimer(LPCWSTR name, BYTE R=100, BYTE G = 100, BYTE B = 100, BYTE A = 255)
+	ScopedGpuTimer(LPCWSTR name, byte R=100, byte G = 100, byte B = 100, byte A = 255)
 		: mName(name)
 	{
 		g_dx12Device->StartGPUTimer(name, R | (G << 8) | (B << 16) | (A << 24));
@@ -741,7 +741,7 @@ struct CachedRasterPsoDesc
 	const RasterizerState*		mRasterizerState = nullptr;
 	const BlendState*			mBlendState = nullptr;
 
-	UINT32						mRenderTargetCount = 0;
+	uint						mRenderTargetCount = 0;
 	D3D12_CPU_DESCRIPTOR_HANDLE	mRenderTargetDescriptors[8] = { { INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE },{ INVALID_DESCRIPTOR_HANDLE } };
 	DXGI_FORMAT					mRenderTargetFormats[8] = { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_UNKNOWN};
 	D3D12_CPU_DESCRIPTOR_HANDLE	mDepthTextureDescriptor = { INVALID_DESCRIPTOR_HANDLE };
@@ -755,7 +755,7 @@ struct CachedComputePsoDesc
 		  ComputeShader*		mCS = nullptr;
 };
 
-typedef UINT32 PSOKEY;
+typedef uint PSOKEY;
 typedef std::map<PSOKEY, PipelineStateObject*> CachedPSOs;
 
 class CachedPSOManager

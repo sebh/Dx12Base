@@ -15,7 +15,7 @@ struct VertexType
 	float uv[2];
 };
 VertexType vertices[3];
-UINT indices[3];
+uint indices[3];
 const uint SphereVertexStride = sizeof(float) * 8;
 
 
@@ -24,6 +24,7 @@ ViewCamera::ViewCamera()
 	mPos = XMVectorSet(30.0f, 30.0f, 30.0f, 1.0f);
 	mYaw = Pi + Pi / 4.0f;
 	mPitch = -Pi / 4.0f;
+
 	Update();
 
 	mMoveForward = 0;
@@ -149,7 +150,7 @@ void Game::initialise()
 	indices[2] = 2;
 	vertexBuffer = new RenderBufferGeneric(3 * sizeof(VertexType), vertices);
 	vertexBuffer->setDebugName(L"TriangleVertexBuffer");
-	indexBuffer = new RenderBufferGeneric(3 * sizeof(UINT), indices);
+	indexBuffer = new RenderBufferGeneric(3 * sizeof(uint), indices);
 	indexBuffer->setDebugName(L"TriangleIndexBuffer");
 
 	SphereVertexCount = 0;
@@ -163,7 +164,7 @@ void Game::initialise()
 			SphereVertexCount = (uint)loader.LoadedVertices.size();
 			SphereIndexCount = (uint)loader.LoadedIndices.size();
 			SphereVertexBuffer = new StructuredBuffer(SphereVertexCount, SphereVertexStride, (void*)loader.LoadedVertices.data());
-			SphereIndexBuffer = new TypedBuffer(SphereIndexCount, SphereIndexCount * sizeof(UINT), DXGI_FORMAT_R32_UINT, (void*)loader.LoadedIndices.data());
+			SphereIndexBuffer = new TypedBuffer(SphereIndexCount, SphereIndexCount * sizeof(uint), DXGI_FORMAT_R32_UINT, (void*)loader.LoadedIndices.data());
 		}
 		else
 		{
@@ -175,7 +176,7 @@ void Game::initialise()
 		SphereVertexLayout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
 	}
 
-	UavBuffer = new TypedBuffer(4, 4*sizeof(UINT), DXGI_FORMAT_R32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	UavBuffer = new TypedBuffer(4, 4*sizeof(uint), DXGI_FORMAT_R32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
@@ -186,12 +187,12 @@ void Game::initialise()
 	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
 	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.0f;
 	HdrTexture = new RenderTexture(
-		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
 		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
 		&ClearValue, 0, nullptr);
 
 	HdrTexture2 = new RenderTexture(
-		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
 		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
 		nullptr, 0, nullptr);
 
@@ -200,17 +201,17 @@ void Game::initialise()
 	DepthClearValue.DepthStencil.Depth = 1.0f;
 	DepthClearValue.DepthStencil.Stencil = 0;
 	DepthTexture = new RenderTexture(
-		(UINT32)backBuffer->GetDesc().Width, (UINT32)backBuffer->GetDesc().Height, 1,
+		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
 		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
 		&DepthClearValue, 0, nullptr);
 
 	{
 		struct MyStruct
 		{
-			UINT a, b, c;
+			uint a, b, c;
 			float d, e, f;
 		};
-		TypedBuffer* TestTypedBuffer = new TypedBuffer(64, 64 * sizeof(UINT) * 4, DXGI_FORMAT_R32G32B32A32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+		TypedBuffer* TestTypedBuffer = new TypedBuffer(64, 64 * sizeof(uint) * 4, DXGI_FORMAT_R32G32B32A32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		ByteAddressBuffer* TestRawBuffer = new ByteAddressBuffer(64, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		StructuredBuffer* TestStructuredBuffer = new StructuredBuffer(64, sizeof(MyStruct), nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 		delete TestTypedBuffer;
@@ -378,7 +379,7 @@ void Game::render()
 	// Set the common descriptor heap
 	std::vector<ID3D12DescriptorHeap*> descriptorHeaps;
 	descriptorHeaps.push_back(g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getHeap());
-	commandList->SetDescriptorHeaps(UINT(descriptorHeaps.size()), descriptorHeaps.data());
+	commandList->SetDescriptorHeaps(uint(descriptorHeaps.size()), descriptorHeaps.data());
 
 	// Set the HDR texture and clear it
 	HdrTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -460,7 +461,7 @@ void Game::render()
 		SCOPED_GPU_TIMER(RasterMesh, 255, 100, 100);
 
 		SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-		const UINT SphereVertexBufferStrideInByte = sizeof(float) * 8;
+		const uint SphereVertexBufferStrideInByte = sizeof(float) * 8;
 		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferView = SphereVertexBuffer->getVertexBufferView(SphereVertexBufferStrideInByte);
 		SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
 		D3D12_INDEX_BUFFER_VIEW SphereIndexBufferView = SphereIndexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);

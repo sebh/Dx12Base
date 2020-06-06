@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include "Dx12Device.h"
 
@@ -115,7 +115,7 @@ public:
 class DispatchRaysCallSBTHeapCPU
 {
 public:
-	DispatchRaysCallSBTHeapCPU(UINT SizeBytes);
+	DispatchRaysCallSBTHeapCPU(uint SizeBytes);
 	virtual ~DispatchRaysCallSBTHeapCPU();
 
 	void BeginRecording(ID3D12GraphicsCommandList4& CommandList);
@@ -126,7 +126,7 @@ public:
 		void* ptr;
 		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
 	};
-	SBTMemory AllocateSBTMemory(const UINT ByteCount);
+	SBTMemory AllocateSBTMemory(const uint ByteCount);
 
 
 	struct SimpleSBTMemory
@@ -161,8 +161,8 @@ private:
 	RenderBufferGeneric* mUploadHeapSBT;
 	RenderBufferGeneric* mGPUSBT;
 
-	BYTE* mCpuMemoryStart;
-	UINT  mAllocatedBytes;
+	byte* mCpuMemoryStart;
+	uint  mAllocatedBytes;
 };
 
 

@@ -57,7 +57,7 @@ void Dx12Device::shutdown()
 }
 
 
-void Dx12Device::EnableShaderBasedValidationIfNeeded(UINT& dxgiFactoryFlags)
+void Dx12Device::EnableShaderBasedValidationIfNeeded(uint& dxgiFactoryFlags)
 {
 #if DXDEBUG
 	// Enable the debug layer (requires the Graphics Tools "optional feature").
@@ -103,7 +103,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	// Search for a DX12 GPU device and create it 
 	//
 
-	UINT dxgiFactoryFlags = 0;
+	uint dxgiFactoryFlags = 0;
 	EnableShaderBasedValidationIfNeeded(dxgiFactoryFlags);
 	hr = CreateDXGIFactory2(dxgiFactoryFlags, IID_PPV_ARGS(&mDxgiFactory));
 	ATLASSERT(hr == S_OK);
@@ -277,9 +277,9 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	mRtLocalRootSignature = new RootSignature(RootSignatureType_Local_RT);
 	mRtLocalRootSignature->setDebugName(L"DefaultRtLocalRootSignature");
 
-	const UINT AllocatedResourceDescriptorCount = 1024;
-	const UINT FrameDispatchDrawCallResourceDescriptorCount = 1024;
-	const UINT FrameSBTSizeBytes = 4096;
+	const uint AllocatedResourceDescriptorCount = 1024;
+	const uint FrameDispatchDrawCallResourceDescriptorCount = 1024;
+	const uint FrameSBTSizeBytes = 4096;
 
 	mAllocatedResourcesDecriptorHeapCPU = new AllocatedResourceDecriptorHeap(AllocatedResourceDescriptorCount);
 
@@ -301,7 +301,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		mDev->CreateQueryHeap(&HeapDesc, IID_PPV_ARGS(&mFrameTimeStampQueryHeaps[i]));
-		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBufferGeneric(GPUTimerMaxCount * 2 * sizeof(UINT64), nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Readback);
+		mFrameTimeStampQueryReadBackBuffers[i] = new RenderBufferGeneric(GPUTimerMaxCount * 2 * sizeof(uint64), nullptr, D3D12_RESOURCE_FLAG_NONE, RenderBufferType_Readback);
 		mFrameTimeStampCount[i] = 0;
 		mFrameGPUTimerSlotCount[i] = 0;
 		mFrameGPUTimerLevel[i] = 0;
@@ -495,13 +495,13 @@ void Dx12Device::endFrameAndSwap(bool vsyncEnabled)
 		if (mLastValidTimeStampCount > 0)
 		{
 			void* Data;
-			D3D12_RANGE MapRange = { 0, sizeof(UINT64) * mLastValidTimeStampCount };
+			D3D12_RANGE MapRange = { 0, sizeof(uint64) * mLastValidTimeStampCount };
 			HRESULT hr = mFrameTimeStampQueryReadBackBuffers[mGPUTimersReadBackFrameId]->getD3D12Resource()->Map(0, &MapRange, &Data);
-			UINT64* TimerData = (UINT64*)Data;
+			uint64* TimerData = (uint64*)Data;
 
 			if (hr == S_OK)
 			{
-				memcpy(mLastValidTimeStamps, TimerData, sizeof(UINT64) * mLastValidTimeStampCount);
+				memcpy(mLastValidTimeStamps, TimerData, sizeof(uint64) * mLastValidTimeStampCount);
 				memcpy(mLastValidGPUTimers, mFrameGPUTimers[mGPUTimersReadBackFrameId], sizeof(GPUTimer) * mLastValidTimeStampCount);
 				mFrameTimeStampQueryReadBackBuffers[mGPUTimersReadBackFrameId]->getD3D12Resource()->Unmap(0, nullptr);
 			}
@@ -516,7 +516,7 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 	mFrameIndex = frameIndex==-1 ? mSwapchain->GetCurrentBackBufferIndex() : frameIndex;	// use frameIndex if specified
 
 	// if the current fence value is still less than "fenceValue", then we know the GPU has not finished executing
-	UINT64 fenceCompletedValue = mFrameFence[mFrameIndex]->GetCompletedValue();
+	uint64 fenceCompletedValue = mFrameFence[mFrameIndex]->GetCompletedValue();
 	if (fenceCompletedValue < mFrameFenceValue[mFrameIndex])
 	{
 		// we have the fence create an event which is signaled once the fence's current value is "fenceValue"
@@ -542,7 +542,7 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 }
 
 
-void Dx12Device::StartGPUTimer(LPCWSTR Name, UINT RGBA)
+void Dx12Device::StartGPUTimer(LPCWSTR Name, uint RGBA)
 {
 	ATLASSERT(mFrameGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
 
@@ -560,7 +560,7 @@ void Dx12Device::EndGPUTimer(LPCWSTR Name)
 {
 	ATLASSERT(mFrameGPUTimerSlotCount[mFrameIndex] < GPUTimerMaxCount);
 	GPUTimer* t = nullptr;
-	for (UINT i = 0; i < mFrameGPUTimerSlotCount[mFrameIndex]; ++i)
+	for (uint i = 0; i < mFrameGPUTimerSlotCount[mFrameIndex]; ++i)
 	{
 		if (Name == mFrameGPUTimers[mFrameIndex][i].mEventName)
 		{
@@ -600,7 +600,7 @@ InputLayout::InputLayout()
 }
 InputLayout::~InputLayout(){ }
 
-void InputLayout::appendSimpleVertexDataToInputLayout(const char* semanticName, UINT semanticIndex, DXGI_FORMAT format)
+void InputLayout::appendSimpleVertexDataToInputLayout(const char* semanticName, uint semanticIndex, DXGI_FORMAT format)
 {
 	ATLASSERT(mInputLayout.NumElements < INPUT_LAYOUT_MAX_ELEMENTCOUNT);
 
@@ -779,7 +779,7 @@ D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties()
 
 
 
-DescriptorHeap::DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, UINT DescriptorCount)
+DescriptorHeap::DescriptorHeap(bool ShaderVisible, D3D12_DESCRIPTOR_HEAP_TYPE HeapType, uint DescriptorCount)
 	: mDescriptorHeap(nullptr)
 	, mDescriptorCount(DescriptorCount)
 {
@@ -807,7 +807,7 @@ DescriptorHeap::~DescriptorHeap()
 
 
 
-AllocatedResourceDecriptorHeap::AllocatedResourceDecriptorHeap(UINT DescriptorCount)
+AllocatedResourceDecriptorHeap::AllocatedResourceDecriptorHeap(uint DescriptorCount)
 {
 	mDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
 }
@@ -829,7 +829,7 @@ void AllocatedResourceDecriptorHeap::AllocateResourceDecriptors(D3D12_CPU_DESCRI
 
 
 
-DispatchDrawCallCpuDescriptorHeap::DispatchDrawCallCpuDescriptorHeap(UINT DescriptorCount)
+DispatchDrawCallCpuDescriptorHeap::DispatchDrawCallCpuDescriptorHeap(uint DescriptorCount)
 {
 	mMaxFrameDescriptorCount = DescriptorCount;
 	mCpuDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, DescriptorCount);
@@ -879,7 +879,7 @@ DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::Alloc
 DispatchDrawCallCpuDescriptorHeap::Call::Call()
 {
 }
-void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResource& Resource)
+void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(uint Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getRootDescriptorTable0SRVCount());
 	ATLASSERT(Resource.getSRVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
@@ -889,7 +889,7 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(UINT Register, RenderResour
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mUsedSRVs++;
 }
-void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(UINT Register, RenderResource& Resource)
+void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(uint Register, RenderResource& Resource)
 {
 	ATLASSERT(Register >= 0 && Register < mRootSig->getRootDescriptorTable0UAVCount());
 	ATLASSERT(Resource.getUAVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
@@ -952,7 +952,7 @@ FrameConstantBuffers::FrameConstantBuffer FrameConstantBuffers::AllocateFrameCon
 {
 	FrameConstantBuffer NewConstantBuffer;
 
-	UINT64 SizeByteAligned = RoundUp(SizeByte, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	uint64 SizeByteAligned = RoundUp(SizeByte, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	ATLASSERT(mFrameUsedBytes + SizeByteAligned <= mFrameByteCount);
 
 	NewConstantBuffer.mCpuMemory = mCpuMemoryStart + mFrameUsedBytes;
@@ -1072,7 +1072,7 @@ RenderBufferGeneric::~RenderBufferGeneric()
 {
 	resetComPtr(&mUploadHeap);
 }
-D3D12_VERTEX_BUFFER_VIEW RenderBufferGeneric::getVertexBufferView(UINT strideInByte)
+D3D12_VERTEX_BUFFER_VIEW RenderBufferGeneric::getVertexBufferView(uint strideInByte)
 {
 	D3D12_VERTEX_BUFFER_VIEW view;
 	view.BufferLocation = getGPUVirtualAddress();
@@ -1128,7 +1128,7 @@ void RenderBufferGeneric::Upload(void* InitData)
 }
 
 TypedBuffer::TypedBuffer(
-	UINT NumElement, UINT TotalSizeInByte, DXGI_FORMAT ViewFormat, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
+	uint NumElement, uint TotalSizeInByte, DXGI_FORMAT ViewFormat, void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: RenderBufferGeneric(TotalSizeInByte, initData, flags, Type)
 {
 	ATLASSERT(Type != RenderBufferType_AccelerationStructure);
@@ -1169,7 +1169,7 @@ TypedBuffer::TypedBuffer(
 }
 
 StructuredBuffer::StructuredBuffer(
-	UINT NumElement, UINT StructureByteStride,
+	uint NumElement, uint StructureByteStride,
 	void* initData, D3D12_RESOURCE_FLAGS flags, RenderBufferType Type)
 	: RenderBufferGeneric(StructureByteStride * NumElement, initData, flags, Type)
 {
@@ -1549,7 +1549,7 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	srvDesc.Texture2D.MipLevels = 1;
 	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
-	UINT64 textureUploadBufferSize = 0;
+	uint64 textureUploadBufferSize = 0;
 	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
 
 	D3D12_RESOURCE_DESC uploadBufferDesc;							// TODO upload buffer desc
@@ -1656,7 +1656,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 
 	// Global root signature for ray tracing will use space 1 to not conflict with other local shader.
 	// Otherwise, RT and regular root signatures have the same footprint.
-	const UINT RegisterSpace = InRootSignatureType == RootSignatureType_Global_RT ? 1 : 0;
+	const uint RegisterSpace = InRootSignatureType == RootSignatureType_Global_RT ? 1 : 0;
 
 	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
 	// We only allocate a slot a single constant buffer
@@ -1736,9 +1736,9 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	}
 
 	D3D12_ROOT_SIGNATURE_DESC rootSignDesc;
-	rootSignDesc.NumParameters = UINT(rootParameters.size());
+	rootSignDesc.NumParameters = uint(rootParameters.size());
 	rootSignDesc.pParameters = rootParameters.data();
-	rootSignDesc.NumStaticSamplers = UINT(rootSamplers.size());
+	rootSignDesc.NumStaticSamplers = uint(rootSamplers.size());
 	rootSignDesc.pStaticSamplers = rootSamplers.data();
 	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Global_IA ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT	: D3D12_ROOT_SIGNATURE_FLAG_NONE;
 	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Local_RT	? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE				: rootSignDesc.Flags;
@@ -1793,7 +1793,7 @@ const BlendState& getBlendState_Default()
 {
 	BlendState_Default.AlphaToCoverageEnable = FALSE;
 	BlendState_Default.IndependentBlendEnable = FALSE;
-	for (UINT32 i = 0; i < 8; ++i)
+	for (uint i = 0; i < 8; ++i)
 	{
 		BlendState_Default.RenderTarget[i].BlendEnable = FALSE;
 		BlendState_Default.RenderTarget[i].LogicOpEnable = FALSE;
@@ -1850,7 +1850,7 @@ PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 	psoDesc.PS.pShaderBytecode = PSODesc.mPS->GetShaderByteCode();
 
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	for (UINT32 i = 0; i < PSODesc.mRenderTargetCount; ++i)
+	for (uint i = 0; i < PSODesc.mRenderTargetCount; ++i)
 		psoDesc.RTVFormats[i] = PSODesc.mRenderTargetFormats[i];
 	psoDesc.DSVFormat = PSODesc.mDepthTextureFormat;
 	psoDesc.SampleMask = 0xffffffff;
@@ -1926,7 +1926,7 @@ void CachedPSOManager::shutdown()
 
 // https://en.wikipedia.org/wiki/List_of_hash_functions
 // https://en.wikipedia.org/wiki/Jenkins_hash_function
-void jenkins_one_at_a_time_hash(UINT32& hash, const uint8_t* key, size_t length)
+void jenkins_one_at_a_time_hash(uint& hash, const byte* key, size_t length)
 {
 	size_t i = 0;
 	while (i != length)
@@ -1944,8 +1944,8 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 {
 	// The structure has holes due to alignement and as such it can have random values in it. So we build the hash one element at a time.
 	PSOKEY psoKey = 0;
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign),			sizeof(RootSignature*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mLayout),				sizeof(InputLayout*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRootSign),				sizeof(RootSignature*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mLayout),					sizeof(InputLayout*));
 
 	PsoDesc.mVS->ReCompileIfNeeded();
 	PsoDesc.mPS->ReCompileIfNeeded();
@@ -1953,19 +1953,19 @@ const PipelineStateObject& CachedPSOManager::GetCachedPSO(const CachedRasterPsoD
 	ATLENSURE(PsoDesc.mPS->CompilationSuccessful());
 	const IDxcBlob* VSBlob = PsoDesc.mVS->GetShaderByteBlob();
 	const IDxcBlob* PSBlob = PsoDesc.mPS->GetShaderByteBlob();
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),						sizeof(IDxcBlob*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),						sizeof(PixelShader*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&VSBlob),							sizeof(IDxcBlob*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PSBlob),							sizeof(PixelShader*));
 
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthStencilState),	sizeof(DepthStencilState*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRasterizerState),		sizeof(RasterizerState*));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mBlendState),			sizeof(BlendState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthStencilState),		sizeof(DepthStencilState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRasterizerState),			sizeof(RasterizerState*));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mBlendState),				sizeof(BlendState*));
 
 	ATLASSERT(PsoDesc.mRenderTargetCount <= 8);
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetCount),	sizeof(UINT32));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetCount),		sizeof(uint));
 	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetDescriptors), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE)*_countof(PsoDesc.mRenderTargetDescriptors));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetFormats), sizeof(DXGI_FORMAT)*_countof(PsoDesc.mRenderTargetFormats));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureDescriptor), sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
-	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureFormat),	sizeof(DXGI_FORMAT));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mRenderTargetFormats),		sizeof(DXGI_FORMAT)*_countof(PsoDesc.mRenderTargetFormats));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureDescriptor),	sizeof(D3D12_CPU_DESCRIPTOR_HANDLE));
+	jenkins_one_at_a_time_hash(psoKey, reinterpret_cast<const uint8_t*>(&PsoDesc.mDepthTextureFormat),		sizeof(DXGI_FORMAT));
 
 	CachedPSOs::iterator it = mCachedRasterPSOs.find(psoKey);
 	if (it != mCachedRasterPSOs.end())
