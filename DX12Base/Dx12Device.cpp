@@ -234,7 +234,7 @@ void Dx12Device::internalInitialise(const HWND& hWnd)
 		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
 		setDxDebugName(mBackBuffeRtv[i], L"BackBuffeRtv");
 
-		// We increment the rtv handle ptr to the next one according to a rtv descriptor size
+		// We increment the rtv handle mPtr to the next one according to a rtv descriptor size
 		rtvHandle.ptr += mRtvDescriptorSize;
 	}
 
@@ -648,7 +648,7 @@ bool ShaderBase::TryCompile(const TCHAR* filename, const TCHAR* entryFunction, c
 	for (size_t m = 0; m < MacrosCount; ++m)
 	{
 		const ShaderMacro& sm = mMacros.at(m);
-		shaderMacros[m] = { sm.Name.c_str() , sm.Definition.c_str() };
+		shaderMacros[m] = { sm.mName.c_str() , sm.mDefinition.c_str() };
 	}
 
 	HRESULT hr;

@@ -123,7 +123,7 @@ public:
 
 	struct SBTMemory
 	{
-		void* ptr;
+		void* mPtr;
 		D3D12_GPU_VIRTUAL_ADDRESS mGPUAddress;
 	};
 	SBTMemory AllocateSBTMemory(const uint ByteCount);
@@ -139,14 +139,14 @@ public:
 		uint mSBTByteCount;
 		SBTMemory mSBTMemory;
 
-		uint SBTRGSStartOffsetInBytes;
-		uint SBTRGSSizeInBytes;
-		uint SBTMissStartOffsetInBytes;
-		uint SBTMissSizeInBytes;
-		uint SBTMissStrideInBytes ;
-		uint SBTHitGStartOffsetInBytes;
-		uint SBTHitGSizeInBytes;
-		uint SBTHitGStrideInBytes;
+		uint mSBTRGSStartOffsetInBytes;
+		uint mSBTRGSSizeInBytes;
+		uint mSBTMissStartOffsetInBytes;
+		uint mSBTMissSizeInBytes;
+		uint mSBTMissStrideInBytes ;
+		uint mSBTHitGStartOffsetInBytes;
+		uint mSBTHitGSizeInBytes;
+		uint mSBTHitGStrideInBytes;
 
 		D3D12_DISPATCH_RAYS_DESC mDispatchRayDesc;
 

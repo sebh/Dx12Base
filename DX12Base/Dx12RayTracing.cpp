@@ -342,7 +342,7 @@ DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMem
 	ATLASSERT((mAllocatedBytes + ByteCount) <= mUploadHeapSBT->GetSizeInBytes());
 
 	DispatchRaysCallSBTHeapCPU::SBTMemory Result;
-	Result.ptr = mCpuMemoryStart + mAllocatedBytes;
+	Result.mPtr = mCpuMemoryStart + mAllocatedBytes;
 	Result.mGPUAddress = mGPUSBT->getGPUVirtualAddress() + mAllocatedBytes;
 	mAllocatedBytes += ByteCount;
 	return Result;
@@ -367,40 +367,40 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 	// Evaluate required size...
 	uint SBTByteCount = 0;
 
-	Result.SBTRGSStartOffsetInBytes = 0;
-	Result.SBTRGSSizeInBytes = 0;
-	Result.SBTMissStartOffsetInBytes = 0;
-	Result.SBTMissSizeInBytes = 0;
-	Result.SBTMissStrideInBytes = 0;
-	Result.SBTHitGStartOffsetInBytes = 0;
-	Result.SBTHitGSizeInBytes = 0;
-	Result.SBTHitGStrideInBytes = 0;
+	Result.mSBTRGSStartOffsetInBytes = 0;
+	Result.mSBTRGSSizeInBytes = 0;
+	Result.mSBTMissStartOffsetInBytes = 0;
+	Result.mSBTMissSizeInBytes = 0;
+	Result.mSBTMissStrideInBytes = 0;
+	Result.mSBTHitGStartOffsetInBytes = 0;
+	Result.mSBTHitGSizeInBytes = 0;
+	Result.mSBTHitGStrideInBytes = 0;
 
 	// RGS
-	Result.SBTRGSStartOffsetInBytes = 0;
+	Result.mSBTRGSStartOffsetInBytes = 0;
 	SBTByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	SBTByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
 	SBTByteCount = RoundUp(SBTByteCount, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
-	Result.SBTRGSSizeInBytes = SBTByteCount - Result.SBTRGSStartOffsetInBytes;
+	Result.mSBTRGSSizeInBytes = SBTByteCount - Result.mSBTRGSStartOffsetInBytes;
 
 	// Miss shader
 	const uint MissShaderCount = 1;
-	Result.SBTMissStartOffsetInBytes = SBTByteCount;
+	Result.mSBTMissStartOffsetInBytes = SBTByteCount;
 	SBTByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	SBTByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
 	SBTByteCount = RoundUp(SBTByteCount, D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT);
-	Result.SBTMissSizeInBytes = SBTByteCount - Result.SBTMissStartOffsetInBytes;
-	Result.SBTMissStrideInBytes = Result.SBTMissSizeInBytes / MissShaderCount;
+	Result.mSBTMissSizeInBytes = SBTByteCount - Result.mSBTMissStartOffsetInBytes;
+	Result.mSBTMissStrideInBytes = Result.mSBTMissSizeInBytes / MissShaderCount;
 
 	// Hit group
 	uint HitGroupByteCount = 0;
 	HitGroupByteCount += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 	HitGroupByteCount += RtLocalRootSignature.getRootSignatureSizeBytes();
 	HitGroupByteCount = RoundUp(HitGroupByteCount, D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT);
-	Result.SBTHitGStartOffsetInBytes = SBTByteCount;
+	Result.mSBTHitGStartOffsetInBytes = SBTByteCount;
 	SBTByteCount += HitGroupByteCount * HitGroupCount;
-	Result.SBTHitGSizeInBytes	= SBTByteCount - Result.SBTHitGStartOffsetInBytes;
-	Result.SBTHitGStrideInBytes = HitGroupByteCount;
+	Result.mSBTHitGSizeInBytes	= SBTByteCount - Result.mSBTHitGStartOffsetInBytes;
+	Result.mSBTHitGStrideInBytes = HitGroupByteCount;
 
 	// ... and allocate SBT memory
 	Result.mSBTMemory			= AllocateSBTMemory(SBTByteCount);
@@ -408,28 +408,28 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 	Result.mSBTByteCount		= SBTByteCount;
 
 	// Initialise the SBT with shader identifiers.
-	byte* SBT = (byte*)Result.mSBTMemory.ptr;
+	byte* SBT = (byte*)Result.mSBTMemory.mPtr;
 	memset(SBT, 0, Result.mSBTByteCount);	// Should not be necessary?
-	memcpy(&SBT[Result.SBTRGSStartOffsetInBytes],  RTPS.mRayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-	memcpy(&SBT[Result.SBTMissStartOffsetInBytes], RTPS.mMissShaderIdentifier,   D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	memcpy(&SBT[Result.mSBTRGSStartOffsetInBytes],  RTPS.mRayGenShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	memcpy(&SBT[Result.mSBTMissStartOffsetInBytes], RTPS.mMissShaderIdentifier,   D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	for (uint i = 0; i < HitGroupCount; ++i)
 	{
-		memcpy(&SBT[Result.SBTHitGStartOffsetInBytes + i * Result.SBTHitGStrideInBytes], RTPS.mHitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		memcpy(&SBT[Result.mSBTHitGStartOffsetInBytes + i * Result.mSBTHitGStrideInBytes], RTPS.mHitGroupShaderIdentifier, D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 	}
 
 	// Setup the RayDispatchDesc
 	D3D12_GPU_VIRTUAL_ADDRESS SBTGpuAddress = Result.mSBTMemory.mGPUAddress;
 
-	Result.mDispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTGpuAddress + Result.SBTRGSStartOffsetInBytes;
-	Result.mDispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = Result.SBTRGSSizeInBytes;
+	Result.mDispatchRayDesc.RayGenerationShaderRecord.StartAddress = SBTGpuAddress + Result.mSBTRGSStartOffsetInBytes;
+	Result.mDispatchRayDesc.RayGenerationShaderRecord.SizeInBytes = Result.mSBTRGSSizeInBytes;
 
-	Result.mDispatchRayDesc.MissShaderTable.StartAddress = SBTGpuAddress + Result.SBTMissStartOffsetInBytes;
-	Result.mDispatchRayDesc.MissShaderTable.SizeInBytes = Result.SBTMissSizeInBytes;
-	Result.mDispatchRayDesc.MissShaderTable.StrideInBytes = Result.SBTMissStrideInBytes;
+	Result.mDispatchRayDesc.MissShaderTable.StartAddress = SBTGpuAddress + Result.mSBTMissStartOffsetInBytes;
+	Result.mDispatchRayDesc.MissShaderTable.SizeInBytes = Result.mSBTMissSizeInBytes;
+	Result.mDispatchRayDesc.MissShaderTable.StrideInBytes = Result.mSBTMissStrideInBytes;
 
-	Result.mDispatchRayDesc.HitGroupTable.StartAddress = SBTGpuAddress + Result.SBTHitGStartOffsetInBytes;
-	Result.mDispatchRayDesc.HitGroupTable.SizeInBytes = Result.SBTHitGSizeInBytes;
-	Result.mDispatchRayDesc.HitGroupTable.StrideInBytes = Result.SBTHitGStrideInBytes;
+	Result.mDispatchRayDesc.HitGroupTable.StartAddress = SBTGpuAddress + Result.mSBTHitGStartOffsetInBytes;
+	Result.mDispatchRayDesc.HitGroupTable.SizeInBytes = Result.mSBTHitGSizeInBytes;
+	Result.mDispatchRayDesc.HitGroupTable.StrideInBytes = Result.mSBTHitGStrideInBytes;
 
 	Result.mDispatchRayDesc.CallableShaderTable.SizeInBytes = 0;
 	Result.mDispatchRayDesc.CallableShaderTable.StartAddress= 0;
@@ -441,8 +441,8 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 
 void DispatchRaysCallSBTHeapCPU::SimpleSBTMemory::setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* ParamBytes)
 {
-	byte* SBT = (byte*)mSBTMemory.ptr;
-	SBT += SBTHitGStartOffsetInBytes + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + HitGroupIndex * SBTHitGStrideInBytes;
+	byte* SBT = (byte*)mSBTMemory.mPtr;
+	SBT += mSBTHitGStartOffsetInBytes + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + HitGroupIndex * mSBTHitGStrideInBytes;
 
 	switch (Param)
 	{

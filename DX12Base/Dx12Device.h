@@ -264,8 +264,8 @@ struct ShaderMacro
 {
 	// We use string here to own the memory.
 	// This is a requirement for delayed loading with non static shader parameter (created on stack or heap with unkown lifetime)
-	std::wstring Name;
-	std::wstring Definition;
+	std::wstring mName;
+	std::wstring mDefinition;
 };
 typedef std::vector<ShaderMacro> Macros; // D3D_SHADER_MACRO contains pointers to string so those string must be static as of today.
 
@@ -509,6 +509,7 @@ protected:
 private:
 	RenderBufferGeneric();
 	RenderBufferGeneric(RenderBufferGeneric&);
+
 	ID3D12Resource* mUploadHeap;
 	uint64 mSizeInBytes;
 };
@@ -676,9 +677,9 @@ struct ScopedGpuEvent
 	void release()
 	{
 #if D_ENABLE_PIX
-		if (!released)
+		if (!mReleased)
 		{
-			released = true;
+			mReleased = true;
 			PIXEndEvent(g_dx12Device->getFrameCommandList());
 		}
 #endif
@@ -686,7 +687,7 @@ struct ScopedGpuEvent
 private:
 	ScopedGpuEvent() = delete;
 	ScopedGpuEvent(ScopedGpuEvent&) = delete;
-	bool released = false;
+	bool mReleased = false;
 };
 #define SCOPED_GPU_EVENT(eventName) ScopedGpuEvent gpuEvent##eventName##(L""#eventName)
 
@@ -705,9 +706,9 @@ struct ScopedGpuTimer
 	}
 	void release()
 	{
-		if (!released)
+		if (!mReleased)
 		{
-			released = true;
+			mReleased = true;
 			PIXEndEvent(g_dx12Device->getFrameCommandList());
 		}
 	}
@@ -715,7 +716,7 @@ private:
 	ScopedGpuTimer() = delete;
 	ScopedGpuTimer(ScopedGpuTimer&) = delete;
 	LPCWSTR mName;
-	bool released = false;
+	bool mReleased = false;
 };
 #define SCOPED_GPU_TIMER(timerName, R, G, B) ScopedGpuEvent gpuEvent##timerName##(L""#timerName); ScopedGpuTimer gpuTimer##timerName##(L""#timerName, R, G, B);
 
