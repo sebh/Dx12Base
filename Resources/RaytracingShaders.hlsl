@@ -3,10 +3,11 @@ cbuffer MeshConstantBuffer : register(b0, space1)
 {
 	float4x4 ViewProjectionMatrix;
 	float4x4 ViewProjectionMatrixInv;
+
 	uint	 OutputWidth;
 	uint	 OutputHeight;
-	uint	 pad0;
-	uint	 pad1;
+	uint	 HitShaderClosestHitContribution;
+	uint	 HitShaderAnyHitContribution;
 }
 
 
@@ -50,12 +51,31 @@ void MyRaygenShader()
 
 	// Trace
 	RayPayload Payload = { float4(0.5f, 0.5f, 0.5f, 0.0f) };
-	// RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, RAY_FLAG_SKIP_CLOSEST_HIT_SHADER 
-	TraceRay(Scene, RAY_FLAG_CULL_BACK_FACING_TRIANGLES, 0xFF, 0, 0, 0, Ray, Payload);
-	
+	uint InstanceInclusionMask = 0xFF;
+	// RayFlags: see https://github.com/microsoft/DirectX-Specs/blob/master/d3d/Raytracing.md#ray-flags
+#if CLOSESTANDANYHIT==1
+	// By default use the closest hit shader
+	uint RayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+	uint RayContributionToHitGroupIndex = HitShaderClosestHitContribution;
+	if (LaunchIndex.y < DispatchDimension.y / 2)
+	{
+		// If in the top part of the screen, use the any hit shader
+		RayFlags = RAY_FLAG_FORCE_NON_OPAQUE; // force the execution of any hit shaders
+		RayContributionToHitGroupIndex = HitShaderAnyHitContribution;
+	}
+	uint MultiplierForGeometryContributionToHitGroupIndex = 0;
+	uint MissShaderIndex = 0;
+#else
+	uint RayFlags = RAY_FLAG_CULL_BACK_FACING_TRIANGLES;
+	uint RayContributionToHitGroupIndex = 0;
+	uint MultiplierForGeometryContributionToHitGroupIndex = 0;
+	uint MissShaderIndex = 0;
+#endif
+
+	TraceRay(Scene, RayFlags, InstanceInclusionMask, RayContributionToHitGroupIndex, MultiplierForGeometryContributionToHitGroupIndex, MissShaderIndex, Ray, Payload);
+
 	// Write the raytraced color to the output texture.
 	LuminanceRenderTarget[DispatchRaysIndex().xy] = Payload.Color;
-
 }
 
 
@@ -93,7 +113,13 @@ void MyClosestHitShader(inout RayPayload Payload, in BuiltInTriangleIntersection
 	//Payload.Color = float4(WorldRayOrigin() + RayTCurrent() * WorldRayDirection(), 1.0f);
 }
 
-
+[shader("anyhit")]
+void MyAnyHitShader(inout RayPayload Payload, in BuiltInTriangleIntersectionAttributes Attr)
+{
+	float3 barycentrics = float3(1 - Attr.barycentrics.x - Attr.barycentrics.y, Attr.barycentrics.x, Attr.barycentrics.y);
+	Payload.Color = float4(barycentrics, 1);
+	AcceptHitAndEndSearch();
+}
 
 [shader("miss")]
 void MyMissShader(inout RayPayload Payload)

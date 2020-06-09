@@ -74,6 +74,7 @@ private:
 	StaticTopLevelAccelerationStructureBuffer* SceneTLAS;
 
 	RayTracingPipelineStateSimple* mRayTracingPipelineState;
+	RayTracingPipelineStateClosestAndAnyHit* mRayTracingPipelineStateClosestAndHit;
 
 	TypedBuffer* UavBuffer;
 
@@ -89,6 +90,7 @@ private:
 	RenderTexture* DepthTexture;
 
 	bool ShowRtResult = true;
+	bool ShowRtWithAnyHit = true;
 };
 
 

@@ -538,6 +538,12 @@ void Dx12Device::waitForPreviousFrame(int frameIndex)
 			delete ToDelete;
 		}
 		FGC->mRayTracingPipelineStateSimple.clear();
+
+		for (auto& ToDelete : FGC->mRayTracingPipelineStateClosestAndAnyHit)
+		{
+			delete ToDelete;
+		}
+		FGC->mRayTracingPipelineStateClosestAndAnyHit.clear();
 	}
 }
 

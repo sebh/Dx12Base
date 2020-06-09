@@ -42,6 +42,7 @@ class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
 class RayTracingPipelineStateSimple;
+class RayTracingPipelineStateClosestAndAnyHit;
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 static const int GPUTimerMaxCount = 256;
@@ -109,6 +110,7 @@ public:
 	GPUTimersReport GetGPUTimerReport();
 
 	void AppendToGarbageCollector(RayTracingPipelineStateSimple* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateSimple.push_back(ToBeRemoved); }
+	void AppendToGarbageCollector(RayTracingPipelineStateClosestAndAnyHit* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateClosestAndAnyHit.push_back(ToBeRemoved); }
 
 private:
 	Dx12Device();
@@ -186,6 +188,7 @@ private:
 	struct FrameGarbageCollector
 	{
 		std::vector<RayTracingPipelineStateSimple*>	mRayTracingPipelineStateSimple;
+		std::vector<RayTracingPipelineStateClosestAndAnyHit*>	mRayTracingPipelineStateClosestAndAnyHit;
 	};
 	FrameGarbageCollector mFrameGarbageCollector[frameBufferCount];
 };

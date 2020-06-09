@@ -87,7 +87,10 @@ struct RayTracingPipelineStateShaderDesc
 {
 	const TCHAR* mShaderFilepath;
 	const TCHAR* mShaderEntryName;
+	Macros		 mMacros;
 };
+
+
 
 class RayTracingPipelineStateSimple
 {
@@ -96,7 +99,7 @@ public:
 	virtual ~RayTracingPipelineStateSimple();
 
 	// Create a simple RayGen, CLosestHit and Miss shader trio.
-	void CreateSimpleRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc);
+	void CreateRTState(RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc);
 
 	ID3D12StateObject*				mRayTracingPipelineStateObject;			// Ray tracing pipeline
 	ID3D12StateObjectProperties*	mRayTracingPipelineStateObjectProp;		// Ray tracing pipeline properties intereface
@@ -108,6 +111,31 @@ public:
 	void*							mRayGenShaderIdentifier;
 	void*							mHitGroupShaderIdentifier;
 	void*							mMissShaderIdentifier;
+};
+
+class RayTracingPipelineStateClosestAndAnyHit
+{
+public:
+	RayTracingPipelineStateClosestAndAnyHit();
+	virtual ~RayTracingPipelineStateClosestAndAnyHit();
+
+	// Create a simple RayGen, CLosestHit and Miss shader trio.
+	void CreateRTState(
+		RayTracingPipelineStateShaderDesc& RayGenShaderDesc, RayTracingPipelineStateShaderDesc& MissShaderDesc, 
+		RayTracingPipelineStateShaderDesc& ClosestHitShaderDesc, RayTracingPipelineStateShaderDesc& AnyHitShaderDesc);
+
+	ID3D12StateObject*				mRayTracingPipelineStateObject;			// Ray tracing pipeline
+	ID3D12StateObjectProperties*	mRayTracingPipelineStateObjectProp;		// Ray tracing pipeline properties intereface
+
+	// SimpleRTState
+	RayGenerationShader*			mRayGenShader;
+	MissShader*						mMissShader;
+	ClosestHitShader*				mClosestHitShader;
+	AnyHitShader*					mAnyHitShader;
+	void*							mRayGenShaderIdentifier;
+	void*							mMissShaderIdentifier;
+	void*							mClosestHitGroupShaderIdentifier;
+	void*							mAnyHitGroupShaderIdentifier;
 };
 
 
@@ -128,8 +156,7 @@ public:
 	};
 	SBTMemory AllocateSBTMemory(const uint ByteCount);
 
-
-	struct SimpleSBTMemory
+	struct SimpleSBTMemory // TODO rename to SBTMemory and delete ClosestAndAnyHitSBTMemory?
 	{
 		const RootSignature* mRtLocalRootSignature;
 
@@ -153,6 +180,11 @@ public:
 		void setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* PTR);
 	};
 	SimpleSBTMemory AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS);
+
+	struct ClosestAndAnyHitSBTMemory : public SimpleSBTMemory
+	{
+	};
+	ClosestAndAnyHitSBTMemory AllocateClosestAndAnyHitSBT(const RootSignature& RtLocalRootSignature, uint MeshInstanceCount, const RayTracingPipelineStateClosestAndAnyHit& RTPS);
 
 private:
 	DispatchRaysCallSBTHeapCPU();

@@ -113,12 +113,20 @@ void Game::loadShaders(bool ReloadMode)
 	if (ReloadMode)
 	{
 		g_dx12Device->AppendToGarbageCollector(mRayTracingPipelineState);
+		g_dx12Device->AppendToGarbageCollector(mRayTracingPipelineStateClosestAndHit);
 	}
+
+	RayTracingPipelineStateShaderDesc RayGenShaderDesc		= { L"Resources\\RaytracingShaders.hlsl", L"MyRaygenShader", {} };		RayGenShaderDesc.mMacros.push_back({ L"CLOSESTANDANYHIT", L"0" });
+	RayTracingPipelineStateShaderDesc RayGenShader2Desc		= { L"Resources\\RaytracingShaders.hlsl", L"MyRaygenShader", {} };		RayGenShader2Desc.mMacros.push_back({ L"CLOSESTANDANYHIT", L"1" });
+	RayTracingPipelineStateShaderDesc ClosestHitShaderDesc	= { L"Resources\\RaytracingShaders.hlsl", L"MyClosestHitShader", {} };
+	RayTracingPipelineStateShaderDesc AnyHitShaderDesc		= { L"Resources\\RaytracingShaders.hlsl", L"MyAnyHitShader", {} };
+	RayTracingPipelineStateShaderDesc MissShaderDesc		= { L"Resources\\RaytracingShaders.hlsl", L"MyMissShader", {} };
+
 	mRayTracingPipelineState = new RayTracingPipelineStateSimple();
-		RayTracingPipelineStateShaderDesc RayGenShaderDesc		= { L"Resources\\RaytracingShaders.hlsl", L"MyRaygenShader" };
-		RayTracingPipelineStateShaderDesc ClosestHitShaderDesc	= { L"Resources\\RaytracingShaders.hlsl", L"MyClosestHitShader" };
-		RayTracingPipelineStateShaderDesc MissShaderDesc		= { L"Resources\\RaytracingShaders.hlsl", L"MyMissShader" };
-	mRayTracingPipelineState->CreateSimpleRTState(RayGenShaderDesc, ClosestHitShaderDesc, MissShaderDesc);
+	mRayTracingPipelineState->CreateRTState(RayGenShaderDesc, ClosestHitShaderDesc, MissShaderDesc);
+
+	mRayTracingPipelineStateClosestAndHit = new RayTracingPipelineStateClosestAndAnyHit();
+	mRayTracingPipelineStateClosestAndHit->CreateRTState(RayGenShader2Desc, MissShaderDesc, ClosestHitShaderDesc, AnyHitShaderDesc);
 }
 
 void Game::releaseShaders()
@@ -272,6 +280,7 @@ void Game::shutdown()
 	// TODO clean up
 	{
 		resetPtr(&mRayTracingPipelineState);
+		resetPtr(&mRayTracingPipelineStateClosestAndHit);
 		resetPtr(&SphereBLAS);
 		resetPtr(&SceneTLAS);
 	}
@@ -362,6 +371,7 @@ void Game::render()
 {
 	ImGui::Begin("Scene");
 	ImGui::Checkbox("Show RayTraced", &ShowRtResult);
+	ImGui::Checkbox("Ray trace with Closest- and Any- hit", &ShowRtWithAnyHit);
 	ImGui::End();
 
 
@@ -571,34 +581,82 @@ void Game::render()
 	{
 		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
 		HdrTexture2->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		D3D12_DISPATCH_RAYS_DESC DispatchRayDesc;
 
-		// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
-		DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateSimpleSBT(
-			g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineState);
+		if (!ShowRtWithAnyHit)
+		{
+			// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
+			DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateSimpleSBT(
+				g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineState);
 
-		// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:
-		// For the first hit group shader,
-		DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors0 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
-		RtLocalRootSigDescriptors0.SetSRV(0, *SphereVertexBuffer);
-		RtLocalRootSigDescriptors0.SetSRV(1, *SphereIndexBuffer);
-		RtLocalRootSigDescriptors0.SetSRV(2, *texture);
-		SBTMem.setHitGroupLocalRootSignatureParameter(0, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors0.getRootDescriptorTableGpuHandle());
-		// and for the second hit group shader.
-		DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors1 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
-		RtLocalRootSigDescriptors1.SetSRV(0, *SphereVertexBuffer);
-		RtLocalRootSigDescriptors1.SetSRV(1, *SphereIndexBuffer);
-		RtLocalRootSigDescriptors1.SetSRV(2, *texture2);
-		SBTMem.setHitGroupLocalRootSignatureParameter(1, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors1.getRootDescriptorTableGpuHandle());
+			// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:
+			// For the first hit group shader,
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors0 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors0.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors0.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors0.SetSRV(2, *texture);
+			SBTMem.setHitGroupLocalRootSignatureParameter(0, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors0.getRootDescriptorTableGpuHandle());
+			// and for the second hit group shader.
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors1 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors1.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors1.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors1.SetSRV(2, *texture2);
+			SBTMem.setHitGroupLocalRootSignatureParameter(1, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors1.getRootDescriptorTableGpuHandle());
 
-		// Create the dispatch desc from the RayTracing.
-		D3D12_DISPATCH_RAYS_DESC DispatchRayDesc = SBTMem.mDispatchRayDesc;
-		DispatchRayDesc.Width = (uint) HdrTexture2->getD3D12Resource()->GetDesc().Width;
+			// Create the dispatch desc from the RayTracing.
+			DispatchRayDesc = SBTMem.mDispatchRayDesc;
+
+			// Set the ray tracing state pipeline.
+			g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineState->mRayTracingPipelineStateObject);
+		}
+		else
+		{
+			// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
+			DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateClosestAndAnyHitSBT(
+				g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineStateClosestAndHit);
+
+			// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:
+
+			// Instance 0, closest hit shader
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors0 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors0.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors0.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors0.SetSRV(2, *texture);
+			SBTMem.setHitGroupLocalRootSignatureParameter(0, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors0.getRootDescriptorTableGpuHandle());
+			// Instance 1, closest hit shader
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors1 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors1.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors1.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors1.SetSRV(2, *texture2);
+			SBTMem.setHitGroupLocalRootSignatureParameter(1, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors1.getRootDescriptorTableGpuHandle());
+			// Instance 0, any hit shader
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors2 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors2.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors2.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors2.SetSRV(2, *texture);
+			SBTMem.setHitGroupLocalRootSignatureParameter(2, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors2.getRootDescriptorTableGpuHandle());
+			// Instance 1, any hit shader
+			DispatchDrawCallCpuDescriptorHeap::Call RtLocalRootSigDescriptors3 = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultRayTracingLocalRootSignature());
+			RtLocalRootSigDescriptors3.SetSRV(0, *SphereVertexBuffer);
+			RtLocalRootSigDescriptors3.SetSRV(1, *SphereIndexBuffer);
+			RtLocalRootSigDescriptors3.SetSRV(2, *texture2);
+			SBTMem.setHitGroupLocalRootSignatureParameter(3, RootParameterByteOffset_DescriptorTable0, &RtLocalRootSigDescriptors3.getRootDescriptorTableGpuHandle());
+
+			// Create the dispatch desc from the RayTracing.
+			DispatchRayDesc = SBTMem.mDispatchRayDesc;
+
+			// Set the ray tracing state pipeline.
+			g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineStateClosestAndHit->mRayTracingPipelineStateObject);
+		}
+
+
+		DispatchRayDesc.Width = (uint)HdrTexture2->getD3D12Resource()->GetDesc().Width;
 		DispatchRayDesc.Height = (uint)HdrTexture2->getD3D12Resource()->GetDesc().Height;
 		DispatchRayDesc.Depth = 1;
 
-		// Set the global root signature and the ray tracing state pipeline.
+
+		// Set the global root signature.
 		g_dx12Device->getFrameCommandList()->SetComputeRootSignature(g_dx12Device->GetDefaultRayTracingGlobalRootSignature().getRootsignature());
-		g_dx12Device->getFrameCommandList()->SetPipelineState1(mRayTracingPipelineState->mRayTracingPipelineStateObject);
 
 		// Create the global resources and constant buffer parameters.
 		// Resources
@@ -610,10 +668,11 @@ void Game::render()
 		{
 			float4x4 ViewProjectionMatrix;
 			float4x4 ViewProjectionMatrixInv;
+
 			uint	 OutputWidth;
 			uint	 OutputHeight;
-			uint	 pad0;
-			uint	 pad1;
+			uint	 HitShaderClosestHitContribution;
+			uint	 HitShaderAnyHitContribution;
 		};
 		FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
 		MeshConstantBuffer* RTCB = (MeshConstantBuffer*)CB.getCPUMemory();
@@ -621,6 +680,8 @@ void Game::render()
 		RTCB->ViewProjectionMatrixInv = viewProjMatrixInv;
 		RTCB->OutputWidth = DispatchRayDesc.Width;
 		RTCB->OutputHeight = DispatchRayDesc.Height;
+		RTCB->HitShaderClosestHitContribution = 0;
+		RTCB->HitShaderAnyHitContribution	  = 2;	// Top level instance count is the offset to get from closest hit to any hit shader in that setup
 		// Set
 		commandList->SetComputeRootConstantBufferView(0, CB.getGPUVirtualAddress());
 		commandList->SetComputeRootDescriptorTable(1, CallDescriptors.getRootDescriptorTableGpuHandle());
