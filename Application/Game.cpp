@@ -586,7 +586,7 @@ void Game::render()
 		if (!ShowRtWithAnyHit)
 		{
 			// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
-			DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateSimpleSBT(
+			DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateSimpleSBT(
 				g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineState);
 
 			// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:
@@ -612,7 +612,7 @@ void Game::render()
 		else
 		{
 			// Allocate memory for the SBT considering a RayTracingPipelineStateSimple (with two hit group shader).
-			DispatchRaysCallSBTHeapCPU::SimpleSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateClosestAndAnyHitSBT(
+			DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory SBTMem = g_dx12Device->getDispatchRaysCallCpuSBTHeap().AllocateClosestAndAnyHitSBT(
 				g_dx12Device->GetDefaultRayTracingLocalRootSignature(), 2, *mRayTracingPipelineStateClosestAndHit);
 
 			// Hit group shaders have per shader parameter (on local root signature) so create space in the frame descriptor heap and assign into the SBT:

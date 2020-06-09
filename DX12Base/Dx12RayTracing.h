@@ -156,7 +156,7 @@ public:
 	};
 	SBTMemory AllocateSBTMemory(const uint ByteCount);
 
-	struct SimpleSBTMemory // TODO rename to SBTMemory and delete ClosestAndAnyHitSBTMemory?
+	struct AllocatedSBTMemory
 	{
 		const RootSignature* mRtLocalRootSignature;
 
@@ -177,14 +177,15 @@ public:
 
 		D3D12_DISPATCH_RAYS_DESC mDispatchRayDesc;
 
+		// Set local root signature parameter for hit group.
 		void setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* PTR);
+		// It is assumed that RayGen and Miss shaders only use global root parameters for now. This could be changed, they already have the local root signature assigned.
 	};
-	SimpleSBTMemory AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS);
 
-	struct ClosestAndAnyHitSBTMemory : public SimpleSBTMemory
-	{
-	};
-	ClosestAndAnyHitSBTMemory AllocateClosestAndAnyHitSBT(const RootSignature& RtLocalRootSignature, uint MeshInstanceCount, const RayTracingPipelineStateClosestAndAnyHit& RTPS);
+	// When SBT memory is allocated, the client is in charge of setting up the memory according to the RayTracingState pipeline it has been create from. 
+	// We do check boundary when writing local root parameters in setHitGroupLocalRootSignatureParameter and that is it.
+	AllocatedSBTMemory AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS);
+	AllocatedSBTMemory AllocateClosestAndAnyHitSBT(const RootSignature& RtLocalRootSignature, uint MeshInstanceCount, const RayTracingPipelineStateClosestAndAnyHit& RTPS);
 
 private:
 	DispatchRaysCallSBTHeapCPU();

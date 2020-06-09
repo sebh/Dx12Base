@@ -544,9 +544,9 @@ DispatchRaysCallSBTHeapCPU::SBTMemory DispatchRaysCallSBTHeapCPU::AllocateSBTMem
 	return Result;
 }
 
-DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS)
+DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory DispatchRaysCallSBTHeapCPU::AllocateSimpleSBT(const RootSignature& RtLocalRootSignature, uint HitGroupCount, const RayTracingPipelineStateSimple& RTPS)
 {
-	DispatchRaysCallSBTHeapCPU::SimpleSBTMemory Result;
+	DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory Result;
 	Result.mRtLocalRootSignature = &RtLocalRootSignature;
 	Result.mHitGroupCount = HitGroupCount;
 
@@ -635,12 +635,12 @@ DispatchRaysCallSBTHeapCPU::SimpleSBTMemory DispatchRaysCallSBTHeapCPU::Allocate
 }
 
 
-DispatchRaysCallSBTHeapCPU::ClosestAndAnyHitSBTMemory DispatchRaysCallSBTHeapCPU::AllocateClosestAndAnyHitSBT(
+DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory DispatchRaysCallSBTHeapCPU::AllocateClosestAndAnyHitSBT(
 	const RootSignature& RtLocalRootSignature, uint MeshInstanceCount, const RayTracingPipelineStateClosestAndAnyHit& RTPS)
 {
 	const uint HitGroupPerMeshInstance = 2; // one closest and one any hit
 
-	DispatchRaysCallSBTHeapCPU::ClosestAndAnyHitSBTMemory Result;
+	DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory Result;
 	Result.mRtLocalRootSignature = &RtLocalRootSignature;
 	Result.mHitGroupCount = MeshInstanceCount * HitGroupPerMeshInstance;
 
@@ -726,8 +726,10 @@ DispatchRaysCallSBTHeapCPU::ClosestAndAnyHitSBTMemory DispatchRaysCallSBTHeapCPU
 }
 
 
-void DispatchRaysCallSBTHeapCPU::SimpleSBTMemory::setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* ParamBytes)
+void DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory::setHitGroupLocalRootSignatureParameter(uint HitGroupIndex, RootParameterByteOffset Param, void* ParamBytes)
 {
+	ATLASSERT(HitGroupIndex < mHitGroupCount);
+
 	byte* SBT = (byte*)mSBTMemory.mPtr;
 	SBT += mSBTHitGStartOffsetInBytes + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + HitGroupIndex * mSBTHitGStrideInBytes;
 
