@@ -946,7 +946,8 @@ FrameConstantBuffers::~FrameConstantBuffers()
 void FrameConstantBuffers::BeginRecording()
 {
 	mFrameUsedBytes = 0;
-	mConstantBufferUploadHeap->Map(0, nullptr, (void**)(&mCpuMemoryStart));
+	HRESULT hr = mConstantBufferUploadHeap->Map(0, nullptr, (void**)(&mCpuMemoryStart));
+	ATLASSERT(hr == S_OK);
 }
 
 void FrameConstantBuffers::EndRecording()
