@@ -195,11 +195,14 @@ int WINAPI WinMain(
 
 			// Swap the back buffer
 			g_dx12Device->endFrameAndSwap(sVSyncEnable);
-#ifdef _DEBUG
+
+#if 0		// SetStablePowerState is only available when developer mode is enabled. So it is deisabled by default.
 			if (sPreviousStablePowerEnable != sStablePowerEnable)
 			{
+				
 				sPreviousStablePowerEnable = sStablePowerEnable;
-				g_dx12Device->getDevice()->SetStablePowerState(sStablePowerEnable);
+				HRESULT hr = g_dx12Device->getDevice()->SetStablePowerState(sStablePowerEnable);
+				ATLASSERT(hr == S_OK);
 			}
 #endif
 
