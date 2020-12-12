@@ -53,7 +53,7 @@ artifacts/
 *_i.h
 *.ilk
 *.meta
-*.obj
+*x64/*.obj
 *.pch
 *.pdb
 *.pgc
