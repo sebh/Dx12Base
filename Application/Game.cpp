@@ -166,7 +166,7 @@ void Game::initialise()
 	{
 		objl::Loader loader;
 		bool success = loader.LoadFile(".\\Resources\\sphere.obj");
-		//bool success = loader.LoadFile("./Resources/cube.obj");
+		//bool success = loader.LoadFile(".\\Resources\\cube.obj");
 		if (success && loader.LoadedMeshes.size() == 1)
 		{
 			SphereVertexCount = (uint)loader.LoadedVertices.size();
