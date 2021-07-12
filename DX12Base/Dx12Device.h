@@ -35,7 +35,7 @@
 // This is interesting to disable in case one wants to capture using renderdoc. Otherwise, NSight Graphics will be required.
 #define D_ENABLE_DXRT 1
 
-#define INVALID_DESCRIPTOR_HANDLE 0xFFFFFFFFFFFFFFFF
+#define INVALID_DESCRIPTOR_HANDLE ((SIZE_T)0xFFFFFFFFFFFFFFFF)
 
 class RootSignature;
 class DescriptorHeap;
