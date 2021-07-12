@@ -13,9 +13,9 @@ cbuffer MyBuffer : register(b0)
 
 struct VertexInput
 {
+	uint   VertexID		: SV_VertexID;
 	float3 position		: POSITION;
 	float2 uv			: TEXCOORD0;
-	uint   VertexID		: SV_VertexID;
 };
 
 struct VertexOutput
@@ -43,21 +43,12 @@ float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 }
 
 
-VertexOutput TriangleVertexShader(VertexInput input)
+VertexOutput TriangleVertexShader(uint VertexID : SV_VertexID)
 {
 	VertexOutput output;	// TODO init to 0
 
-	const float FloatMul = 100.0f;
-	const float4 VecMult = float4(FloatMul, FloatMul, FloatMul, 1.0);
-
-	if (input.VertexID == 0)
-		output.position = float4(0.0, 0.5, 0.5, 1.0) * VecMult;
-	else if (input.VertexID == 2)
-		output.position = float4(0.5, -0.5, 0.5, 1.0) * VecMult;
-	else if (input.VertexID == 1)
-		output.position = float4(-0.5, -0.5, 0.5, 1.0) * VecMult;
-
-	output.uv = input.uv;
+	output.position = float4(VertexID == 2 ? 3.0 : -1.0, VertexID == 1 ? 3.0 : -1.0, 0.1, 1.0);
+	output.uv = (output.position.xy + 1.0) * 0.25;
 
 	return output;
 }

@@ -154,6 +154,8 @@ void Game::initialise()
 
 	loadShaders(false);
 
+	layoutEmpty = new InputLayout();
+
 	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
@@ -447,6 +449,35 @@ void Game::render()
 	float4 viewProjDet = XMMatrixDeterminant(viewProjMatrix);
 	float4x4 viewProjMatrixInv = XMMatrixInverse(&viewProjDet, viewProjMatrix);
 
+	// Render a triangle without any buffers
+	{
+		SCOPED_GPU_TIMER(RasterTriNoBuffer, 255, 100, 100);
+
+		// Set PSO and render targets
+		CachedRasterPsoDesc PSODesc;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PSODesc.mLayout = layoutEmpty;
+		PSODesc.mVS = TriangleVertexShader;
+		PSODesc.mPS = TrianglePixelShader;
+		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
+		PSODesc.mRasterizerState = &getRasterizerState_Default();
+		PSODesc.mBlendState = &getBlendState_Default();
+		PSODesc.mRenderTargetCount = 1;
+		PSODesc.mRenderTargetDescriptors[0] = HdrTextureRTV;
+		PSODesc.mRenderTargetFormats[0] = HdrTexture->getClearColor().Format;
+		PSODesc.mDepthTextureDescriptor = DepthTextureDSV;
+		PSODesc.mDepthTextureFormat = DepthTexture->getClearColor().Format;
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
+
+		// Set other raster properties
+		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
+		commandList->IASetIndexBuffer(&indexBufferView);
+
+		// Set root signature data and draw
+		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
+	}
+
 	// Render a triangle
 	{
 		SCOPED_GPU_TIMER(RasterTri, 255, 100, 100);
@@ -471,7 +502,7 @@ void Game::render()
 		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);					// set the vertex buffer (using the vertex buffer view)
-		commandList->IASetIndexBuffer(&indexBufferView);							// set the vertex buffer (using the vertex buffer view)
+		commandList->IASetIndexBuffer(&indexBufferView);							// set the index buffer
 
 		// Set constants and constant buffer
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
@@ -481,44 +512,6 @@ void Game::render()
 		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	}
-
-	// TODO make this work
-#if 0
-	// Render a triangle without any buffers
-	{
-		SCOPED_GPU_TIMER(RasterTriNoBuffer, 255, 100, 100);
-
-		// Set PSO and render targets
-		CachedRasterPsoDesc PSODesc;
-		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
-		PSODesc.mLayout = layout;
-		PSODesc.mVS = TriangleVertexShader;
-		PSODesc.mPS = TrianglePixelShader;
-		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
-		PSODesc.mRasterizerState = &getRasterizerState_Default();
-		PSODesc.mBlendState = &getBlendState_Default();
-		PSODesc.mRenderTargetCount = 1;
-		PSODesc.mRenderTargetDescriptors[0] = HdrTextureRTV;
-		PSODesc.mRenderTargetFormats[0] = HdrTexture->getClearColor().Format;
-		PSODesc.mDepthTextureDescriptor = DepthTextureDSV;
-		PSODesc.mDepthTextureFormat = DepthTexture->getClearColor().Format;
-		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
-
-		// Set other raster properties
-		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
-		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
-		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);					// set the vertex buffer (using the vertex buffer view)
-		commandList->IASetIndexBuffer(&indexBufferView);							// set the vertex buffer (using the vertex buffer view)
-
-		// Set constants and constant buffer
-	//	DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
-	//	CallDescriptors.SetSRV(0, *texture);
-
-		// Set root signature data and draw
-	//	commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
-		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
-	}
-#endif
 
 	// Render a mesh
 	{

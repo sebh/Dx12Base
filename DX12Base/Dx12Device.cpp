@@ -1806,7 +1806,7 @@ const DepthStencilState& getDepthStencilState_Disabled()
 	DepthStencilState_Disabled = getDepthStencilState_Default();
 	DepthStencilState_Disabled.DepthEnable = FALSE;
 	DepthStencilState_Disabled.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-	DepthStencilState_Disabled.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	DepthStencilState_Disabled.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 	DepthStencilState_Disabled.StencilEnable = FALSE;
 	return DepthStencilState_Disabled;
 }
