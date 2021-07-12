@@ -154,8 +154,6 @@ void Game::initialise()
 
 	loadShaders(false);
 
-	layoutEmpty = new InputLayout();
-
 	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
@@ -456,7 +454,7 @@ void Game::render()
 		// Set PSO and render targets
 		CachedRasterPsoDesc PSODesc;
 		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
-		PSODesc.mLayout = layoutEmpty;
+		PSODesc.mLayout = nullptr;
 		PSODesc.mVS = TriangleVertexShader;
 		PSODesc.mPS = TrianglePixelShader;
 		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();

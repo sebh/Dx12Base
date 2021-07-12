@@ -57,7 +57,6 @@ private:
 	int mMouseY = 0;
 
 	InputLayout* layout;
-	InputLayout* layoutEmpty;
 
 	RenderBufferGeneric* vertexBuffer;
 	RenderBufferGeneric* indexBuffer;

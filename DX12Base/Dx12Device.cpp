@@ -1866,7 +1866,7 @@ PipelineStateObject::PipelineStateObject(const CachedRasterPsoDesc& PSODesc)
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 
 	psoDesc.pRootSignature = PSODesc.mRootSign->getRootsignature();
-	psoDesc.InputLayout = *PSODesc.mLayout->getLayoutDesc();
+	psoDesc.InputLayout = PSODesc.mLayout != nullptr ? *PSODesc.mLayout->getLayoutDesc() : D3D12_INPUT_LAYOUT_DESC{nullptr, 0};
 	psoDesc.VS.BytecodeLength = PSODesc.mVS->GetShaderByteCodeSize();
 	psoDesc.VS.pShaderBytecode = PSODesc.mVS->GetShaderByteCode();
 	psoDesc.PS.BytecodeLength = PSODesc.mPS->GetShaderByteCodeSize();
