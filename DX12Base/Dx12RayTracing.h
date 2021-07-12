@@ -4,6 +4,10 @@
 
 
 
+#if D_ENABLE_DXRT
+
+
+
 class AccelerationStructureBuffer : public RenderBufferGeneric
 {
 public:
@@ -197,5 +201,9 @@ private:
 	byte* mCpuMemoryStart;
 	uint  mAllocatedBytes;
 };
+
+
+
+#endif // D_ENABLE_DXRT
 
 

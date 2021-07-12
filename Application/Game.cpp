@@ -113,6 +113,7 @@ void Game::loadShaders(bool ReloadMode)
 
 	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", L"MainComputeShader", MyMacros);
 
+#if D_ENABLE_DXRT
 	if (ReloadMode)
 	{
 		g_dx12Device->AppendToGarbageCollector(mRayTracingPipelineState);
@@ -130,6 +131,7 @@ void Game::loadShaders(bool ReloadMode)
 
 	mRayTracingPipelineStateClosestAndHit = new RayTracingPipelineStateClosestAndAnyHit();
 	mRayTracingPipelineStateClosestAndHit->CreateRTState(RayGenShader2Desc, MissShaderDesc, ClosestHitShaderDesc, AnyHitShaderDesc);
+#endif // D_ENABLE_DXRT
 }
 
 void Game::releaseShaders()
@@ -238,6 +240,7 @@ void Game::initialise()
 	//////////
 	//////////
 
+#if D_ENABLE_DXRT
 
 	// Transition buffer to state required to build AS
 	SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -277,12 +280,15 @@ void Game::initialise()
 		XMStoreFloat3x4A((XMFLOAT3X4A*)instances[1].Transform, Transform);
 	}
 	SceneTLAS = new StaticTopLevelAccelerationStructureBuffer(instances, 2);
+
+#endif // D_ENABLE_DXRT
 }
 
 void Game::shutdown()
 {
 	////////// Release resources
 
+#if D_ENABLE_DXRT
 	// TODO clean up
 	{
 		resetPtr(&mRayTracingPipelineState);
@@ -290,6 +296,7 @@ void Game::shutdown()
 		resetPtr(&SphereBLAS);
 		resetPtr(&SceneTLAS);
 	}
+#endif
 
 
 
@@ -380,6 +387,9 @@ void Game::render()
 	ImGui::Checkbox("Ray trace with Closest- and Any- hit", &ShowRtWithAnyHit);
 	ImGui::End();
 
+#if D_ENABLE_DXRT==0
+	ShowRtResult = 0;
+#endif
 
 	// here we start recording commands into the commandList (which all the commands will be stored in the commandAllocator)
 	SCOPED_GPU_TIMER(GameRender, 100, 100, 100);
@@ -621,6 +631,7 @@ void Game::render()
 		commandList->Dispatch(1, 1, 1);
 	}
 
+#if D_ENABLE_DXRT
 	// Ray tracing
 	{
 		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
@@ -735,6 +746,7 @@ void Game::render()
 
 		HdrTexture2->resourceUAVBarrier();
 	}
+#endif // D_ENABLE_DXRT
 
 	//
 	// Set result into the back buffer

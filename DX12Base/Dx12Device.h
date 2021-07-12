@@ -32,6 +32,9 @@
 #include "pix3.h"
 #endif 
 
+// This is interesting to disable in case one wants to capture using renderdoc. Otherwise, NSight Graphics will be required.
+#define D_ENABLE_DXRT 1
+
 #define INVALID_DESCRIPTOR_HANDLE 0xFFFFFFFFFFFFFFFF
 
 class RootSignature;
@@ -42,8 +45,10 @@ class DispatchRaysCallSBTHeapCPU;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
+#if D_ENABLE_DXRT
 class RayTracingPipelineStateSimple;
 class RayTracingPipelineStateClosestAndAnyHit;
+#endif
 
 static const int frameBufferCount = 2; // number of buffers we want, 2 for double buffering, 3 for tripple buffering...
 static const int GPUTimerMaxCount = 256;
@@ -74,8 +79,10 @@ public:
 
 	const RootSignature& GetDefaultGraphicRootSignature() const { return *mGfxRootSignature; }
 	const RootSignature& GetDefaultComputeRootSignature() const { return *mCptRootSignature; }
+#if D_ENABLE_DXRT
 	const RootSignature& GetDefaultRayTracingGlobalRootSignature() const { return *mRtGlobalRootSignature; }
 	const RootSignature& GetDefaultRayTracingLocalRootSignature() const { return *mRtLocalRootSignature; }
+#endif
 
 	uint getCbSrvUavDescriptorSize() const { return mCbSrvUavDescriptorSize; }
 	uint getSamplerDescriptorSize() const { return mSamplerDescriptorSize; }
@@ -110,8 +117,10 @@ public:
 	};
 	GPUTimersReport GetGPUTimerReport();
 
+#if D_ENABLE_DXRT
 	void AppendToGarbageCollector(RayTracingPipelineStateSimple* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateSimple.push_back(ToBeRemoved); }
 	void AppendToGarbageCollector(RayTracingPipelineStateClosestAndAnyHit* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateClosestAndAnyHit.push_back(ToBeRemoved); }
+#endif
 
 private:
 	Dx12Device();
@@ -158,8 +167,10 @@ private:
 
 	RootSignature*								mGfxRootSignature;							// Graphics default root signature
 	RootSignature*								mCptRootSignature;							// Compute default root signature
+#if D_ENABLE_DXRT
 	RootSignature*								mRtGlobalRootSignature;						// Ray tracing global root signature
 	RootSignature*								mRtLocalRootSignature;						// Ray tracing local root signature
+#endif
 
 	AllocatedResourceDecriptorHeap*				mAllocatedResourcesDecriptorHeapCPU;		// All loaded resources allocate UAV/SRV if required in this CPU heap.
 
@@ -185,6 +196,7 @@ private:
 	GPUTimer									mLastValidGPUTimers[GPUTimerMaxCount];
 	uint64										mLastValidTimeStampTickPerSeconds;
 
+#if D_ENABLE_DXRT
 	// This is in fact a dumb garbage collector since the application must register the garbage to be deleted.
 	struct FrameGarbageCollector
 	{
@@ -192,6 +204,7 @@ private:
 		std::vector<RayTracingPipelineStateClosestAndAnyHit*>	mRayTracingPipelineStateClosestAndAnyHit;
 	};
 	FrameGarbageCollector mFrameGarbageCollector[frameBufferCount];
+#endif
 };
 
 extern Dx12Device* g_dx12Device;

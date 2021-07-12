@@ -4,6 +4,9 @@
 
 
 
+#if D_ENABLE_DXRT
+
+
 
 AccelerationStructureBuffer::AccelerationStructureBuffer(uint64 TotalSizeInBytes)
 	: RenderBufferGeneric(TotalSizeInBytes, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, RenderBufferType_AccelerationStructure)
@@ -745,4 +748,9 @@ void DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory::setHitGroupLocalRootSignatu
 		ATLASSERT(false); // unknown parameter
 	}
 }
+
+
+
+#endif // D_ENABLE_DXRT
+
 

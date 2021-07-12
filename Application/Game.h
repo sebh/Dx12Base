@@ -73,11 +73,13 @@ private:
 	VertexShader* TriangleVertexShader;
 	PixelShader*  TrianglePixelShader;
 
+#if D_ENABLE_DXRT
 	StaticBottomLevelAccelerationStructureBuffer* SphereBLAS;
 	StaticTopLevelAccelerationStructureBuffer* SceneTLAS;
 
 	RayTracingPipelineStateSimple* mRayTracingPipelineState;
 	RayTracingPipelineStateClosestAndAnyHit* mRayTracingPipelineStateClosestAndHit;
+#endif
 
 	TypedBuffer* UavBuffer;
 
