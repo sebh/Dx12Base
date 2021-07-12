@@ -15,6 +15,7 @@ struct VertexInput
 {
 	float3 position		: POSITION;
 	float2 uv			: TEXCOORD0;
+	uint   VertexID		: SV_VertexID;
 };
 
 struct VertexOutput
@@ -39,6 +40,31 @@ Texture2D texture0 : register(t0);
 float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 {
 	return texture0.Sample(SamplerLinearClamp, float2(input.uv.x, 1.0f - input.uv.y));
+}
+
+
+VertexOutput TriangleVertexShader(VertexInput input)
+{
+	VertexOutput output;	// TODO init to 0
+
+	const float FloatMul = 100.0f;
+	const float4 VecMult = float4(FloatMul, FloatMul, FloatMul, 1.0);
+
+	if (input.VertexID == 0)
+		output.position = float4(0.0, 0.5, 0.5, 1.0) * VecMult;
+	else if (input.VertexID == 2)
+		output.position = float4(0.5, -0.5, 0.5, 1.0) * VecMult;
+	else if (input.VertexID == 1)
+		output.position = float4(-0.5, -0.5, 0.5, 1.0) * VecMult;
+
+	output.uv = input.uv;
+
+	return output;
+}
+
+float4 TrianglePixelShader(VertexOutput input) : SV_TARGET
+{
+	return float4(input.uv, 0, 0);
 }
 
 float4 ToneMapPS(VertexOutput input) : SV_TARGET
