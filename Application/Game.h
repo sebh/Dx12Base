@@ -73,7 +73,7 @@ private:
 	VertexShader* TriangleVertexShader;
 	PixelShader*  TrianglePixelShader;
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	StaticBottomLevelAccelerationStructureBuffer* SphereBLAS;
 	StaticTopLevelAccelerationStructureBuffer* SceneTLAS;
 

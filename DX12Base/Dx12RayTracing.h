@@ -4,7 +4,7 @@
 
 
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 
 
 
@@ -204,6 +204,6 @@ private:
 
 
 
-#endif // D_ENABLE_DXRT
+#endif // D_ENABLE_DXR
 
 

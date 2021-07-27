@@ -42,7 +42,7 @@ int WINAPI WinMain(
 	win.showWindow();
 
 	// Create the d3d device
-	Dx12Device::initialise(win.getHwnd());
+	Dx12Device::initialise(win.getHwnd(), desiredClientWidth, desiredClientHeight);
 	CachedPSOManager::initialise();
 
 	WinImguiInitialise(win.getHwnd());

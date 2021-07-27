@@ -25,16 +25,18 @@
 #define DXDEBUG 0
 #endif
 
+// Disable because PIX markers are only supported on x64 platforms
 #define D_ENABLE_PIX 1
 #if D_ENABLE_PIX
 // See https://devblogs.microsoft.com/pix/winpixeventruntime/
 #define USE_PIX 1
 #include "pix3.h"
-#endif 
+#endif
 
 // This is interesting to disable in case one wants to capture using renderdoc. Otherwise, NSight Graphics will be required.
-#define D_ENABLE_DXRT 1
+#define D_ENABLE_DXR 1
 
+// Truncate to SIZE_T to handle 32 and 64 bits systems
 #define INVALID_DESCRIPTOR_HANDLE ((SIZE_T)0xFFFFFFFFFFFFFFFF)
 
 class RootSignature;
@@ -45,7 +47,7 @@ class DispatchRaysCallSBTHeapCPU;
 class FrameConstantBuffers;
 class RenderResource;
 class RenderBufferGeneric;
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 class RayTracingPipelineStateSimple;
 class RayTracingPipelineStateClosestAndAnyHit;
 #endif
@@ -57,7 +59,7 @@ class Dx12Device
 {
 public:
 
-	static void initialise(const HWND& hWnd);
+	static void initialise(const HWND& hWnd, uint BackBufferWidth, uint BackBufferHeight);
 	static void shutdown();
 
 	ID3D12Device5*							getDevice() const { return mDev; }
@@ -71,7 +73,9 @@ public:
 	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor() const;
 
 	// The single command list per frame since we do not prepare command in parallel yet
-	ID3D12GraphicsCommandList4* getFrameCommandList() const { return mCommandList[0]; }
+	ID3D12GraphicsCommandList4*				getFrameCommandList() const { return mCommandList[0]; }
+
+	int										getFrameIndex() const { return mFrameIndex; }
 
 	void beginFrame();
 	void endFrameAndSwap(bool vsyncEnabled);
@@ -79,7 +83,7 @@ public:
 
 	const RootSignature& GetDefaultGraphicRootSignature() const { return *mGfxRootSignature; }
 	const RootSignature& GetDefaultComputeRootSignature() const { return *mCptRootSignature; }
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	const RootSignature& GetDefaultRayTracingGlobalRootSignature() const { return *mRtGlobalRootSignature; }
 	const RootSignature& GetDefaultRayTracingLocalRootSignature() const { return *mRtLocalRootSignature; }
 #endif
@@ -117,7 +121,7 @@ public:
 	};
 	GPUTimersReport GetGPUTimerReport();
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	void AppendToGarbageCollector(RayTracingPipelineStateSimple* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateSimple.push_back(ToBeRemoved); }
 	void AppendToGarbageCollector(RayTracingPipelineStateClosestAndAnyHit* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateClosestAndAnyHit.push_back(ToBeRemoved); }
 #endif
@@ -130,7 +134,7 @@ private:
 
 	void EnableShaderBasedValidationIfNeeded(uint& dxgiFactoryFlags);
 
-	void internalInitialise(const HWND& hWnd);
+	void internalInitialise(const HWND& hWnd, uint BackBufferWidth, uint BackBufferHeight);
 	void internalShutdown();
 
 	void waitForPreviousFrame(int frameIndex = -1);
@@ -167,7 +171,7 @@ private:
 
 	RootSignature*								mGfxRootSignature;							// Graphics default root signature
 	RootSignature*								mCptRootSignature;							// Compute default root signature
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	RootSignature*								mRtGlobalRootSignature;						// Ray tracing global root signature
 	RootSignature*								mRtLocalRootSignature;						// Ray tracing local root signature
 #endif
@@ -196,7 +200,7 @@ private:
 	GPUTimer									mLastValidGPUTimers[GPUTimerMaxCount];
 	uint64										mLastValidTimeStampTickPerSeconds;
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	// This is in fact a dumb garbage collector since the application must register the garbage to be deleted.
 	struct FrameGarbageCollector
 	{
@@ -266,6 +270,7 @@ public:
 	~InputLayout();
 
 	void appendSimpleVertexDataToInputLayout(const char* semanticName, uint semanticIndex, DXGI_FORMAT format);
+	void appendPerInstanceVertexDataToInputLayout(const char* semanticName, uint semanticIndex, DXGI_FORMAT format, uint InstanceDataStepRate);
 
 	const D3D12_INPUT_LAYOUT_DESC* getLayoutDesc() const { return &mInputLayout; }
 
@@ -510,6 +515,10 @@ D3D12_HEAP_PROPERTIES getGpuOnlyMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 
+D3D12_RESOURCE_DESC getRenderTextureResourceDesc(
+	unsigned int width, unsigned int height, unsigned int depth,
+	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags);
+
 class RenderBufferGeneric : public RenderResource
 {
 public:
@@ -561,8 +570,10 @@ public:
 		unsigned int depth, DXGI_FORMAT format,
 		D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
 		D3D12_CLEAR_VALUE* ClearValue = nullptr,
-		unsigned int initDataCopySizeByte  = 0, void* initData = nullptr);
+		unsigned int RowPitchByte = 0, unsigned int SlicePitchByte = 0, void* initData = nullptr);
+
 	RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+
 	virtual ~RenderTexture();
 
 	const D3D12_CPU_DESCRIPTOR_HANDLE getRTVCPUHandle() const { return mRTVHeap->getCPUHandle(); }
@@ -645,10 +656,13 @@ private:
 
 typedef D3D12_DEPTH_STENCIL_DESC	DepthStencilState;
 const DepthStencilState&			getDepthStencilState_Default();		// Depth and depth write enabled
+const DepthStencilState&			getDepthStencilState_ReadOnly();
 const DepthStencilState&			getDepthStencilState_Disabled();
 
 typedef D3D12_BLEND_DESC			BlendState;
 const BlendState&					getBlendState_Default();			// Disabled
+const BlendState&					getBlendState_PremultipledAlpha();	// Premultiplied alpha on destination buffer RGB. A contains transmittance (requires clearing to alpha=1).
+const BlendState&					getBlendState_AlphaBlending();		// Alpha blending on destination buffer RGB. A contains transmittance (requires clearing to alpha=1).
 
 typedef D3D12_RASTERIZER_DESC		RasterizerState;
 const RasterizerState&				getRasterizerState_Default();		// solide, front=clockwise, cull back, everything else off.
@@ -677,7 +691,13 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 struct ScopedGpuEvent
 {
@@ -723,11 +743,13 @@ struct ScopedGpuTimer
 	}
 	void release()
 	{
+#if D_ENABLE_PIX
 		if (!mReleased)
 		{
 			mReleased = true;
 			PIXEndEvent(g_dx12Device->getFrameCommandList());
 		}
+#endif // 
 	}
 private:
 	ScopedGpuTimer() = delete;
@@ -739,9 +761,11 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -803,8 +827,11 @@ private:
 extern CachedPSOManager* g_CachedPSOManager;
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 

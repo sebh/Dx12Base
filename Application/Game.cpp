@@ -113,7 +113,7 @@ void Game::loadShaders(bool ReloadMode)
 
 	RELOADCS(computeShader, L"Resources\\TestShader.hlsl", L"MainComputeShader", MyMacros);
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	if (ReloadMode)
 	{
 		g_dx12Device->AppendToGarbageCollector(mRayTracingPipelineState);
@@ -131,7 +131,7 @@ void Game::loadShaders(bool ReloadMode)
 
 	mRayTracingPipelineStateClosestAndHit = new RayTracingPipelineStateClosestAndAnyHit();
 	mRayTracingPipelineStateClosestAndHit->CreateRTState(RayGenShader2Desc, MissShaderDesc, ClosestHitShaderDesc, AnyHitShaderDesc);
-#endif // D_ENABLE_DXRT
+#endif // D_ENABLE_DXR
 }
 
 void Game::releaseShaders()
@@ -205,12 +205,11 @@ void Game::initialise()
 	HdrTexture = new RenderTexture(
 		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
 		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-		&ClearValue, 0, nullptr);
+		&ClearValue);
 
 	HdrTexture2 = new RenderTexture(
 		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
-		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-		nullptr, 0, nullptr);
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
 	D3D12_CLEAR_VALUE DepthClearValue;
 	DepthClearValue.Format = DXGI_FORMAT_R24G8_TYPELESS;
@@ -219,7 +218,7 @@ void Game::initialise()
 	DepthTexture = new RenderTexture(
 		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
 		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
-		&DepthClearValue, 0, nullptr);
+		&DepthClearValue);
 
 	{
 		struct MyStruct
@@ -240,7 +239,7 @@ void Game::initialise()
 	//////////
 	//////////
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 
 	// Transition buffer to state required to build AS
 	SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
@@ -281,14 +280,14 @@ void Game::initialise()
 	}
 	SceneTLAS = new StaticTopLevelAccelerationStructureBuffer(instances, 2);
 
-#endif // D_ENABLE_DXRT
+#endif // D_ENABLE_DXR
 }
 
 void Game::shutdown()
 {
 	////////// Release resources
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	// TODO clean up
 	{
 		resetPtr(&mRayTracingPipelineState);
@@ -387,7 +386,7 @@ void Game::render()
 	ImGui::Checkbox("Ray trace with Closest- and Any- hit", &ShowRtWithAnyHit);
 	ImGui::End();
 
-#if D_ENABLE_DXRT==0
+#if D_ENABLE_DXR==0
 	ShowRtResult = 0;
 #endif
 
@@ -622,7 +621,7 @@ void Game::render()
 		commandList->Dispatch(1, 1, 1);
 	}
 
-#if D_ENABLE_DXRT
+#if D_ENABLE_DXR
 	// Ray tracing
 	{
 		SCOPED_GPU_TIMER(RayTracing, 255, 255, 100);
@@ -737,7 +736,7 @@ void Game::render()
 
 		HdrTexture2->resourceUAVBarrier();
 	}
-#endif // D_ENABLE_DXRT
+#endif // D_ENABLE_DXR
 
 	//
 	// Set result into the back buffer
