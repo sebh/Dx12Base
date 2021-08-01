@@ -1,6 +1,9 @@
 
 #include "WindowHelper.h"
 
+static UINT LastSizeMessage = 0;
+static WPARAM LastSizewParam = 0;
+static LPARAM LastSizelParam = 0;
 
 LRESULT CALLBACK WindowProcess(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -39,16 +42,28 @@ LRESULT CALLBACK WindowProcess(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 		window->processKeyMessage(message, wParam, lParam);
 		break;
 
+	case WM_EXITSIZEMOVE:
+		window->processWindowSizeMessage(LastSizeMessage, LastSizewParam, LastSizelParam);
+		SetForegroundWindow(hWnd);
+		return true;
+		break;
+
 	case WM_SIZE:
-	//case WM_SIZING:	// When receiving that message, the backbuffer we get is null for some reason. Would be good to still see image on screen.
-	// Also it seems that this is not even enough to handle a windo going full screen. Using Atl+Enter make things crash of lock up.
 		if (wParam != SIZE_MINIMIZED)
 		{
+			// This is a spammy event, let's resize only when stopping the resizing using the WM_EXITSIZEMOVE event.
+			// This has the benefit to not ask for too many resolutino depenent descriptors to be created and go out of the current limit (simple linear array)
+			LastSizeMessage = message;
+			LastSizewParam = wParam;
+			LastSizelParam = lParam;
 			// Disabled because this locks down the program
-			window->processWindowSizeMessage(message, wParam, lParam);
-			return true;
+		//	window->processWindowSizeMessage(message, wParam, lParam);
+		//	return true;
 		}
 		break;
+
+	//case WM_SIZING:	// When receiving that message, the backbuffer we get is null for some reason. Would be good to still see image on screen.
+	//Also it seems that this is not even enough to handle a window going full screen. Using Atl+Enter make things crash of lock up.
 	}
 
 	// Handle any messages the switch statement didn't
