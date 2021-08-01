@@ -2,7 +2,7 @@
 
 ![dx12appscreenshot](https://github.com/sebh/Dx12Base/blob/master/DX12Application.png)
 
-A small DirectX 12 program I use to test shaders and techniques (windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it.
+A small DirectX 12 program I use to test shaders and techniques (so windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it. But it makes development easier for me at least.
 
 Features are
 * Simple class helpers above DirectX 12.0 states and resources
@@ -13,7 +13,7 @@ Features are
 * UI achieved with [Dear ImGui](https://github.com/ocornut/imgui)
 * Performance measured with GPU timers and reported in UI (tested on intel and nvidia so far)
 * Simple window and input management (could be improved)
-* Works well with ![RenderDoc](https://renderdoc.org/)
+* Easy to debug with [RenderDoc](https://renderdoc.org/) or [nSight](https://developer.nvidia.com/nsight-graphics) for instance
 
 When cloning the project the first time:
 1. Update submodules (run `git submodule update`)
@@ -28,3 +28,14 @@ Submodules
 Have fun and do not hesitate to send back suggestions.
 
 Seb
+
+
+PS on what could be improved:
+- Better upsampling code (not one upsampling resource per texture/buffer)
+- Delayed resource deletion when not needed anymore
+- better desriptor management (instead of a simple linear allocation without reuse of release elements)
+- 3D texture
+- Sparse texture
+- Bindless
+- Meshshader
+- etc.
