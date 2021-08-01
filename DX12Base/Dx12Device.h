@@ -69,7 +69,7 @@ public:
 	IDxcCompiler*							getDxcCompiler() const { return mDxcCompiler; }
 	IDxcIncludeHandler*						getDxcIncludeHandler() const { return mDxcIncludeHandler; }
 
-	ID3D12Resource*							getBackBuffer() const { return mBackBuffeRtv[mFrameIndex]; }
+	ID3D12Resource*							getBackBuffer() const { return mBackBufferResource[mFrameIndex]; }
 	D3D12_CPU_DESCRIPTOR_HANDLE				getBackBufferDescriptor() const;
 
 	// The single command list per frame since we do not prepare command in parallel yet
@@ -149,8 +149,8 @@ private:
 	ID3D12CommandAllocator*						mCommandAllocator[frameBufferCount];		// Command allocator in GPU memory. Need a many as frameCount as cannot rest while in use by GPU
 	ID3D12GraphicsCommandList4*					mCommandList[1];							// A command list to record commands into. No multi-thread so only one is needed
 
-	DescriptorHeap*								mBackBuffeRtvDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
-	ID3D12Resource*								mBackBuffeRtv[frameBufferCount];			// back buffer render target view
+	DescriptorHeap*								mBackBufferRTVDescriptorHeap;				// a descriptor heap to hold back buffers ressource descriptors (equivalent to views)
+	ID3D12Resource*								mBackBufferResource[frameBufferCount];			// back buffer render target view
 
 	ID3D12Fence*								mFrameFence[frameBufferCount];				// locked while commandlist is being executed by the gpu.
 	HANDLE										mFrameFenceEvent;							// a handle to an event when our fence is unlocked by the gpu

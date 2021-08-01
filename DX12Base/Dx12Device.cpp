@@ -342,8 +342,8 @@ void Dx12Device::internalShutdown()
 	for (int i = 0; i < frameBufferCount; i++)
 		resetComPtr(&mFrameFence[i]);
 	for (int i = 0; i < frameBufferCount; i++)
-		resetComPtr(&mBackBuffeRtv[i]);
-	resetPtr(&mBackBuffeRtvDescriptorHeap);
+		resetComPtr(&mBackBufferResource[i]);
+	resetPtr(&mBackBufferRTVDescriptorHeap);
 
 	for (int i = 0; i < frameBufferCount; i++)
 		resetComPtr(&mCommandAllocator[i]);
@@ -376,7 +376,7 @@ void Dx12Device::internalShutdown()
 
 D3D12_CPU_DESCRIPTOR_HANDLE Dx12Device::getBackBufferDescriptor() const
 {
-	D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
+	D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBufferRTVDescriptorHeap->getCPUHandle());
 	handle.ptr += mFrameIndex * mRtvDescriptorSize;
 	return handle;
 }
@@ -421,8 +421,8 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 		mSwapchain = static_cast<IDXGISwapChain3*>(tempSwapChain);
 		mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
 
-		mBackBuffeRtvDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2);
-		setDxDebugName(mBackBuffeRtvDescriptorHeap->getHeap(), L"BackBuffeRtvDescriptorHeap");
+		mBackBufferRTVDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2);
+		setDxDebugName(mBackBufferRTVDescriptorHeap->getHeap(), L"BackBuffeRtvDescriptorHeap");
 	}
 	else
 	{
@@ -437,7 +437,7 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 
 		for (int i = 0; i < frameBufferCount; i++)
 		{
-			mBackBuffeRtv[i]->Release();
+			mBackBufferResource[i]->Release();
 		}
 
 		HRESULT hr = mSwapchain->ResizeBuffers(frameBufferCount, newWidth, newHeight, DXGI_FORMAT_UNKNOWN, 0);
@@ -447,17 +447,17 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 	}
 
 	// Create a RTV for each back buffer
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBufferRTVDescriptorHeap->getCPUHandle());
 	for (int i = 0; i < frameBufferCount; i++)
 	{
 		// First we get the n'th buffer in the swap chain and store it in the n'th
 		// position of our ID3D12Resource array
-		HRESULT hr = mSwapchain->GetBuffer(i, IID_PPV_ARGS(&mBackBuffeRtv[i]));
+		HRESULT hr = mSwapchain->GetBuffer(i, IID_PPV_ARGS(&mBackBufferResource[i]));
 		ATLASSERT(hr == S_OK);
 
 		// Then we create a render target view (descriptor) which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
-		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
-		setDxDebugName(mBackBuffeRtv[i], L"BackBuffeRtv");
+		mDev->CreateRenderTargetView(mBackBufferResource[i], nullptr, rtvHandle);
+		setDxDebugName(mBackBufferResource[i], L"BackBuffeRtv");
 
 		// We increment the rtv handle mPtr to the next one according to a rtv descriptor size
 		rtvHandle.ptr += mRtvDescriptorSize;
