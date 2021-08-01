@@ -426,21 +426,38 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 	}
 	else
 	{
-		//
-		// Re-create the swap chain buffer
-		//
 		ATLASSERT(OutputWindowhWnd == nullptr);
+		HRESULT hr;
 
-		// Before calling that function, closeBufferedFramesBeforeShutdown should have been called and as such, 
-		// the previously created views on the backbuffer should not be in use (in this simple single threaded environment)
-		// So we have nothing to delete.
+		// This code basically syncs-up CPU and GPU.
+		{
+			ID3D12Fence* SwapChainFence = nullptr;
+			hr = mDev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&SwapChainFence));
+			ATLASSERT(hr == S_OK);
+			uint64 SwapChainFenceValue = 0; // set the initial fence value to 0
 
+			hr = mCommandQueue->Signal(SwapChainFence, SwapChainFenceValue);	// signal a value of 0
+			SwapChainFenceValue++;
+			hr = mCommandQueue->Signal(SwapChainFence, SwapChainFenceValue);	// signal a value of 1
+
+			HANDLE	SwapChainFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			SwapChainFence->SetEventOnCompletion(SwapChainFenceValue, SwapChainFenceEvent);
+
+			WaitForSingleObject(SwapChainFenceEvent, INFINITE);
+
+			CloseHandle(SwapChainFenceEvent);
+			SwapChainFence->Release();
+		}
+
+		// Now that we know no work is currently submitted on GPU
+		// thus the previously created views on the backbuffer are not longer in use (in this simple single threaded environment).
+		// We can now release the buffer handle before resizing the back buffer.
 		for (int i = 0; i < frameBufferCount; i++)
 		{
 			mBackBufferResource[i]->Release();
 		}
 
-		HRESULT hr = mSwapchain->ResizeBuffers(frameBufferCount, newWidth, newHeight, DXGI_FORMAT_UNKNOWN, 0);
+		hr = mSwapchain->ResizeBuffers(frameBufferCount, newWidth, newHeight, DXGI_FORMAT_UNKNOWN, 0);
 		ATLASSERT(hr == S_OK);
 
 		mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();

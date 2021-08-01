@@ -45,7 +45,7 @@ LRESULT CALLBACK WindowProcess(HWND hWnd, UINT message, WPARAM wParam, LPARAM lP
 		if (wParam != SIZE_MINIMIZED)
 		{
 			// Disabled because this locks down the program
-			//window->processWindowSizeMessage(message, wParam, lParam);
+			window->processWindowSizeMessage(message, wParam, lParam);
 			return true;
 		}
 		break;
@@ -65,7 +65,7 @@ WindowHelper::WindowHelper(HINSTANCE hInstance, const RECT& clientRect, int nCmd
 
 	// And create the rectangle that will allow it
 	RECT rect = { 0, 0, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }; // set the size, but not the position otherwise does not seem to work
-	DWORD style = (WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION | WS_MINIMIZEBOX | WS_MAXIMIZEBOX); // WS_OVERLAPPED without edge resize, WS_OVERLAPPEDWINDOW with
+	DWORD style = (WS_OVERLAPPEDWINDOW | WS_SYSMENU | WS_CAPTION | WS_MINIMIZEBOX | WS_MAXIMIZEBOX); // WS_OVERLAPPED without edge resize, WS_OVERLAPPEDWINDOW with
 	BOOL menu = false;
 	AdjustWindowRect(&rect, style, menu);
 	//Get the required window dimensions

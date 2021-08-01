@@ -57,9 +57,6 @@ int WINAPI WinMain(
 		uint newWidth = LOWORD(lParam);
 		uint newHeight = HIWORD(lParam);
 
-		// Do this to make sure resources can be safely destroyed and created according to new resolution
-		g_dx12Device->closeBufferedFramesBeforeShutdown();
-
 		ImGui_ImplDX12_InvalidateDeviceObjects();
 		const bool bRecreate = true;
 		g_dx12Device->updateSwapChain(bRecreate, newWidth, newHeight);

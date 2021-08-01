@@ -159,7 +159,16 @@ void Game::initialise()
 	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
 	allocateResolutionIndependentResources();
 	allocateResolutionDependentResources(uint(backBuffer->GetDesc().Width), uint(backBuffer->GetDesc().Height));
+}
 
+void Game::reallocateResolutionDependent(uint newWidth, uint newHeight)
+{
+	releaseResolutionDependentResources();
+	allocateResolutionDependentResources(newWidth, newHeight);
+}
+
+void Game::allocateResolutionIndependentResources()
+{
 	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
@@ -198,32 +207,11 @@ void Game::initialise()
 		SphereVertexLayout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
 	}
 
-	UavBuffer = new TypedBuffer(4, 4*sizeof(uint), DXGI_FORMAT_R32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+	UavBuffer = new TypedBuffer(4, 4 * sizeof(uint), DXGI_FORMAT_R32_UINT, nullptr, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 	UavBuffer->setDebugName(L"UavBuffer");
 
 	texture = new RenderTexture(L"Resources\\texture.png");
 	texture2 = new RenderTexture(L"Resources\\BlueNoise64x64.png");
-
-	D3D12_CLEAR_VALUE ClearValue;
-	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
-	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.0f;
-	HdrTexture = new RenderTexture(
-		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
-		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-		&ClearValue);
-
-	HdrTexture2 = new RenderTexture(
-		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
-		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
-
-	D3D12_CLEAR_VALUE DepthClearValue;
-	DepthClearValue.Format = DXGI_FORMAT_R24G8_TYPELESS;
-	DepthClearValue.DepthStencil.Depth = 1.0f;
-	DepthClearValue.DepthStencil.Stencil = 0;
-	DepthTexture = new RenderTexture(
-		(uint)backBuffer->GetDesc().Width, (uint)backBuffer->GetDesc().Height, 1,
-		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
-		&DepthClearValue);
 
 	{
 		struct MyStruct
@@ -239,9 +227,8 @@ void Game::initialise()
 		delete TestStructuredBuffer;
 	}
 
-
 	//////////
-	//////////
+	////////// 
 	//////////
 
 #if D_ENABLE_DXR
@@ -288,47 +275,8 @@ void Game::initialise()
 #endif // D_ENABLE_DXR
 }
 
-void Game::reallocateResolutionDependent(uint newWidth, uint newHeight)
-{
-	releaseResolutionDependentResources();
-	allocateResolutionDependentResources(newWidth, newHeight);
-}
-
-void Game::allocateResolutionIndependentResources()
-{
-}
-
 void Game::releaseResolutionIndependentResources()
 {
-}
-
-void Game::allocateResolutionDependentResources(uint newWidth, uint newHeight)
-{
-}
-
-void Game::releaseResolutionDependentResources()
-{
-}
-
-void Game::shutdown()
-{
-	////////// Release resources
-
-	releaseResolutionIndependentResources();
-	releaseResolutionDependentResources();
-
-#if D_ENABLE_DXR
-	// TODO clean up
-	{
-		resetPtr(&mRayTracingPipelineState);
-		resetPtr(&mRayTracingPipelineStateClosestAndHit);
-		resetPtr(&SphereBLAS);
-		resetPtr(&SceneTLAS);
-	}
-#endif
-
-
-
 	delete layout;
 	delete vertexBuffer;
 	delete indexBuffer;
@@ -339,14 +287,65 @@ void Game::shutdown()
 
 	delete UavBuffer;
 
-	releaseShaders();
-
 	delete texture;
 	delete texture2;
 
+	//////////
+	////////// 
+	//////////
+
+#if D_ENABLE_DXR
+	// TODO clean up
+	{
+		resetPtr(&mRayTracingPipelineState);
+		resetPtr(&mRayTracingPipelineStateClosestAndHit);
+		resetPtr(&SphereBLAS);
+		resetPtr(&SceneTLAS);
+	}
+#endif
+}
+
+void Game::allocateResolutionDependentResources(uint newWidth, uint newHeight)
+{
+	D3D12_CLEAR_VALUE ClearValue;
+	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
+	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.0f;
+	HdrTexture = new RenderTexture(
+		newWidth, newHeight, 1,
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+		&ClearValue);
+
+	HdrTexture2 = new RenderTexture(
+		newWidth, newHeight, 1,
+		ClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+
+	D3D12_CLEAR_VALUE DepthClearValue;
+	DepthClearValue.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	DepthClearValue.DepthStencil.Depth = 1.0f;
+	DepthClearValue.DepthStencil.Stencil = 0;
+	DepthTexture = new RenderTexture(
+		newWidth, newHeight, 1,
+		DepthClearValue.Format, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
+		&DepthClearValue);
+}
+
+void Game::releaseResolutionDependentResources()
+{
 	delete HdrTexture;
 	delete HdrTexture2;
 	delete DepthTexture;
+}
+
+void Game::shutdown()
+{
+	////////// Release shaders
+
+	releaseShaders();
+
+	////////// Release other resources
+
+	releaseResolutionIndependentResources();
+	releaseResolutionDependentResources();
 }
 
 void Game::update(const WindowInputData& inputData)
