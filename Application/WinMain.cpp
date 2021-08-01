@@ -57,10 +57,10 @@ int WINAPI WinMain(
 		uint newWidth = LOWORD(lParam);
 		uint newHeight = HIWORD(lParam);
 
-		ImGui_ImplDX12_InvalidateDeviceObjects();
+	//	ImGui_ImplDX12_InvalidateDeviceObjects();	// This is in fact wrong: sone imgui resource can still be in flight in a commandlist. Also this is only needed if we recreate the device.
 		const bool bRecreate = true;
 		g_dx12Device->updateSwapChain(bRecreate, newWidth, newHeight);
-		ImGui_ImplDX12_CreateDeviceObjects();
+	//	ImGui_ImplDX12_CreateDeviceObjects();
 
 		game.reallocateResolutionDependent(newWidth, newHeight);
 	};

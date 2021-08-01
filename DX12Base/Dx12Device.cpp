@@ -443,6 +443,7 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 			HANDLE	SwapChainFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			SwapChainFence->SetEventOnCompletion(SwapChainFenceValue, SwapChainFenceEvent);
 
+			//mCommandQueue->Wait(SwapChainFence, SwapChainFenceValue);
 			WaitForSingleObject(SwapChainFenceEvent, INFINITE);
 
 			CloseHandle(SwapChainFenceEvent);
