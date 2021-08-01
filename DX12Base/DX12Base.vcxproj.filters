@@ -23,6 +23,9 @@
     <ClCompile Include="Dx12RayTracing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Dx12Utilities.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="WindowHelper.h">
@@ -44,6 +47,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Dx12RayTracing.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dx12Utilities.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

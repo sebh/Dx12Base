@@ -3,7 +3,7 @@
 #define DX_DEBUG_EVENT 1
 #define DX_DEBUG_RESOURCE_NAME 1
 
-// Windows and Dx11 includes
+// Windows and Dx12 includes
 #include <map>
 #include <string>
 #include <vector>

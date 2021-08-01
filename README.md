@@ -1,10 +1,30 @@
 # Dx12Base
-A small dx12 base program I use to test shaders and techniques
 
+![dx12appscreenshot](https://github.com/sebh/Dx12Base/blob/master/DX12Application.png)
 
-Make sure you update Dx12Base project *Additional library directory* to C:\Program Files x86\Windows Kits\10\bin\<YOURVERSION>\x64
-and copy dxcompiler.dll next to the solution file. You will also need to copy dxil.dll for binaries to be signed.
-Alternatively, you can download the latest version from [Microsoft github](https://github.com/microsoft/DirectXShaderCompiler/releases)
-and extract files into the *solution directory*.
+A small DirectX 12 program I use to test shaders and techniques (windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it.
 
-In case your are using a different Visual Studio, or SDK version: right click on each projects and select *Retarget Projects*.
+Features are
+* Simple class helpers above DirectX 12.0 states and resources
+* Simple resource upload is in place for now. Utilies a given for per frame update of dynamic textures/buffers.
+* Simple RT support for mesh and material built in SBT with global and local shaders.
+* Simple PSO caching.
+* Live update of shaders with saving via `ctrl+s`
+* UI achieved with [Dear ImGui](https://github.com/ocornut/imgui)
+* Performance measured with GPU timers and reported in UI (tested on intel and nvidia so far)
+* Simple window and input management (could be improved)
+* Works well with ![RenderDoc](https://renderdoc.org/)
+
+When cloning the project the first time:
+1. Update submodules (run `git submodule update`)
+1. Open the solution 
+2. In Visual Studio, change the _Application_ project _Working Directory_ from `$(ProjectDir)` to `$(SolutionDir)`
+3. Make sure you select a windows SDK and a platform toolset you have locally on your computer for both projects
+4. Select _Application_ as the startup project, hit F5
+
+Submodules
+* [imgui](https://github.com/ocornut/imgui) V1.62 supported
+
+Have fun and do not hesitate to send back suggestions.
+
+Seb

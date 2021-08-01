@@ -38,7 +38,7 @@ int WINAPI WinMain(
 	clientRect.top		= desiredPosY;
 
 	// Create the window
-	WindowHelper win(hInstance, clientRect, nCmdShow, L"D3D11 Application");
+	WindowHelper win(hInstance, clientRect, nCmdShow, L"D3D12 Application");
 	win.showWindow();
 
 	// Create the d3d device
