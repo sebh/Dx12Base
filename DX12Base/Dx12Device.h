@@ -126,6 +126,8 @@ public:
 	void AppendToGarbageCollector(RayTracingPipelineStateClosestAndAnyHit* ToBeRemoved) { mFrameGarbageCollector[mFrameIndex].mRayTracingPipelineStateClosestAndAnyHit.push_back(ToBeRemoved); }
 #endif
 
+	void updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, const HWND* OutputWindowhWnd = nullptr);
+
 private:
 	Dx12Device();
 	Dx12Device(Dx12Device&);

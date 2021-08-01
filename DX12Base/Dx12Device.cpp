@@ -156,6 +156,11 @@ void Dx12Device::internalInitialise(const HWND& hWnd, uint BackBufferWidth, uint
 		OutputDebugStringA("Available for reservation  = "); sprintf_s(tmp, "%llu", (UINT64)(mVideoMemInfo.AvailableForReservation / (1024 * 1024))); OutputDebugStringA(tmp); OutputDebugStringA(" MB\n");
 	}
 
+	mCbSrvUavDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mRtvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	mSamplerDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+	mDsvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+
 #if D_ENABLE_DXR
 	// Get some information about ray tracing support
 	{
@@ -179,66 +184,13 @@ void Dx12Device::internalInitialise(const HWND& hWnd, uint BackBufferWidth, uint
 	ATLASSERT(hr == S_OK);
 	setDxDebugName(mCommandQueue, L"CommandQueue0");
 
-	//
-	// Create the Swap Chain (double/tripple buffering)
-	//
-
-	DXGI_MODE_DESC backBufferDesc = {};
-	backBufferDesc.Width = BackBufferWidth;
-	backBufferDesc.Height = BackBufferHeight;
-	backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	DXGI_SAMPLE_DESC sampleDesc = {};
-	sampleDesc.Count = 1;
-
-	// Describe and create the swap chain.
-	DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-	swapChainDesc.BufferCount = frameBufferCount;
-	swapChainDesc.BufferDesc = backBufferDesc;
-	swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	swapChainDesc.OutputWindow = hWnd;
-	swapChainDesc.SampleDesc = sampleDesc;
-	swapChainDesc.Windowed = TRUE;	// set to true, then if in fullscreen must call SetFullScreenState with true for full screen to get uncapped fps
-
-	IDXGISwapChain* tempSwapChain;
-
-	mDxgiFactory->CreateSwapChain(
-		mCommandQueue,	// the queue will be flushed once the swap chain is created
-		&swapChainDesc,	// give it the swap chain description we created above
-		&tempSwapChain	// store the created swap chain in a temp IDXGISwapChain interface
-	);
-
-	mSwapchain = static_cast<IDXGISwapChain3*>(tempSwapChain);
-	mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
 
 	//
 	// Create frame resources
 	//
 
-	mCbSrvUavDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	mRtvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-	mSamplerDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-	mDsvDescriptorSize = mDev->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
-
-	mBackBuffeRtvDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2);
-	setDxDebugName(mBackBuffeRtvDescriptorHeap->getHeap(), L"BackBuffeRtvDescriptorHeap");
-
-	// Create a RTV for each back buffer
-	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
-	for (int i = 0; i < frameBufferCount; i++)
-	{
-		// First we get the n'th buffer in the swap chain and store it in the n'th
-		// position of our ID3D12Resource array
-		hr = mSwapchain->GetBuffer(i, IID_PPV_ARGS(&mBackBuffeRtv[i]));
-		ATLASSERT(hr == S_OK);
-
-		// Then we create a render target view (descriptor) which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
-		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
-		setDxDebugName(mBackBuffeRtv[i], L"BackBuffeRtv");
-
-		// We increment the rtv handle mPtr to the next one according to a rtv descriptor size
-		rtvHandle.ptr += mRtvDescriptorSize;
-	}
+	const bool bRecreate = false;
+	updateSwapChain(bRecreate, BackBufferWidth, BackBufferHeight, &hWnd);
 
 	// Create command allocator per frame
 	for (int i = 0; i < frameBufferCount; i++)
@@ -427,6 +379,89 @@ D3D12_CPU_DESCRIPTOR_HANDLE Dx12Device::getBackBufferDescriptor() const
 	D3D12_CPU_DESCRIPTOR_HANDLE handle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
 	handle.ptr += mFrameIndex * mRtvDescriptorSize;
 	return handle;
+}
+
+
+// updateSwapChain(0 , 0) in constructor?
+
+void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, const HWND* OutputWindowhWnd)
+{
+	if (!bRecreate)
+	{
+		//
+		// Create the Swap Chain (double/tripple buffering)
+		//
+		ATLASSERT(OutputWindowhWnd != nullptr);
+
+		DXGI_MODE_DESC backBufferDesc = {};
+		backBufferDesc.Width = newWidth;
+		backBufferDesc.Height = newHeight;
+		backBufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		DXGI_SAMPLE_DESC sampleDesc = {};
+		sampleDesc.Count = 1;
+
+		// Describe and create the swap chain.
+		DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
+		swapChainDesc.BufferCount = frameBufferCount;
+		swapChainDesc.BufferDesc = backBufferDesc;
+		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		swapChainDesc.OutputWindow = *OutputWindowhWnd;
+		swapChainDesc.SampleDesc = sampleDesc;
+		swapChainDesc.Windowed = TRUE;	// set to true, then if in fullscreen must call SetFullScreenState with true for full screen to get uncapped fps
+
+		IDXGISwapChain* tempSwapChain;
+
+		mDxgiFactory->CreateSwapChain(
+			mCommandQueue,	// the queue will be flushed once the swap chain is created
+			&swapChainDesc,	// give it the swap chain description we created above
+			&tempSwapChain	// store the created swap chain in a temp IDXGISwapChain interface
+		);
+
+		mSwapchain = static_cast<IDXGISwapChain3*>(tempSwapChain);
+		mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
+
+		mBackBuffeRtvDescriptorHeap = new DescriptorHeap(false, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 2);
+		setDxDebugName(mBackBuffeRtvDescriptorHeap->getHeap(), L"BackBuffeRtvDescriptorHeap");
+	}
+	else
+	{
+		//
+		// Re-create the swap chain buffer
+		//
+		ATLASSERT(OutputWindowhWnd == nullptr);
+
+		// Before calling that function, closeBufferedFramesBeforeShutdown should have been called and as such, 
+		// the previously created views on the backbuffer should not be in use (in this simple single threaded environment)
+		// So we have nothing to delete.
+
+		for (int i = 0; i < frameBufferCount; i++)
+		{
+			mBackBuffeRtv[i]->Release();
+		}
+
+		HRESULT hr = mSwapchain->ResizeBuffers(frameBufferCount, newWidth, newHeight, DXGI_FORMAT_UNKNOWN, 0);
+		ATLASSERT(hr == S_OK);
+
+		mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
+	}
+
+	// Create a RTV for each back buffer
+	D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(mBackBuffeRtvDescriptorHeap->getCPUHandle());
+	for (int i = 0; i < frameBufferCount; i++)
+	{
+		// First we get the n'th buffer in the swap chain and store it in the n'th
+		// position of our ID3D12Resource array
+		HRESULT hr = mSwapchain->GetBuffer(i, IID_PPV_ARGS(&mBackBuffeRtv[i]));
+		ATLASSERT(hr == S_OK);
+
+		// Then we create a render target view (descriptor) which binds the swap chain buffer (ID3D12Resource[n]) to the rtv handle
+		mDev->CreateRenderTargetView(mBackBuffeRtv[i], nullptr, rtvHandle);
+		setDxDebugName(mBackBuffeRtv[i], L"BackBuffeRtv");
+
+		// We increment the rtv handle mPtr to the next one according to a rtv descriptor size
+		rtvHandle.ptr += mRtvDescriptorSize;
+	}
 }
 
 void Dx12Device::beginFrame()

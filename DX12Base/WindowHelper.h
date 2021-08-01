@@ -4,6 +4,8 @@
 #include <windowsx.h>
 #include "WindowInput.h"
 
+#include <functional>
+
 
 // Return true if an event has been intercepted and should not be sent down to the game
 typedef bool(*WindowTopLayerProcHandler)(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -21,7 +23,7 @@ public:
 
 	void showWindow();
 
-	bool processSingleMessage(MSG& msg, WindowTopLayerProcHandler WindowTopLayerProcHandlerFuncPtr);
+	bool translateSingleMessage(MSG& msg);
 
 	const WindowInputData& getInputData()
 	{
@@ -34,11 +36,14 @@ public:
 
 	const HWND getHwnd() { return mHWnd; }
 
+	void processMouseMessage(UINT message, WPARAM wParam, LPARAM lParam);
+	void processKeyMessage(UINT message, WPARAM wParam, LPARAM lParam);
+	void processWindowSizeMessage(UINT message, WPARAM wParam, LPARAM lParam);
+
+	void setWindowResizedCallback(std::function<void(LPARAM lParam)> windowResizedCallback) { mWindowResizedCallback = windowResizedCallback; }
+
 private:
 	WindowHelper();
-
-	void processMouseMessage(MSG& msg);
-	void processKeyMessage(MSG& msg);
 
 	HINSTANCE		mHInstance;			/// The application instance
 	HWND			mHWnd;				/// The handle for the window, filled by a function
@@ -47,6 +52,8 @@ private:
 	int				mNCmdShow;			/// Window show cmd
 
 	WindowInputData mInput;				/// input event and status (mouse, keyboard, etc.)
+
+	std::function<void(LPARAM lParam)> mWindowResizedCallback = [&](LPARAM lParam) {};
 };
 
 

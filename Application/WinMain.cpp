@@ -50,27 +50,43 @@ int WINAPI WinMain(
 	// Create the game
 	Game game;
 
+	// Register the resize callback
+	auto windowResizedCallback = [&](LPARAM lParam)
+	{
+		// No threading mechanism so safe to do update call from here.
+		uint newWidth = LOWORD(lParam);
+		uint newHeight = HIWORD(lParam);
+
+		// Do this to make sure resources can be safely destroyed and created according to new resolution
+		g_dx12Device->closeBufferedFramesBeforeShutdown();
+
+		ImGui_ImplDX12_InvalidateDeviceObjects();
+		const bool bRecreate = true;
+		g_dx12Device->updateSwapChain(bRecreate, newWidth, newHeight);
+		ImGui_ImplDX12_CreateDeviceObjects();
+
+		game.reallocateResolutionDependent(newWidth, newHeight);
+	};
+	win.setWindowResizedCallback(windowResizedCallback);
+
 	MSG msg = { 0 };
 	while (true)
 	{
-		if (win.processSingleMessage(msg, ImguiTopLayerProcHandler))
+		bool msgValid = win.translateSingleMessage(msg);
+
+		if (msgValid)
 		{
-			// A message has been processed
-
-			if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE)
-				break;// process escape key
-
-			if (msg.message == WM_QUIT)
-				break; // time to quit
-
-			// Take into account window resize
-			if (msg.message == WM_SIZE && g_dx12Device != NULL && msg.wParam != SIZE_MINIMIZED)
+			const bool bMessageInterceptedByTopLayer = ImguiTopLayerProcHandler(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+			if (!bMessageInterceptedByTopLayer)
 			{
-//				ImGui_ImplDX11_InvalidateDeviceObjects();
-				// clean up gpu data;		// TODO release swap chain, context and device
-				g_dx12Device->getSwapChain()->ResizeBuffers(0, (UINT)LOWORD(msg.lParam), (UINT)HIWORD(msg.lParam), DXGI_FORMAT_UNKNOWN, 0);
-				// re create gpu data();	// TODO
-//				ImGui_ImplDX11_CreateDeviceObjects();
+				if (msg.message == WM_KEYDOWN && msg.wParam == VK_ESCAPE)
+					break;// process escape key
+
+				if (msg.message == WM_QUIT)
+					break; // time to quit
+
+				// A message has been processed and not consumed by imgui. Send the message to the WindowProc function.
+				DispatchMessage(&msg);
 			}
 		}
 		else

@@ -154,6 +154,12 @@ void Game::initialise()
 
 	loadShaders(false);
 
+	////////// Create other resources
+
+	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
+	allocateResolutionIndependentResources();
+	allocateResolutionDependentResources(uint(backBuffer->GetDesc().Width), uint(backBuffer->GetDesc().Height));
+
 	layout = new InputLayout();
 	layout->appendSimpleVertexDataToInputLayout("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT);
 	layout->appendSimpleVertexDataToInputLayout("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT);
@@ -198,7 +204,6 @@ void Game::initialise()
 	texture = new RenderTexture(L"Resources\\texture.png");
 	texture2 = new RenderTexture(L"Resources\\BlueNoise64x64.png");
 
-	ID3D12Resource* backBuffer = g_dx12Device->getBackBuffer();
 	D3D12_CLEAR_VALUE ClearValue;
 	ClearValue.Format = DXGI_FORMAT_R11G11B10_FLOAT;
 	ClearValue.Color[0] = ClearValue.Color[1] = ClearValue.Color[2] = ClearValue.Color[3] = 0.0f;
@@ -283,9 +288,34 @@ void Game::initialise()
 #endif // D_ENABLE_DXR
 }
 
+void Game::reallocateResolutionDependent(uint newWidth, uint newHeight)
+{
+	releaseResolutionDependentResources();
+	allocateResolutionDependentResources(newWidth, newHeight);
+}
+
+void Game::allocateResolutionIndependentResources()
+{
+}
+
+void Game::releaseResolutionIndependentResources()
+{
+}
+
+void Game::allocateResolutionDependentResources(uint newWidth, uint newHeight)
+{
+}
+
+void Game::releaseResolutionDependentResources()
+{
+}
+
 void Game::shutdown()
 {
 	////////// Release resources
+
+	releaseResolutionIndependentResources();
+	releaseResolutionDependentResources();
 
 #if D_ENABLE_DXR
 	// TODO clean up

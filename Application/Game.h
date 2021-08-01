@@ -36,6 +36,7 @@ public:
 	~Game();
 
 	void initialise();
+	void reallocateResolutionDependent(uint newWidth, uint newHeight);
 	void shutdown();
 
 	void update(const WindowInputData& inputData);
@@ -48,6 +49,11 @@ private:
 	void loadShaders(bool ReloadMode);
 	/// release all shaders
 	void releaseShaders();
+
+	void allocateResolutionIndependentResources();
+	void releaseResolutionIndependentResources();
+	void allocateResolutionDependentResources(uint newWidth, uint newHeight);
+	void releaseResolutionDependentResources();
 	
 	ViewCamera View;
 	bool mInitialisedMouse = false;
