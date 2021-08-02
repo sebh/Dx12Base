@@ -2,7 +2,7 @@
 
 ![dx12appscreenshot](https://github.com/sebh/Dx12Base/blob/master/DX12Application.png)
 
-A small DirectX 12 program I use to test shaders and techniques (so windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it. But it makes development of demos and prototypes easier for me at least.
+A small DirectX 12 program I use to test shaders and techniques (so windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it. But it makes development of demos and prototypes easier for me at least. The DX11 version of this is available [here](https://github.com/sebh/Dx11Base).
 
 Features are
 * Simple class helpers above DirectX 12.0 states and resources
