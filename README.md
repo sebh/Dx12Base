@@ -2,7 +2,7 @@
 
 ![dx12appscreenshot](https://github.com/sebh/Dx12Base/blob/master/DX12Application.png)
 
-A small DirectX 12 program I use to test shaders and techniques (so windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it. But it makes development easier for me at least.
+A small DirectX 12 program I use to test shaders and techniques (so windows only). It is meant to be simple and straightforward. Nothing fancy to see here: plenty of _engines_ already exist out there. This is just a thin abstraction over DX12 so it is still important to understand its core before using it. But it makes development of demos and prototypes easier for me at least.
 
 Features are
 * Simple class helpers above DirectX 12.0 states and resources
@@ -17,10 +17,11 @@ Features are
 
 When cloning the project the first time:
 1. Update submodules (run `git submodule update`)
-1. Open the solution 
-2. In Visual Studio, change the _Application_ project _Working Directory_ from `$(ProjectDir)` to `$(SolutionDir)`
-3. Make sure you select a windows SDK and a platform toolset you have locally on your computer for both projects
-4. Select _Application_ as the startup project, hit F5
+2. Open the solution 
+3. In Visual Studio, change the _Application_ project _Working Directory_ from `$(ProjectDir)` to `$(SolutionDir)`
+4. Make sure you select a windows SDK and a platform toolset you have locally on your computer for both projects
+5. Copy dxcompiler.dll and dxil.dll from your windows SDK into $(SolutionDir) (I really need to fix that...)
+6. Select _Application_ as the startup project, hit F5
 
 Submodules
 * [imgui](https://github.com/ocornut/imgui) V1.62 supported
@@ -30,12 +31,12 @@ Have fun and do not hesitate to send back suggestions.
 Seb
 
 
-PS on what could be improved:
-- Better upsampling code (not one upsampling resource per texture/buffer)
+PS: example of what could be improved:
+- Better uploading code (do not allocate one uploading resource per texture/buffer)
 - Delayed resource deletion when not needed anymore
-- better desriptor management (instead of a simple linear allocation without reuse of release elements)
-- 3D texture
-- Sparse texture
-- Bindless
-- Meshshader
+- Better desriptors management (instead of a simple linear allocation without reuse of released elements)
+- 3D textures
+- Sparse textures
+- Bindless textures
+- Mesh shaders
 - etc.
