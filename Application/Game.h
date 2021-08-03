@@ -75,6 +75,7 @@ private:
 
 	VertexShader* MeshVertexShader;
 	PixelShader*  MeshPixelShader;
+	PixelShader*  MeshVoxelisationPixelShader;
 
 	VertexShader* TriangleVertexShader;
 	PixelShader*  TrianglePixelShader;
@@ -99,6 +100,8 @@ private:
 	RenderTexture* HdrTexture;
 	RenderTexture* HdrTexture2;
 	RenderTexture* DepthTexture;
+
+	RenderTexture* VolumeTexture;
 
 	bool ShowRtResult = true;
 	bool ShowRtWithAnyHit = true;

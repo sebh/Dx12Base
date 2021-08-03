@@ -1436,6 +1436,7 @@ DXGI_FORMAT getTextureResourceFormat(D3D12_RESOURCE_FLAGS flags, DXGI_FORMAT for
 }
 
 D3D12_RESOURCE_DESC getRenderTextureResourceDesc(
+	D3D12_RESOURCE_DIMENSION Dimension,
 	unsigned int width, unsigned int height, unsigned int depth,
 	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags)
 {
@@ -1444,7 +1445,7 @@ D3D12_RESOURCE_DESC getRenderTextureResourceDesc(
 	const bool IsDepthTexture = getIsDepthTexture(flags);
 	DXGI_FORMAT ResourceFormat = getTextureResourceFormat(flags, format);
 
-	resourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	resourceDesc.Dimension = Dimension;
 	resourceDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 	resourceDesc.Width = width;
 	resourceDesc.Height = height;
@@ -1467,7 +1468,8 @@ RenderTexture::RenderTexture(
 	: RenderResource()
 	, mRTVHeap(nullptr)
 {
-	ATLASSERT(ClearValue==nullptr || (ClearValue->Format == format));
+	ATLASSERT(ClearValue == nullptr || (ClearValue->Format == format));
+	ATLASSERT(depth >= 1);
 	ID3D12Device* dev = g_dx12Device->getDevice();
 	D3D12_HEAP_PROPERTIES defaultHeap = getGpuOnlyMemoryHeapProperties();
 
@@ -1478,7 +1480,7 @@ RenderTexture::RenderTexture(
 	const bool IsDepthTexture = getIsDepthTexture(flags);
 	DXGI_FORMAT ViewFormat = getTextureViewFormat(flags, format);
 	DXGI_FORMAT ResourceFormat = getTextureResourceFormat(flags, format);
-	D3D12_RESOURCE_DESC resourceDesc = getRenderTextureResourceDesc(width, height, depth, format, flags);
+	D3D12_RESOURCE_DESC resourceDesc = getRenderTextureResourceDesc(dimension, width, height, depth, format, flags);
 
 	if (ClearValue)
 	{
@@ -1517,8 +1519,16 @@ RenderTexture::RenderTexture(
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = ViewFormat;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
+	if (dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D)
+	{
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = 1;
+	}
+	else
+	{
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
+		srvDesc.Texture3D.MipLevels = 1;
+	}
 	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
 	if (initData)
@@ -1531,18 +1541,20 @@ RenderTexture::RenderTexture(
 		uploadBufferDesc.Alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT;
 		uploadBufferDesc.Width = textureUploadBufferSize;
 		uploadBufferDesc.Height = uploadBufferDesc.DepthOrArraySize = uploadBufferDesc.MipLevels = 1;
+		uploadBufferDesc.MipLevels = 1;
 		uploadBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
 		uploadBufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 		uploadBufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 		uploadBufferDesc.SampleDesc.Count = 1;
 		uploadBufferDesc.SampleDesc.Quality = 0;
 		D3D12_HEAP_PROPERTIES uploadHeapProperties = getUploadMemoryHeapProperties();
-		dev->CreateCommittedResource(&uploadHeapProperties,
+		HRESULT hr = dev->CreateCommittedResource(&uploadHeapProperties,
 			D3D12_HEAP_FLAG_NONE,
 			&uploadBufferDesc,
 			D3D12_RESOURCE_STATE_GENERIC_READ,
 			nullptr,
 			IID_PPV_ARGS(&mUploadHeap));
+		ATLASSERT(hr == S_OK);
 		setDxDebugName(mUploadHeap, L"RenderTextureUploadHeap");
 
 #if 0
@@ -1609,7 +1621,7 @@ RenderTexture::RenderTexture(
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
 			uavDesc.Texture3D.MipSlice = 0;
 			uavDesc.Texture3D.FirstWSlice = 0;
-			uavDesc.Texture3D.WSize = 1;
+			uavDesc.Texture3D.WSize = depth;
 		}
 		else
 		{

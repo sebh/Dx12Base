@@ -102,6 +102,7 @@ void Game::loadShaders(bool ReloadMode)
 
 	RELOADVS(MeshVertexShader, L"Resources\\MeshShader.hlsl", L"MeshVertexShader", MyMacros);
 	RELOADPS(MeshPixelShader, L"Resources\\MeshShader.hlsl", L"MeshPixelShader", MyMacros);
+	RELOADPS(MeshVoxelisationPixelShader, L"Resources\\MeshShader.hlsl", L"MeshVoxelisationPixelShader", MyMacros);
 
 	RELOADVS(vertexShader, L"Resources\\TestShader.hlsl", L"ColorVertexShader", MyMacros);
 	RELOADPS(pixelShader, L"Resources\\TestShader.hlsl", L"ColorPixelShader", MyMacros);
@@ -138,6 +139,7 @@ void Game::releaseShaders()
 {
 	delete MeshVertexShader;
 	delete MeshPixelShader;
+	delete MeshVoxelisationPixelShader;
 
 	delete TriangleVertexShader;
 	delete TrianglePixelShader;
@@ -212,6 +214,13 @@ void Game::allocateResolutionIndependentResources()
 
 	texture = new RenderTexture(L"Resources\\texture.png");
 	texture2 = new RenderTexture(L"Resources\\BlueNoise64x64.png");
+
+	uint RowPitchByte = 256  * 4;
+	uint SlicePitchByte = 256 * 256 * 4;
+	void* VolInitData = new uint[256 * 256 * 256 * 4];
+	memset(VolInitData, 0, 256 * 256 * 256 * 4);
+	VolumeTexture = new RenderTexture(256, 256, 256, DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, nullptr, 0, 0, VolInitData);
+	delete[] VolInitData;
 
 	{
 		struct MyStruct
@@ -289,6 +298,8 @@ void Game::releaseResolutionIndependentResources()
 
 	delete texture;
 	delete texture2;
+
+	delete VolumeTexture;
 
 	//////////
 	////////// 
@@ -451,12 +462,14 @@ void Game::render()
 	viewport.Height = (float)HdrTexture->getD3D12Resource()->GetDesc().Height;
 	viewport.MinDepth = 0.0f;
 	viewport.MaxDepth = 1.0f;
+	commandList->RSSetViewports(1, &viewport); // set the viewports
+	// And scissor
 	D3D12_RECT scissorRect;
 	scissorRect.left = 0;
 	scissorRect.top = 0;
 	scissorRect.right = (LONG)HdrTexture->getD3D12Resource()->GetDesc().Width;
 	scissorRect.bottom = (LONG)HdrTexture->getD3D12Resource()->GetDesc().Height;
-	commandList->RSSetViewports(1, &viewport); // set the viewports
+	commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 
 	// Transition buffers for rasterisation
 	vertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
@@ -474,6 +487,7 @@ void Game::render()
 	float4x4 viewProjMatrix = XMMatrixMultiply(View.GetViewMatrix(), projMatrix);
 	float4 viewProjDet = XMMatrixDeterminant(viewProjMatrix);
 	float4x4 viewProjMatrixInv = XMMatrixInverse(&viewProjDet, viewProjMatrix);
+	float4x4 voxelisationViewProjMatrix = XMMatrixOrthographicOffCenterLH(-50.0f, 50.0f, -50.0f, 50.0f, -50.0f, 50.0f);
 
 	// Render a triangle without any buffers
 	{
@@ -496,7 +510,6 @@ void Game::render()
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		// Set other raster properties
-		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
 		commandList->IASetIndexBuffer(&indexBufferView);
 
@@ -525,7 +538,6 @@ void Game::render()
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		// Set other raster properties
-		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);					// set the vertex buffer (using the vertex buffer view)
 		commandList->IASetIndexBuffer(&indexBufferView);							// set the index buffer
@@ -538,6 +550,14 @@ void Game::render()
 		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	}
+
+	struct MeshConstantBuffer
+	{
+		float4x4 ViewProjectionMatrix;
+		float4x4 MeshWorldMatrix;
+		float	 VoxelisationVolumeDepth;
+		float    pad0[3];
+	};
 
 	// Render a mesh
 	{
@@ -566,7 +586,6 @@ void Game::render()
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		// Set other raster properties
-		commandList->RSSetScissorRects(1, &scissorRect);							// set the scissor rects
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
 
 		// Set mesh buffers
@@ -574,12 +593,6 @@ void Game::render()
 		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferView);
 		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferView);
 		commandList->IASetIndexBuffer(&SphereIndexBufferView);
-
-		struct MeshConstantBuffer
-		{
-			float4x4 ViewProjectionMatrix;
-			float4x4 MeshWorldMatrix;
-		};
 
 		// Mesh 0
 		{
@@ -615,6 +628,102 @@ void Game::render()
 			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
 			commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
 		}
+	}
+
+	// Voxelise meshes
+	{
+		SCOPED_GPU_TIMER(VoxeliseMesh, 100, 50, 255);
+
+		VolumeTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		SphereVertexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+		const uint SphereVertexBufferStrideInByte = sizeof(float) * 8;
+		D3D12_VERTEX_BUFFER_VIEW SphereVertexBufferView = SphereVertexBuffer->getVertexBufferView(SphereVertexBufferStrideInByte);
+		SphereIndexBuffer->resourceTransitionBarrier(D3D12_RESOURCE_STATE_INDEX_BUFFER);
+		D3D12_INDEX_BUFFER_VIEW SphereIndexBufferView = SphereIndexBuffer->getIndexBufferView(DXGI_FORMAT_R32_UINT);
+
+		// Set PSO and render targets
+		CachedRasterPsoDesc PSODesc;
+		PSODesc.mRootSign = &g_dx12Device->GetDefaultGraphicRootSignature();
+		PSODesc.mLayout = SphereVertexLayout;
+		PSODesc.mVS = MeshVertexShader;
+		PSODesc.mPS = MeshVoxelisationPixelShader;
+		PSODesc.mDepthStencilState = &getDepthStencilState_Disabled();
+		PSODesc.mRasterizerState = &getRasterizerState_DefaultNoCulling();
+		PSODesc.mBlendState = &getBlendState_Default();
+		PSODesc.mRenderTargetCount = 0;
+		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
+
+		// Set the volume scissor and viewport
+		D3D12_VIEWPORT VolumeViewport;
+		VolumeViewport.TopLeftX = 0;
+		VolumeViewport.TopLeftY = 0;
+		VolumeViewport.Width = (float)VolumeTexture->getD3D12Resource()->GetDesc().Width;
+		VolumeViewport.Height = (float)VolumeTexture->getD3D12Resource()->GetDesc().Height;
+		VolumeViewport.MinDepth = 0.0f;
+		VolumeViewport.MaxDepth = 1.0f;
+		commandList->RSSetViewports(1, &VolumeViewport);
+		D3D12_RECT VolumeScissorRect;
+		VolumeScissorRect.left = 0;
+		VolumeScissorRect.top = 0;
+		VolumeScissorRect.right = (LONG)VolumeTexture->getD3D12Resource()->GetDesc().Width;
+		VolumeScissorRect.bottom = (LONG)VolumeTexture->getD3D12Resource()->GetDesc().Height;
+		commandList->RSSetScissorRects(1, &VolumeScissorRect);
+
+		// Set other raster properties
+		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);	// set the primitive topology
+
+		// Set mesh buffers
+		commandList->IASetVertexBuffers(0, 1, &SphereVertexBufferView);
+		commandList->IASetVertexBuffers(1, 1, &SphereVertexBufferView);
+		commandList->IASetVertexBuffers(2, 1, &SphereVertexBufferView);
+		commandList->IASetIndexBuffer(&SphereIndexBufferView);
+
+		// Mesh 0
+		{
+			// Set constants
+			FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+			MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+			MeshCB->ViewProjectionMatrix = voxelisationViewProjMatrix;
+			MeshCB->MeshWorldMatrix = XMMatrixTranslation(0.0f, 0.0f, 0.0f);
+			MeshCB->VoxelisationVolumeDepth = (float)VolumeTexture->getD3D12Resource()->GetDesc().DepthOrArraySize;
+
+			// Set constants and constant buffer
+			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+			CallDescriptors.SetSRV(0, *texture);
+			CallDescriptors.SetUAV(0, *VolumeTexture);
+
+			// Set root signature data and draw
+			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
+			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
+			commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
+		}
+		// Mesh 1
+		{
+			// Set constants
+			FrameConstantBuffers::FrameConstantBuffer CB = ConstantBuffers.AllocateFrameConstantBuffer(sizeof(MeshConstantBuffer));
+			MeshConstantBuffer* MeshCB = (MeshConstantBuffer*)CB.getCPUMemory();
+			MeshCB->ViewProjectionMatrix = voxelisationViewProjMatrix;
+			MeshCB->MeshWorldMatrix = XMMatrixTranslation(10.0f, 10.0f, 10.0f);
+			MeshCB->VoxelisationVolumeDepth = (float)VolumeTexture->getD3D12Resource()->GetDesc().DepthOrArraySize;
+
+			// Set constants and constant buffer
+			DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
+			CallDescriptors.SetSRV(0, *texture2);
+			CallDescriptors.SetUAV(0, *VolumeTexture);
+
+			// Set root signature data and draw
+			commandList->SetGraphicsRootConstantBufferView(RootParameterIndex_CBV0, CB.getGPUVirtualAddress());
+			commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
+			commandList->DrawIndexedInstanced(SphereIndexCount, 1, 0, 0, 0);
+		}
+
+		VolumeTexture->resourceUAVBarrier();
+		VolumeTexture->resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		// Set the default scissor and viewport
+		commandList->RSSetScissorRects(1, &scissorRect);
+		commandList->RSSetViewports(1, &viewport);
 	}
 
 	// Transition buffer to compute or UAV
@@ -802,7 +911,6 @@ void Game::render()
 		g_CachedPSOManager->SetPipelineState(commandList, PSODesc);
 
 		// Set other raster properties
-		commandList->RSSetScissorRects(1, &scissorRect);
 		commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
 		commandList->IASetIndexBuffer(&indexBufferView);

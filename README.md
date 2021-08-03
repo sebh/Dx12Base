@@ -35,7 +35,8 @@ PS: example of what could be improved:
 - Better uploading code (do not allocate one uploading resource per texture/buffer)
 - Delayed resource deletion when not needed anymore
 - Better desriptors management (instead of a simple linear allocation without reuse of released elements)
-- 3D textures
+- Texture mip generation
+- Cubemap textures
 - Sparse textures
 - Bindless textures
 - Mesh shaders
