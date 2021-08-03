@@ -462,6 +462,11 @@ void Dx12Device::updateSwapChain(bool bRecreate, uint newWidth, uint newHeight, 
 		ATLASSERT(hr == S_OK);
 
 		mFrameIndex = mSwapchain->GetCurrentBackBufferIndex();
+
+		// We also clear the pso cache (unused now thanks to the cpu/gpu sync above) because pso contains allocated render targets,
+		// which makes them highy dependent on resolution. As such, a lot of them would then be unused after a change of resolution.
+		CachedPSOManager::shutdown();
+		CachedPSOManager::initialise();
 	}
 
 	// Create a RTV for each back buffer

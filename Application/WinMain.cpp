@@ -13,6 +13,8 @@ bool ImguiTopLayerProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	return ImGui::GetIO().WantCaptureKeyboard || ImGui::GetIO().WantCaptureMouse;
 }
 
+static uint PreviousResolutionWidth = 0;
+static uint PreviousResolutionHeight = 0;
 
 // the entry point for any Windows program
 int WINAPI WinMain(
@@ -42,6 +44,8 @@ int WINAPI WinMain(
 	win.showWindow();
 
 	// Create the d3d device
+	PreviousResolutionWidth = desiredClientWidth;
+	PreviousResolutionHeight = desiredClientHeight;
 	Dx12Device::initialise(win.getHwnd(), desiredClientWidth, desiredClientHeight);
 	CachedPSOManager::initialise();
 
@@ -57,12 +61,19 @@ int WINAPI WinMain(
 		uint newWidth = LOWORD(lParam);
 		uint newHeight = HIWORD(lParam);
 
-	//	ImGui_ImplDX12_InvalidateDeviceObjects();	// This is in fact wrong: sone imgui resource can still be in flight in a commandlist. Also this is only needed if we recreate the device.
-		const bool bRecreate = true;
-		g_dx12Device->updateSwapChain(bRecreate, newWidth, newHeight);
-	//	ImGui_ImplDX12_CreateDeviceObjects();
+		// When moving the window around, we can still get a size callback. So we check for an actual change of resolution.
+		if (newWidth != PreviousResolutionWidth || newHeight != PreviousResolutionHeight)
+		{
+		//	ImGui_ImplDX12_InvalidateDeviceObjects();	// This is in fact wrong: sone imgui resource can still be in flight in a commandlist. Also this is only needed if we recreate the device.
+			const bool bRecreate = true;
+			g_dx12Device->updateSwapChain(bRecreate, newWidth, newHeight);
+		//	ImGui_ImplDX12_CreateDeviceObjects();
 
-		game.reallocateResolutionDependent(newWidth, newHeight);
+			game.reallocateResolutionDependent(newWidth, newHeight);
+
+			PreviousResolutionWidth  = newWidth;
+			PreviousResolutionHeight = newHeight;
+		}
 	};
 	win.setWindowResizedCallback(windowResizedCallback);
 
