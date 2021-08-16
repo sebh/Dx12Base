@@ -981,9 +981,8 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetSRV(uint Register, RenderResour
 	ATLASSERT(Resource.getSRVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
-	Destination.ptr += mUsedSRVs * g_dx12Device->getCbSrvUavDescriptorSize();
+	Destination.ptr += Register * g_dx12Device->getCbSrvUavDescriptorSize();
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	mUsedSRVs++;
 }
 void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(uint Register, RenderResource& Resource)
 {
@@ -991,9 +990,8 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(uint Register, RenderResour
 	ATLASSERT(Resource.getUAVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
 
 	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
-	Destination.ptr += (mRootSig->getRootDescriptorTable0SRVCount() + mUsedUAVs) * g_dx12Device->getCbSrvUavDescriptorSize();
+	Destination.ptr += (mRootSig->getRootDescriptorTable0SRVCount() + Register) * g_dx12Device->getCbSrvUavDescriptorSize();
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	mUsedSRVs++;
 }
 
 

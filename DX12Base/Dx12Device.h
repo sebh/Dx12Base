@@ -415,12 +415,6 @@ public:
 		const RootSignature* mRootSig;
 		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
 		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
-
-		uint mUsedSRVs = 0;
-		uint mUsedUAVs = 0;
-
-		uint mSRVOffset = 0;
-		uint mUAVOffset = 0;
 	};
 
 	Call AllocateCall(const RootSignature& RootSig);
