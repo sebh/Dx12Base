@@ -531,6 +531,7 @@ D3D12_HEAP_PROPERTIES getUploadMemoryHeapProperties();
 D3D12_HEAP_PROPERTIES getReadbackMemoryHeapProperties();
 
 D3D12_RESOURCE_DESC getRenderTextureResourceDesc(
+	D3D12_RESOURCE_DIMENSION Dimension,
 	unsigned int width, unsigned int height, unsigned int depth,
 	DXGI_FORMAT format, D3D12_RESOURCE_FLAGS flags);
 

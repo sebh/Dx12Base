@@ -59,7 +59,12 @@ RenderTextureDynamic::RenderTextureDynamic(
 	D3D12_RESOURCE_FLAGS flags)
 	: mRenderTexture(width, height, depth, format, flags)
 {
-	D3D12_RESOURCE_DESC resourceDesc = getRenderTextureResourceDesc(width, height, depth, format, flags);
+	// TODO: dimension should be fetched from mRenderTexture
+	D3D12_RESOURCE_DIMENSION dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	if (depth > 1)
+		dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+
+	D3D12_RESOURCE_DESC resourceDesc = getRenderTextureResourceDesc(D3D12_RESOURCE_DIMENSION_TEXTURE2D, width, height, depth, format, flags);
 
 	uint64 textureUploadBufferSize = 0;
 	g_dx12Device->getDevice()->GetCopyableFootprints(&resourceDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
