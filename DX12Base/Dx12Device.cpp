@@ -971,6 +971,26 @@ DispatchDrawCallCpuDescriptorHeap::Call DispatchDrawCallCpuDescriptorHeap::Alloc
 	return NewCall;
 }
 
+DispatchDrawCallCpuDescriptorHeap::SRVsDescriptorArray DispatchDrawCallCpuDescriptorHeap::AllocateSRVsDescriptorArray(uint DescriptorCount)
+{
+	const uint DescriptorCountToAllocate = DescriptorCount;
+	ATLASSERT(mCpuDescriptorHeap != nullptr);
+	ATLASSERT((mFrameDescriptorCount + DescriptorCount) <= mMaxFrameDescriptorCount);
+
+	SRVsDescriptorArray NewDescriptorArray;
+	NewDescriptorArray.mDescriptorCountAllocated = DescriptorCount;
+
+	NewDescriptorArray.mCPUHandle = mCpuDescriptorHeap->getCPUHandle();
+	NewDescriptorArray.mCPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+
+	NewDescriptorArray.mGPUHandle = g_dx12Device->getFrameDispatchDrawCallGpuDescriptorHeap()->getGPUHandle();
+	NewDescriptorArray.mGPUHandle.ptr += mFrameDescriptorCount * g_dx12Device->getCbSrvUavDescriptorSize();
+
+	mFrameDescriptorCount += DescriptorCountToAllocate;
+
+	return NewDescriptorArray;
+}
+
 
 DispatchDrawCallCpuDescriptorHeap::Call::Call()
 {
@@ -994,6 +1014,18 @@ void DispatchDrawCallCpuDescriptorHeap::Call::SetUAV(uint Register, RenderResour
 	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getUAVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
+DispatchDrawCallCpuDescriptorHeap::SRVsDescriptorArray::SRVsDescriptorArray()
+{
+}
+void DispatchDrawCallCpuDescriptorHeap::SRVsDescriptorArray::SetSRV(uint RegisterOffsetFromBase, RenderResource& Resource)
+{
+	ATLASSERT(RegisterOffsetFromBase >= 0 && RegisterOffsetFromBase < mDescriptorCountAllocated);
+	ATLASSERT(Resource.getSRVCPUHandle().ptr != INVALID_DESCRIPTOR_HANDLE);
+
+	D3D12_CPU_DESCRIPTOR_HANDLE Destination = mCPUHandle;
+	Destination.ptr += RegisterOffsetFromBase * g_dx12Device->getCbSrvUavDescriptorSize();
+	g_dx12Device->getDevice()->CopyDescriptorsSimple(1, Destination, Resource.getSRVCPUHandle(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+}
 
 
 FrameConstantBuffers::FrameConstantBuffers(uint64 SizeByte)
@@ -1813,18 +1845,11 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	HRESULT hr;
 	ID3D12Device* dev = g_dx12Device->getDevice();
 
-	// https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
-	// A root signature can be up to 64 DWORD
-	// if ia is used, only 63 are available
-	// Descriptor tables: 1 DWORD
-	// Root constants   : 1 DWORD
-	// Root descriptors : 2 DWORD		// CBV, SRV, UAV, restiction on what those can be: see https://docs.microsoft.com/en-us/windows/win32/direct3d12/using-descriptors-directly-in-the-root-signature
-
-
 	// ROOT DESCRIPTORS
 	// Current DWORD layout for graphics and compute is
 	//  0 - 1 : root descriptor		constant buffer			b0 only
 	//  2 - 2 : descriptor table	SRV/UAV					t0 - t7 and u0 - u3, no UAVs for local root signature
+	//  3 - 3 : descriptor table	Bindless SRVs			t64- t127 for now, see ROOT_BINDLESS_SRV_COUNT
 	//
 	//	Static samplers aside
 
@@ -1840,41 +1865,73 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	// Otherwise, RT and regular root signatures have the same footprint.
 	const uint RegisterSpace = InRootSignatureType == RootSignatureType_Global_RT ? 1 : 0;
 
-	// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
-	// We only allocate a slot a single constant buffer
-	D3D12_ROOT_PARAMETER paramCBV0;
-	paramCBV0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-	paramCBV0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	paramCBV0.Descriptor.RegisterSpace = RegisterSpace;
-	paramCBV0.Descriptor.ShaderRegister = 0;	// b0
-	rootParameters.push_back(paramCBV0);
-	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_CBV0);
-	mRootSignatureDWordUsed += 2;				// Root descriptor
+	{
+		ATLASSERT(rootParameters.size() == RootParameterIndex_CBV0);
 
-	// SRV/UAV simple descriptor table, dx11 style
-	D3D12_DESCRIPTOR_RANGE  descriptorTable0Ranges[2];
-	descriptorTable0Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	descriptorTable0Ranges[0].BaseShaderRegister = 0;
-	descriptorTable0Ranges[0].NumDescriptors = mDescriptorTable0SRVCount;
-	descriptorTable0Ranges[0].RegisterSpace = RegisterSpace;
-	descriptorTable0Ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-	descriptorTable0Ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-	descriptorTable0Ranges[1].BaseShaderRegister = 0;
-	descriptorTable0Ranges[1].NumDescriptors = mDescriptorTable0UAVCount;
-	descriptorTable0Ranges[1].RegisterSpace = RegisterSpace;
-	descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
+		// We only allocate a single slot a single constant buffer
+		D3D12_ROOT_PARAMETER paramCBV0;
+		paramCBV0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+		paramCBV0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		paramCBV0.Descriptor.RegisterSpace = RegisterSpace;
+		paramCBV0.Descriptor.ShaderRegister = 0;	// b0
+		rootParameters.push_back(paramCBV0);
+		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_CBV0);
+		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTOR_DWORD_COUNT;
+	}
 
-	D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable0;
-	descriptorTable0.NumDescriptorRanges = DescriptorTable0RangeCount;
-	descriptorTable0.pDescriptorRanges = &descriptorTable0Ranges[0];
+	{
+		ATLASSERT(rootParameters.size() == RootParameterIndex_DescriptorTable0);
 
-	D3D12_ROOT_PARAMETER paramDescriptorTable0;
-	paramDescriptorTable0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	paramDescriptorTable0.DescriptorTable = descriptorTable0;
-	paramDescriptorTable0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	rootParameters.push_back(paramDescriptorTable0);
-	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTable0);
-	mRootSignatureDWordUsed += 1;				// Descriptor table
+		// SRV/UAV simple descriptor table, dx11 style
+		D3D12_DESCRIPTOR_RANGE  descriptorTable0Ranges[2];
+		descriptorTable0Ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+		descriptorTable0Ranges[0].BaseShaderRegister = 0;
+		descriptorTable0Ranges[0].NumDescriptors = mDescriptorTable0SRVCount;
+		descriptorTable0Ranges[0].RegisterSpace = RegisterSpace;
+		descriptorTable0Ranges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+		descriptorTable0Ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+		descriptorTable0Ranges[1].BaseShaderRegister = 0;
+		descriptorTable0Ranges[1].NumDescriptors = mDescriptorTable0UAVCount;
+		descriptorTable0Ranges[1].RegisterSpace = RegisterSpace;
+		descriptorTable0Ranges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTable0;
+		descriptorTable0.NumDescriptorRanges = DescriptorTable0RangeCount;
+		descriptorTable0.pDescriptorRanges = &descriptorTable0Ranges[0];
+
+		D3D12_ROOT_PARAMETER paramDescriptorTable0;
+		paramDescriptorTable0.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		paramDescriptorTable0.DescriptorTable = descriptorTable0;
+		paramDescriptorTable0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters.push_back(paramDescriptorTable0);
+		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTable0);
+		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT;
+	}
+
+	{
+		ATLASSERT(rootParameters.size() == RootParameterIndex_BindlessSRVs);
+
+		// Now adding an optional slot for a single array of bindless SRV
+		D3D12_DESCRIPTOR_RANGE  descriptorTableBindlessSRVsRanges[1];
+		descriptorTableBindlessSRVsRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;		// Dedicated to SRVs
+		descriptorTableBindlessSRVsRanges[0].BaseShaderRegister = ROOT_BINDLESS_SRV_START;
+		descriptorTableBindlessSRVsRanges[0].NumDescriptors = ROOT_BINDLESS_SRV_COUNT;	
+		descriptorTableBindlessSRVsRanges[0].RegisterSpace = RegisterSpace;
+		descriptorTableBindlessSRVsRanges[0].OffsetInDescriptorsFromTableStart = 0;
+
+		D3D12_ROOT_DESCRIPTOR_TABLE descriptorTableBindlessSRVs;
+		descriptorTableBindlessSRVs.NumDescriptorRanges = 1;
+		descriptorTableBindlessSRVs.pDescriptorRanges = &descriptorTableBindlessSRVsRanges[0];
+
+		D3D12_ROOT_PARAMETER paramDescriptorTableBindlessSRVs;
+		paramDescriptorTableBindlessSRVs.ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+		paramDescriptorTableBindlessSRVs.DescriptorTable = descriptorTableBindlessSRVs;
+		paramDescriptorTableBindlessSRVs.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+		rootParameters.push_back(paramDescriptorTableBindlessSRVs);
+		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTableBindlessSRVs);
+		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT;
+	}
 
 	// Check bound correctness
 	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_Total);

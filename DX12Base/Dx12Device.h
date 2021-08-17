@@ -419,6 +419,25 @@ public:
 
 	Call AllocateCall(const RootSignature& RootSig);
 
+	struct SRVsDescriptorArray
+	{
+		SRVsDescriptorArray();
+
+		void SetSRV(uint RegisterOffsetFromBase, RenderResource& Resource);
+
+		D3D12_GPU_DESCRIPTOR_HANDLE getRootDescriptorTableGpuHandle() { return mGPUHandle; }
+
+	private:
+		friend class DispatchDrawCallCpuDescriptorHeap;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE mCPUHandle;	// From the upload heap
+		D3D12_GPU_DESCRIPTOR_HANDLE mGPUHandle; // From the GPU heap
+
+		uint mDescriptorCountAllocated = 0;
+	};
+
+	SRVsDescriptorArray AllocateSRVsDescriptorArray(uint DescriptorCount);
+
 private:
 	DispatchDrawCallCpuDescriptorHeap();
 	DispatchDrawCallCpuDescriptorHeap(DispatchDrawCallCpuDescriptorHeap&);
@@ -601,24 +620,40 @@ enum RootSignatureType
 // Static assignement of root parameters
 enum RootParameterIndex
 {
-	RootParameterIndex_CBV0 = 0,
-	RootParameterIndex_DescriptorTable0 = 1,
-	RootParameterIndex_Count = 2
+	RootParameterIndex_CBV0 = 0,					// Main constanve buffer
+	RootParameterIndex_DescriptorTable0 = 1,		// Main SRVs/UAVs
+	RootParameterIndex_BindlessSRVs = 2,			// Bindless texture array 
+	RootParameterIndex_Count = 3
 };
+
+// This is the default bindless texture SRV count for the dedicated descriptor table allocated in the root parameters.
+// It can be changed and you need your shaders to be updated accordingly.
+// This is also just an implementation exemple.
+#define ROOT_BINDLESS_SRV_START	64
+#define ROOT_BINDLESS_SRV_COUNT	64
 
 
 // https://docs.microsoft.com/en-us/windows/win32/direct3d12/root-signature-limits
+// A root signature can be up to 64 DWORD
+// if ia is used, only 63 are available
+// Descriptor tables: 1 DWORD
+// Root constants   : 1 DWORD
+// Root descriptors : 2 DWORD		// CBV, SRV, UAV, restiction on what those can be: see https://docs.microsoft.com/en-us/windows/win32/direct3d12/using-descriptors-directly-in-the-root-signature
 #define DWORD_BYTE_COUNT 4
-#define ROOTSIG_CONSTANT_DWORD_COUNT		(1*DWORD_BYTE_COUNT)
-#define ROOTSIG_DESCRIPTOR_DWORD_COUNT		(2*DWORD_BYTE_COUNT)	// restiction on what those can be: see https://docs.microsoft.com/en-us/windows/win32/direct3d12/using-descriptors-directly-in-the-root-signature
-#define ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT	(1*DWORD_BYTE_COUNT) 
+#define ROOTSIG_CONSTANT_DWORD_COUNT				(1)
+#define ROOTSIG_DESCRIPTOR_DWORD_COUNT				(2)
+#define ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT			(1) 
+#define ROOTSIG_CONSTANT_DWORD_BYTE_COUNT			(ROOTSIG_CONSTANT_DWORD_COUNT*DWORD_BYTE_COUNT)
+#define ROOTSIG_DESCRIPTOR_DWORD_BYTE_COUNT			(ROOTSIG_DESCRIPTOR_DWORD_COUNT*DWORD_BYTE_COUNT)
+#define ROOTSIG_DESCRIPTORTABLE_DWORD_BYTE_COUNT	(ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT*DWORD_BYTE_COUNT) 
 
 // Static assignement of root parameters
 enum RootParameterByteOffset
 {
-	RootParameterByteOffset_CBV0				= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 0),
-	RootParameterByteOffset_DescriptorTable0	= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 0),
-	RootParameterByteOffset_Total				= (ROOTSIG_CONSTANT_DWORD_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT * 1)
+	RootParameterByteOffset_CBV0						= (ROOTSIG_CONSTANT_DWORD_BYTE_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_BYTE_COUNT * 0 + ROOTSIG_DESCRIPTORTABLE_DWORD_BYTE_COUNT * 0),
+	RootParameterByteOffset_DescriptorTable0			= (ROOTSIG_CONSTANT_DWORD_BYTE_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_BYTE_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_BYTE_COUNT * 0),
+	RootParameterByteOffset_DescriptorTableBindlessSRVs	= (ROOTSIG_CONSTANT_DWORD_BYTE_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_BYTE_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_BYTE_COUNT * 1),
+	RootParameterByteOffset_Total						= (ROOTSIG_CONSTANT_DWORD_BYTE_COUNT * 0 + ROOTSIG_DESCRIPTOR_DWORD_BYTE_COUNT * 1 + ROOTSIG_DESCRIPTORTABLE_DWORD_BYTE_COUNT * 2)
 };
 
 class RootSignature

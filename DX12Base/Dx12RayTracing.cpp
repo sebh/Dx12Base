@@ -742,7 +742,10 @@ void DispatchRaysCallSBTHeapCPU::AllocatedSBTMemory::setHitGroupLocalRootSignatu
 		memcpy(SBT + RootParameterByteOffset_CBV0,				ParamBytes, RootParameterByteOffset_DescriptorTable0 - RootParameterByteOffset_CBV0);
 		break;
 	case RootParameterByteOffset_DescriptorTable0:
-		memcpy(SBT + RootParameterByteOffset_DescriptorTable0,	ParamBytes, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTable0);
+		memcpy(SBT + RootParameterByteOffset_DescriptorTable0, ParamBytes, RootParameterByteOffset_DescriptorTableBindlessSRVs - RootParameterByteOffset_DescriptorTable0);
+		break;
+	case RootParameterByteOffset_DescriptorTableBindlessSRVs:
+		memcpy(SBT + RootParameterByteOffset_DescriptorTableBindlessSRVs, ParamBytes, RootParameterByteOffset_Total - RootParameterByteOffset_DescriptorTableBindlessSRVs);
 		break;
 	default:
 		ATLASSERT(false); // unknown parameter

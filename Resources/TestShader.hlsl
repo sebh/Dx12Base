@@ -37,8 +37,19 @@ VertexOutput ColorVertexShader(VertexInput input)
 //StructuredBuffer<float4> buffer : register(t0);
 Texture2D texture0 : register(t0);
 
+Texture2D<float4> BindlessTextures[ROOT_BINDLESS_SRV_COUNT] : register(ROOT_BINDLESS_SRV_START_REGISTER);
+
 float4 ColorPixelShader(VertexOutput input) : SV_TARGET
 {
+	const uint TileCountXY = 8;
+	const uint TilePixelSize = 32;
+	if (ROOT_BINDLESS_SRV_COUNT==64 && 
+		all(input.position.xy >= 0) && all(input.position.xy < TileCountXY * TilePixelSize))
+	{
+		uint textureIndex = (uint(input.position.y) / TilePixelSize) * TileCountXY + uint(input.position.x) / TilePixelSize;
+		return BindlessTextures[NonUniformResourceIndex(textureIndex)].Sample(SamplerLinearRepeat, float2(float2(input.position.xy) / float(TilePixelSize)));
+	}
+
 	return texture0.Sample(SamplerLinearClamp, float2(input.uv.x, 1.0f - input.uv.y));
 }
 

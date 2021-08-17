@@ -38,6 +38,5 @@ PS: example of what could be improved:
 - Texture mip generation
 - Cubemap textures
 - Sparse textures
-- Bindless textures
 - Mesh shaders
 - etc.

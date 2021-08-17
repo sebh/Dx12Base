@@ -96,9 +96,16 @@ void Game::loadShaders(bool ReloadMode)
 		else \
 			Shader = new ComputeShader(filename, entryFunction, &macros);
 
+	char ROOT_BINDLESS_SRV_STARTStr[16];
+	char ROOT_BINDLESS_SRV_COUNTStr[16];
+	sprintf_s(ROOT_BINDLESS_SRV_STARTStr, "t%u", ROOT_BINDLESS_SRV_START);
+	sprintf_s(ROOT_BINDLESS_SRV_COUNTStr, "%u",  ROOT_BINDLESS_SRV_COUNT);
+	std::wstring ROOT_BINDLESS_SRV_STARTWStr(&ROOT_BINDLESS_SRV_STARTStr[0], &ROOT_BINDLESS_SRV_STARTStr[0 + strnlen_s(ROOT_BINDLESS_SRV_STARTStr, 16)]);
+	std::wstring ROOT_BINDLESS_SRV_COUNTWStr(&ROOT_BINDLESS_SRV_COUNTStr[0], &ROOT_BINDLESS_SRV_COUNTStr[0 + strnlen_s(ROOT_BINDLESS_SRV_COUNTStr, 16)]);
+
 	Macros MyMacros;
-	MyMacros.push_back({ L"TESTSEB1", L"1" });
-	MyMacros.push_back({ L"TESTSEB2", L"2" });
+	MyMacros.push_back({ L"ROOT_BINDLESS_SRV_START_REGISTER", ROOT_BINDLESS_SRV_STARTWStr });
+	MyMacros.push_back({ L"ROOT_BINDLESS_SRV_COUNT", ROOT_BINDLESS_SRV_COUNTWStr });
 
 	RELOADVS(MeshVertexShader, L"Resources\\MeshShader.hlsl", L"MeshVertexShader", MyMacros);
 	RELOADPS(MeshPixelShader, L"Resources\\MeshShader.hlsl", L"MeshPixelShader", MyMacros);
@@ -546,8 +553,15 @@ void Game::render()
 		DispatchDrawCallCpuDescriptorHeap::Call CallDescriptors = DrawDispatchCallCpuDescriptorHeap.AllocateCall(g_dx12Device->GetDefaultGraphicRootSignature());
 		CallDescriptors.SetSRV(0, *texture);
 
+		DispatchDrawCallCpuDescriptorHeap::SRVsDescriptorArray SRVsDescriptorArray = DrawDispatchCallCpuDescriptorHeap.AllocateSRVsDescriptorArray(ROOT_BINDLESS_SRV_COUNT);
+		for (int i = 0; i < ROOT_BINDLESS_SRV_COUNT; ++i)
+		{
+			SRVsDescriptorArray.SetSRV(i, (i%16 < 8 ? i%2 : (1-i%2)) ? *texture : *texture2);
+		}
+
 		// Set root signature data and draw
 		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_DescriptorTable0, CallDescriptors.getRootDescriptorTableGpuHandle());
+		commandList->SetGraphicsRootDescriptorTable(RootParameterIndex_BindlessSRVs, SRVsDescriptorArray.getRootDescriptorTableGpuHandle());
 		commandList->DrawIndexedInstanced(3, 1, 0, 0, 0);
 	}
 
