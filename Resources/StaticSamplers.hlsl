@@ -4,7 +4,10 @@
 
 
 
-SamplerState SamplerPointClamp : register(s0);
-SamplerState SamplerLinearClamp : register(s1);
+SamplerState SamplerPointClamp		: register(s0);
+SamplerState SamplerLinearClamp		: register(s1);
+
+SamplerState SamplerPointRepeat		: register(s2);
+SamplerState SamplerLinearRepeat	: register(s3);
 
 
