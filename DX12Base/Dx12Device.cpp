@@ -1865,7 +1865,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	// Otherwise, RT and regular root signatures have the same footprint.
 	const uint RegisterSpace = InRootSignatureType == RootSignatureType_Global_RT ? 1 : 0;
 
-	{
+//	{
 		ATLASSERT(rootParameters.size() == RootParameterIndex_CBV0);
 
 		// Ase described above, SRV and UAVs are stored in descriptor tables (texture SRV must be set in tables for instance)
@@ -1878,9 +1878,9 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		rootParameters.push_back(paramCBV0);
 		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_CBV0);
 		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTOR_DWORD_COUNT;
-	}
+//	}
 
-	{
+//	{
 		ATLASSERT(rootParameters.size() == RootParameterIndex_DescriptorTable0);
 
 		// SRV/UAV simple descriptor table, dx11 style
@@ -1907,9 +1907,9 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		rootParameters.push_back(paramDescriptorTable0);
 		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTable0);
 		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT;
-	}
+//	}
 
-	{
+//	{
 		ATLASSERT(rootParameters.size() == RootParameterIndex_BindlessSRVs);
 
 		// Now adding an optional slot for a single array of bindless SRV
@@ -1931,7 +1931,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		rootParameters.push_back(paramDescriptorTableBindlessSRVs);
 		ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_DescriptorTableBindlessSRVs);
 		mRootSignatureDWordUsed += ROOTSIG_DESCRIPTORTABLE_DWORD_COUNT;
-	}
+//	}
 
 	// Check bound correctness
 	ATLASSERT(mRootSignatureDWordUsed * DWORD_BYTE_COUNT == RootParameterByteOffset_Total);
@@ -2016,7 +2016,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Global_IA ? D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT	: D3D12_ROOT_SIGNATURE_FLAG_NONE;
 	rootSignDesc.Flags = InRootSignatureType == RootSignatureType_Local_RT	? D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE				: rootSignDesc.Flags;
 
-	ID3DBlob* rootSignBlob;
+	ID3DBlob* rootSignBlob = nullptr;
 	hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, &rootSignBlob, nullptr);
 	ATLENSURE(hr == S_OK);
 	hr = dev->CreateRootSignature(0, rootSignBlob->GetBufferPointer(), rootSignBlob->GetBufferSize(), IID_PPV_ARGS(&mRootSignature));
