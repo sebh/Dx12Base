@@ -24,7 +24,7 @@ When cloning the project the first time:
 6. Select _Application_ as the startup project, hit F5
 
 Submodules
-* [imgui](https://github.com/ocornut/imgui) V1.62 supported
+* [imgui](https://github.com/ocornut/imgui) V1.85 supported (change the submodule head to the commit corresponding to the version)
 
 Have fun and do not hesitate to send back suggestions.
 

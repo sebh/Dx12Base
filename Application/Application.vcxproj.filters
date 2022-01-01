@@ -35,14 +35,17 @@
     <ClCompile Include="..\imgui\imgui_widgets.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
-    <ClCompile Include="..\imgui\examples\imgui_impl_dx12.cpp">
-      <Filter>imgui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\imgui\examples\imgui_impl_win32.cpp">
-      <Filter>imgui</Filter>
-    </ClCompile>
     <ClCompile Include="WinImgui.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imgui\backends\imgui_impl_dx12.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\imgui\imgui_tables.cpp">
+      <Filter>imgui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -67,17 +70,17 @@
     <ClInclude Include="..\imgui\imstb_truetype.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="..\imgui\examples\imgui_impl_dx12.h">
-      <Filter>imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\imgui\examples\imgui_impl_win32.h">
-      <Filter>imgui</Filter>
-    </ClInclude>
     <ClInclude Include="WinImgui.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="OBJ_Loader.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\imgui\backends\imgui_impl_dx12.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\imgui\backends\imgui_impl_win32.h">
+      <Filter>imgui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
