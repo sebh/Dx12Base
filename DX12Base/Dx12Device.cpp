@@ -1951,7 +1951,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
-		sampler.ShaderRegister = rootSamplers.size();
+		sampler.ShaderRegister = (UINT)rootSamplers.size();
 		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
@@ -1968,7 +1968,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
-		sampler.ShaderRegister = rootSamplers.size();
+		sampler.ShaderRegister = (UINT)rootSamplers.size();
 		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
@@ -1985,7 +1985,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
-		sampler.ShaderRegister = rootSamplers.size();
+		sampler.ShaderRegister = (UINT)rootSamplers.size();
 		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
@@ -2002,7 +2002,7 @@ RootSignature::RootSignature(RootSignatureType InRootSignatureType)
 		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
 		sampler.MinLOD = 0.0f;
 		sampler.MaxLOD = D3D12_FLOAT32_MAX;
-		sampler.ShaderRegister = rootSamplers.size();
+		sampler.ShaderRegister = (UINT)rootSamplers.size();
 		sampler.RegisterSpace = RegisterSpace;
 		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 		rootSamplers.push_back(sampler);
