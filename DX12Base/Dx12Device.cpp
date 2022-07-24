@@ -1726,8 +1726,15 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 
 	DirectX::TextureData texData(subresource, decodedData);
 
+#define MIPMAP_SUPPORTED 0
+#if MIPMAP_SUPPORTED==0
 	HRESULT hr = DirectX::LoadWICTextureFromFile(szFileName, texData);
 	ATLASSERT(hr == S_OK);
+#else
+	HRESULT hr = DirectX::LoadWICTextureFromFile(szFileName, texData, 0, WIC_LOADER_MIP_AUTOGEN);
+	ATLASSERT(hr == S_OK);
+	// We need to generate a list of D3D12_SUBRESOURCE_DATA for each mip in order to feed UpdateSubresources
+#endif
 
 	D3D12_RESOURCE_DESC textureDesc;
 	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -1760,11 +1767,14 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.Format = texData.format;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MipLevels = texData.mipCount;
 	dev->CreateShaderResourceView(mResource, &srvDesc, mSRVCPUHandle);
 
+	const UINT FirstSubResource = 0;
+	const UINT NumSubResources = texData.mipCount;
+
 	uint64 textureUploadBufferSize = 0;
-	dev->GetCopyableFootprints(&textureDesc, 0, 1, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
+	dev->GetCopyableFootprints(&textureDesc, FirstSubResource, NumSubResources, 0, nullptr, nullptr, nullptr, &textureUploadBufferSize);
 
 	D3D12_RESOURCE_DESC uploadBufferDesc;							// TODO upload buffer desc
 	uploadBufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -1812,13 +1822,13 @@ RenderTexture::RenderTexture(const wchar_t* szFileName, D3D12_RESOURCE_FLAGS fla
 	
 #else
 	// using helper
-	UpdateSubresources<1>(
+	UpdateSubresources<16>(
 		commandList,
 		mResource,
 		mUploadHeap,
 		0,
-		0,
-		1,
+		FirstSubResource,
+		NumSubResources,
 		&texData.subresource);
 
 	resourceTransitionBarrier(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
